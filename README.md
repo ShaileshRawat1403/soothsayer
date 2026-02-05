@@ -1,0 +1,276 @@
+# The Soothsayer
+
+> Enterprise AI Workspace Platform for Planning, Execution, Analysis, and Automation
+
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue.svg)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-18.2-61DAFB.svg)](https://reactjs.org/)
+[![NestJS](https://img.shields.io/badge/NestJS-10.0-E0234E.svg)](https://nestjs.com/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+## Overview
+
+The Soothsayer is a comprehensive enterprise AI workspace that enables teams to leverage AI for planning, execution, analysis, and automation through multiple interfaces:
+
+- **🤖 Conversational AI Assistant** - Chat with context-aware AI personas
+- **💻 Secure Terminal Runner** - Execute commands with policy enforcement
+- **🔄 Visual Workflow Builder** - Create automated workflows with drag-and-drop
+- **🎭 Persona Engine** - Role-based AI behavior customization
+- **📊 Analytics Dashboard** - Track usage, performance, and audit logs
+- **🛡️ Governance & Security** - RBAC, approval gates, and audit trails
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        Frontend (React)                          │
+│  ┌──────────┬──────────┬──────────┬──────────┬──────────┐      │
+│  │Dashboard │  Chat    │ Terminal │ Workflow │ Analytics│      │
+│  └──────────┴──────────┴──────────┴──────────┴──────────┘      │
+└─────────────────────────┬───────────────────────────────────────┘
+                          │ REST / WebSocket
+┌─────────────────────────┴───────────────────────────────────────┐
+│                      Backend (NestJS)                            │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ Auth │ Users │ Workspaces │ Personas │ Chat │ Commands │   │
+│  │ Workflows │ Tools │ Policies │ Analytics │ Files       │   │
+│  └──────────────────────────────────────────────────────────┘   │
+└──────────┬────────────────────────────────────┬─────────────────┘
+           │                                    │
+┌──────────┴──────────┐            ┌───────────┴──────────┐
+│    PostgreSQL       │            │       Redis          │
+│   (Primary Data)    │            │  (Cache/Queue)       │
+└─────────────────────┘            └──────────────────────┘
+                                              │
+                              ┌───────────────┴───────────────┐
+                              │        Worker (BullMQ)        │
+                              │ Commands │ Workflows │ AI     │
+                              └───────────────────────────────┘
+```
+
+## Tech Stack
+
+### Frontend
+- **React 18** + TypeScript + Vite
+- **Tailwind CSS** + Radix UI + Custom Design System
+- **Zustand** (State) + TanStack Query (Data Fetching)
+- **Monaco Editor** + ECharts/Recharts
+
+### Backend
+- **NestJS** + TypeScript
+- **Prisma ORM** + PostgreSQL
+- **BullMQ** + Redis (Queues & Caching)
+- **Socket.IO** (Real-time)
+
+### Infrastructure
+- **pnpm Workspaces** + Turborepo (Monorepo)
+- **Docker** + Docker Compose
+- **GitHub Actions** (CI/CD)
+
+## Quick Start
+
+### Prerequisites
+- Node.js 18+
+- pnpm 8+
+- Docker & Docker Compose
+
+### Development Setup
+
+1. **Clone and install dependencies**
+```bash
+git clone https://github.com/your-org/the-soothsayer.git
+cd the-soothsayer
+pnpm install
+```
+
+2. **Start infrastructure services**
+```bash
+docker-compose -f docker-compose.dev.yml up -d
+```
+
+3. **Setup environment**
+```bash
+cp .env.example .env
+# Edit .env with your configuration
+```
+
+4. **Initialize database**
+```bash
+pnpm db:migrate
+pnpm db:seed
+```
+
+5. **Start development servers**
+```bash
+pnpm dev
+```
+
+Access the application:
+- **Web App**: http://localhost:3000
+- **API**: http://localhost:4000
+- **API Docs**: http://localhost:4000/api/docs
+
+### Available Scripts
+
+```bash
+# Development
+pnpm dev              # Start all services in dev mode
+pnpm dev:web          # Start web app only
+pnpm dev:api          # Start API only
+pnpm dev:worker       # Start worker only
+
+# Build
+pnpm build            # Build all packages
+pnpm build:web        # Build web app
+pnpm build:api        # Build API
+
+# Database
+pnpm db:migrate       # Run migrations
+pnpm db:seed          # Seed database
+pnpm db:studio        # Open Prisma Studio
+
+# Quality
+pnpm lint             # Run ESLint
+pnpm typecheck        # Run TypeScript checks
+pnpm test             # Run all tests
+pnpm format           # Format code with Prettier
+```
+
+## Project Structure
+
+```
+the-soothsayer/
+├── apps/
+│   ├── web/           # React frontend application
+│   ├── api/           # NestJS backend API
+│   └── worker/        # Background job processor
+├── packages/
+│   ├── ui/            # Shared UI components & design tokens
+│   ├── types/         # Shared TypeScript types & DTOs
+│   ├── utils/         # Shared utility functions
+│   ├── config/        # Shared ESLint, TSConfig, Prettier
+│   ├── ai-core/       # Persona engine & prompt templates
+│   ├── workflow-core/ # Workflow DSL & execution engine
+│   └── security/      # Policy engine & sanitization
+├── infra/
+│   ├── docker/        # Dockerfiles
+│   └── migrations/    # Database migrations
+├── docs/              # Documentation
+└── docker-compose.yml # Production compose
+```
+
+## Core Features
+
+### Persona Engine
+- 30+ professional personas (Engineering, Business, Security, etc.)
+- Runtime persona switching affects AI behavior
+- Custom persona creation with JSON import/export
+- Auto-recommendation based on context
+
+### Command Runner
+- Secure command execution with policy enforcement
+- 4-tier operation model (Explain → Plan → Supervised → Advanced)
+- Real-time streaming output via WebSocket
+- Approval gates for high-risk operations
+
+### Workflow Builder
+- Visual node-based editor
+- Trigger types: Manual, Scheduled, Webhook
+- Templates: Bug Triage, Release Checklist, Incident Response
+- Execution history and analytics
+
+### Governance
+- Role-based access control (RBAC)
+- Immutable audit logs
+- Policy simulator for testing rules
+- Secret redaction in logs
+
+## API Documentation
+
+API documentation is available via Swagger UI at `/api/docs` when running the API server.
+
+### Key Endpoints
+
+```
+POST   /api/auth/login          # User authentication
+POST   /api/auth/register       # User registration
+GET    /api/workspaces          # List workspaces
+POST   /api/conversations       # Create conversation
+POST   /api/commands/execute    # Execute command
+POST   /api/workflows/:id/run   # Run workflow
+GET    /api/personas            # List personas
+```
+
+## Environment Variables
+
+```env
+# Database
+DATABASE_URL=postgresql://user:password@localhost:5432/soothsayer
+
+# Redis
+REDIS_URL=redis://localhost:6379
+
+# JWT
+JWT_SECRET=your-secret-key
+JWT_EXPIRES_IN=1d
+JWT_REFRESH_EXPIRES_IN=7d
+
+# AI
+OPENAI_API_KEY=sk-...
+
+# Server
+PORT=4000
+NODE_ENV=development
+CORS_ORIGINS=http://localhost:3000
+```
+
+## Deployment
+
+### Docker Compose (Production)
+
+```bash
+# Build and start all services
+docker-compose up -d --build
+
+# View logs
+docker-compose logs -f
+
+# Stop services
+docker-compose down
+```
+
+### Manual Deployment
+
+1. Build all packages: `pnpm build`
+2. Run migrations: `pnpm db:migrate`
+3. Start API: `cd apps/api && node dist/main.js`
+4. Start Worker: `cd apps/worker && node dist/main.js`
+5. Serve web build from `apps/web/dist`
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+### Commit Convention
+We use [Conventional Commits](https://www.conventionalcommits.org/):
+- `feat:` New features
+- `fix:` Bug fixes
+- `docs:` Documentation
+- `chore:` Maintenance
+- `refactor:` Code refactoring
+
+## Security
+
+- Report security vulnerabilities to security@soothsayer.ai
+- See [SECURITY.md](SECURITY.md) for our security policy
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+Built with ❤️ by The Soothsayer Team

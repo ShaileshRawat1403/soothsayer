@@ -1,0 +1,52 @@
+# Build stage
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@8.12.0 --activate
+
+# Copy workspace configuration
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY packages/config ./packages/config
+COPY packages/types ./packages/types
+COPY packages/utils ./packages/utils
+COPY packages/ai-core ./packages/ai-core
+COPY apps/api ./apps/api
+
+# Install dependencies
+RUN pnpm install --frozen-lockfile
+
+# Generate Prisma client
+RUN cd apps/api && pnpm prisma:generate
+
+# Build the application
+RUN pnpm --filter @soothsayer/api build
+
+# Production stage
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@8.12.0 --activate
+
+# Create non-root user
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 soothsayer
+
+# Copy built application
+COPY --from=builder --chown=soothsayer:nodejs /app/apps/api/dist ./dist
+COPY --from=builder --chown=soothsayer:nodejs /app/apps/api/package.json ./
+COPY --from=builder --chown=soothsayer:nodejs /app/apps/api/node_modules ./node_modules
+COPY --from=builder --chown=soothsayer:nodejs /app/apps/api/prisma ./prisma
+
+# Set environment
+ENV NODE_ENV=production
+ENV PORT=4000
+
+USER soothsayer
+
+EXPOSE 4000
+
+CMD ["node", "dist/main.js"]
