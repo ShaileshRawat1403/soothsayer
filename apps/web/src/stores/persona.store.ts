@@ -29,6 +29,7 @@ export interface Persona {
 interface PersonaState {
   personas: Persona[];
   currentPersona: Persona | null;
+  selectedPersona: string | null;
   recommendedPersona: Persona | null;
   recentPersonas: string[];
   isLoading: boolean;
@@ -36,6 +37,7 @@ interface PersonaState {
   // Actions
   setPersonas: (personas: Persona[]) => void;
   setCurrentPersona: (persona: Persona | null) => void;
+  setSelectedPersona: (personaId: string | null) => void;
   setRecommendedPersona: (persona: Persona | null) => void;
   addToRecentPersonas: (personaId: string) => void;
   addPersona: (persona: Persona) => void;
@@ -49,6 +51,7 @@ export const usePersonaStore = create<PersonaState>()(
     (set, get) => ({
       personas: [],
       currentPersona: null,
+      selectedPersona: null,
       recommendedPersona: null,
       recentPersonas: [],
       isLoading: false,
@@ -61,6 +64,8 @@ export const usePersonaStore = create<PersonaState>()(
         }
         set({ currentPersona: persona });
       },
+      
+      setSelectedPersona: (personaId) => set({ selectedPersona: personaId }),
       
       setRecommendedPersona: (persona) => set({ recommendedPersona: persona }),
       
@@ -99,6 +104,7 @@ export const usePersonaStore = create<PersonaState>()(
       name: 'soothsayer-persona',
       partialize: (state) => ({
         currentPersona: state.currentPersona,
+        selectedPersona: state.selectedPersona,
         recentPersonas: state.recentPersonas,
       }),
     }

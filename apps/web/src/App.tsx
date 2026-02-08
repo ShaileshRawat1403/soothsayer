@@ -14,6 +14,7 @@ import { SettingsPage } from '@/pages/SettingsPage';
 import { ThemeProvider } from '@/components/common/ThemeProvider';
 import { CommandPalette } from '@/components/common/CommandPalette';
 import { OnboardingWizard } from '@/components/common/OnboardingWizard';
+import { ToastProvider } from '@/components/common/Toast';
 import { useEffect, useState } from 'react';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -55,46 +56,48 @@ function App() {
 
   return (
     <ThemeProvider>
-      {/* Command Palette - Always available when authenticated */}
-      {isAuthenticated && <CommandPalette />}
-      
-      {/* Onboarding Wizard */}
-      {showOnboarding && (
-        <OnboardingWizard onComplete={handleOnboardingComplete} />
-      )}
+      <ToastProvider>
+        {/* Command Palette - Always available when authenticated */}
+        {isAuthenticated && <CommandPalette />}
+        
+        {/* Onboarding Wizard */}
+        {showOnboarding && (
+          <OnboardingWizard onComplete={handleOnboardingComplete} />
+        )}
 
-      <Routes>
-        {/* Public routes */}
-        <Route element={<AuthLayout />}>
-          <Route path="/login" element={
-            <PublicRoute><LoginPage /></PublicRoute>
-          } />
-          <Route path="/register" element={
-            <PublicRoute><RegisterPage /></PublicRoute>
-          } />
-        </Route>
+        <Routes>
+          {/* Public routes */}
+          <Route element={<AuthLayout />}>
+            <Route path="/login" element={
+              <PublicRoute><LoginPage /></PublicRoute>
+            } />
+            <Route path="/register" element={
+              <PublicRoute><RegisterPage /></PublicRoute>
+            } />
+          </Route>
 
-        {/* Protected routes */}
-        <Route element={
-          <ProtectedRoute>
-            <MainLayout />
-          </ProtectedRoute>
-        }>
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/chat" element={<ChatPage />} />
-          <Route path="/chat/:conversationId" element={<ChatPage />} />
-          <Route path="/terminal" element={<TerminalPage />} />
-          <Route path="/workflows" element={<WorkflowsPage />} />
-          <Route path="/workflows/:workflowId" element={<WorkflowsPage />} />
-          <Route path="/personas" element={<PersonasPage />} />
-          <Route path="/analytics" element={<AnalyticsPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-        </Route>
+          {/* Protected routes */}
+          <Route element={
+            <ProtectedRoute>
+              <MainLayout />
+            </ProtectedRoute>
+          }>
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/chat" element={<ChatPage />} />
+            <Route path="/chat/:conversationId" element={<ChatPage />} />
+            <Route path="/terminal" element={<TerminalPage />} />
+            <Route path="/workflows" element={<WorkflowsPage />} />
+            <Route path="/workflows/:workflowId" element={<WorkflowsPage />} />
+            <Route path="/personas" element={<PersonasPage />} />
+            <Route path="/analytics" element={<AnalyticsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </Route>
 
-        {/* Default redirect */}
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
+          {/* Default redirect */}
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        </Routes>
+      </ToastProvider>
     </ThemeProvider>
   );
 }
