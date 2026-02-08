@@ -264,7 +264,7 @@ We use [Conventional Commits](https://www.conventionalcommits.org/):
 
 ## Security
 
-- Report security vulnerabilities to security@soothsayer.ai
+- Report security vulnerabilities to sprout@pruningmypothos.com
 - See [SECURITY.md](SECURITY.md) for our security policy
 
 ## License
