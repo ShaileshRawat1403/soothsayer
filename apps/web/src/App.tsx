@@ -12,6 +12,9 @@ import { PersonasPage } from '@/pages/PersonasPage';
 import { AnalyticsPage } from '@/pages/AnalyticsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { ThemeProvider } from '@/components/common/ThemeProvider';
+import { CommandPalette } from '@/components/common/CommandPalette';
+import { OnboardingWizard } from '@/components/common/OnboardingWizard';
+import { useEffect, useState } from 'react';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -34,8 +37,32 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
+  const { isAuthenticated } = useAuthStore();
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    // Check if user has completed onboarding
+    const hasCompletedOnboarding = localStorage.getItem('soothsayer-onboarding-complete');
+    if (isAuthenticated && !hasCompletedOnboarding) {
+      setShowOnboarding(true);
+    }
+  }, [isAuthenticated]);
+
+  const handleOnboardingComplete = () => {
+    localStorage.setItem('soothsayer-onboarding-complete', 'true');
+    setShowOnboarding(false);
+  };
+
   return (
     <ThemeProvider>
+      {/* Command Palette - Always available when authenticated */}
+      {isAuthenticated && <CommandPalette />}
+      
+      {/* Onboarding Wizard */}
+      {showOnboarding && (
+        <OnboardingWizard onComplete={handleOnboardingComplete} />
+      )}
+
       <Routes>
         {/* Public routes */}
         <Route element={<AuthLayout />}>
