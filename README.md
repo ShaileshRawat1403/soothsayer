@@ -105,9 +105,9 @@ pnpm dev
 ```
 
 Access the application:
-- **Web App**: http://localhost:3000
-- **API**: http://localhost:4000
-- **API Docs**: http://localhost:4000/api/docs
+- **Web App**: http://localhost:5173
+- **API**: http://localhost:3000
+- **API Docs**: http://localhost:3000/api/docs
 
 ### Available Scripts
 
@@ -194,7 +194,7 @@ API documentation is available via Swagger UI at `/api/docs` when running the AP
 POST   /api/auth/login          # User authentication
 POST   /api/auth/register       # User registration
 GET    /api/workspaces          # List workspaces
-POST   /api/conversations       # Create conversation
+POST   /api/chat/conversations  # Create conversation
 POST   /api/commands/execute    # Execute command
 POST   /api/workflows/:id/run   # Run workflow
 GET    /api/personas            # List personas
@@ -207,7 +207,12 @@ GET    /api/personas            # List personas
 DATABASE_URL=postgresql://user:password@localhost:5432/soothsayer
 
 # Redis
-REDIS_URL=redis://localhost:6379
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+REDIS_TLS=false
+WS_REDIS_ENABLED=false
+WS_REDIS_FORCE_IN_DEV=false
 
 # JWT
 JWT_SECRET=your-secret-key
@@ -216,12 +221,44 @@ JWT_REFRESH_EXPIRES_IN=7d
 
 # AI
 OPENAI_API_KEY=sk-...
+GROQ_API_KEY=gsk_...
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+AWS_REGION=us-east-1
+BEDROCK_MODEL_ID=amazon.nova-pro-v1:0
 
 # Server
-PORT=4000
+API_PORT=3000
+WEB_PORT=5173
 NODE_ENV=development
-CORS_ORIGINS=http://localhost:3000
+CORS_ORIGINS=http://localhost:5173
 ```
+
+## EC2 Notes (Important)
+
+For stable EC2 testing, start with:
+
+```bash
+./scripts/ec2/bootstrap-dev.sh
+./scripts/ec2/functional-check.sh
+```
+
+Recommended env defaults for EC2:
+
+```env
+WS_REDIS_ENABLED=false
+WS_REDIS_FORCE_IN_DEV=false
+ADMIN_SEED_EMAIL=admin@soothsayer.local
+ADMIN_SEED_PASSWORD=password123
+```
+
+Provider behavior:
+- API returns explicit inference errors if provider/model fails.
+- Bedrock can fail due account setup or quota (`ResourceNotFoundException`, `ThrottlingException`).
+- Ollama model IDs must match exact local tags (`llama3.2:1b`, `phi3:mini`, etc.).
+
+See:
+- `docs/EC2_STABILIZATION_RUNBOOK.md`
+- `docs/HOW_TO_EC2_PITFALLS.md`
 
 ## Deployment
 

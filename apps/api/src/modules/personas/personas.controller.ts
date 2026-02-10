@@ -88,7 +88,10 @@ export class PersonasController {
       config: Record<string, unknown>;
     },
   ) {
-    return this.personasService.create(user.id, dto as Parameters<typeof this.personasService.create>[1]);
+    return this.personasService.create(
+      user.id,
+      dto as unknown as Parameters<typeof this.personasService.create>[1],
+    );
   }
 
   @Patch(':id')
@@ -107,7 +110,11 @@ export class PersonasController {
       changelog?: string;
     },
   ) {
-    return this.personasService.update(id, user.id, dto as Parameters<typeof this.personasService.update>[2]);
+    return this.personasService.update(
+      id,
+      user.id,
+      dto as unknown as Parameters<typeof this.personasService.update>[2],
+    );
   }
 
   @Delete(':id')
@@ -161,7 +168,7 @@ export class PersonasController {
   ) {
     return this.personasService.importPersona(
       user.id,
-      dto.data.persona as Parameters<typeof this.personasService.importPersona>[1],
+      dto.data.persona as unknown as Parameters<typeof this.personasService.importPersona>[1],
       dto.workspaceId,
       dto.overrideName,
     );

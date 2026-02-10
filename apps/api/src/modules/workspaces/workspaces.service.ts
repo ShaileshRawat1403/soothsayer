@@ -22,7 +22,7 @@ export class WorkspacesService {
       },
     });
 
-    return memberships.map((m) => ({
+    return memberships.map((m: any) => ({
       workspace: m.workspace,
       memberCount: m.workspace._count.members,
       projectCount: m.workspace._count.projects,
@@ -72,7 +72,7 @@ export class WorkspacesService {
     return {
       workspace: membership.workspace,
       currentUserRole: membership.role,
-      members: membership.workspace.members.map((m) => ({
+      members: membership.workspace.members.map((m: any) => ({
         ...m.user,
         role: m.role,
         joinedAt: m.joinedAt,
@@ -141,7 +141,7 @@ export class WorkspacesService {
       data: {
         name: data.name,
         description: data.description,
-        settings: data.settings,
+        settings: data.settings as any,
       },
     });
   }

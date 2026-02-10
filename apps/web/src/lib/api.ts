@@ -3,6 +3,14 @@ import { useAuthStore } from '@/stores/auth.store';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
+type WrappedResponse<T> = {
+  success: boolean;
+  data: T;
+  error?: {
+    message?: string;
+  };
+};
+
 export const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -24,7 +32,13 @@ api.interceptors.request.use(
 
 // Response interceptor for error handling and token refresh
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    const payload = response.data as WrappedResponse<unknown>;
+    if (payload && typeof payload === 'object' && 'success' in payload && 'data' in payload) {
+      response.data = payload.data;
+    }
+    return response;
+  },
   async (error: AxiosError) => {
     const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
     
@@ -37,9 +51,32 @@ api.interceptors.response.use(
           const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
             refreshToken,
           });
-          
-          const { accessToken, refreshToken: newRefreshToken, user } = response.data;
-          useAuthStore.getState().login(user, accessToken, newRefreshToken);
+          const payload = response.data as WrappedResponse<{
+            accessToken: string;
+            refreshToken: string;
+            user?: { id: string; email: string; name: string; role?: 'ADMIN' | 'MEMBER' | 'VIEWER' };
+          }>;
+          const refreshData = payload?.data ?? (response.data as typeof payload.data);
+          const { accessToken, refreshToken: newRefreshToken } = refreshData;
+          const currentUser = useAuthStore.getState().user;
+          const loginUser =
+            refreshData.user ??
+            (currentUser
+              ? currentUser
+              : {
+                  id: 'unknown',
+                  email: 'unknown@local',
+                  name: 'Unknown',
+                  role: 'ADMIN' as const,
+                });
+          useAuthStore.getState().login(
+            {
+              ...loginUser,
+              role: loginUser.role || 'ADMIN',
+            },
+            accessToken,
+            newRefreshToken
+          );
           
           if (originalRequest.headers) {
             originalRequest.headers.Authorization = `Bearer ${accessToken}`;
@@ -56,8 +93,16 @@ api.interceptors.response.use(
         window.location.href = '/login';
       }
     }
+
+    const wrappedError = error.response?.data as WrappedResponse<unknown> | undefined;
+    const errorMessage =
+      wrappedError?.error?.message ||
+      (typeof error.response?.data === 'object' && error.response?.data
+        ? JSON.stringify(error.response.data)
+        : error.message) ||
+      'Request failed';
     
-    return Promise.reject(error);
+    return Promise.reject(new Error(errorMessage));
   }
 );
 
@@ -82,68 +127,70 @@ export const apiHelpers = {
   deleteWorkspace: (id: string) => api.delete(`/workspaces/${id}`),
   
   // Projects
-  getProjects: (workspaceId: string) =>
-    api.get(`/workspaces/${workspaceId}/projects`),
-  getProject: (workspaceId: string, projectId: string) =>
-    api.get(`/workspaces/${workspaceId}/projects/${projectId}`),
-  createProject: (workspaceId: string, data: { name: string; description?: string }) =>
-    api.post(`/workspaces/${workspaceId}/projects`, data),
+  getProjects: () => api.get('/projects'),
+  getProject: (projectId: string) => api.get(`/projects/${projectId}`),
   
   // Personas
-  getPersonas: () => api.get('/personas'),
+  getPersonas: (params?: {
+    workspaceId?: string;
+    category?: string;
+    includeBuiltIn?: boolean;
+    includeCustom?: boolean;
+    search?: string;
+    page?: number;
+    limit?: number;
+  }) => api.get('/personas', { params }),
   getPersona: (id: string) => api.get(`/personas/${id}`),
   createPersona: (data: Record<string, unknown>) => api.post('/personas', data),
   updatePersona: (id: string, data: Record<string, unknown>) =>
     api.patch(`/personas/${id}`, data),
   deletePersona: (id: string) => api.delete(`/personas/${id}`),
   getRecommendedPersona: (context: string) =>
-    api.post('/personas/recommend', { context }),
+    api.get('/personas/recommend', { params: { input: context } }),
   
   // Conversations
   getConversations: (workspaceId: string) =>
-    api.get(`/workspaces/${workspaceId}/conversations`),
-  getConversation: (id: string) => api.get(`/conversations/${id}`),
-  createConversation: (data: { workspaceId: string; title?: string; personaId?: string }) =>
-    api.post('/conversations', data),
-  deleteConversation: (id: string) => api.delete(`/conversations/${id}`),
+    api.get('/chat/conversations', { params: { workspaceId } }),
+  getConversation: (id: string) => api.get(`/chat/conversations/${id}`),
+  createConversation: (data: { workspaceId: string; title?: string; personaId: string }) =>
+    api.post('/chat/conversations', data),
+  deleteConversation: (id: string) => api.delete(`/chat/conversations/${id}`),
   
   // Chat
-  sendMessage: (conversationId: string, content: string) =>
-    api.post(`/conversations/${conversationId}/messages`, { content }),
+  sendMessage: (
+    conversationId: string,
+    payload: {
+      content: string;
+      provider?: string;
+      model?: string;
+    }
+  ) => api.post(`/chat/conversations/${conversationId}/messages`, payload),
   
   // Commands
-  getCommands: () => api.get('/commands'),
-  executeCommand: (data: { command: string; workspaceId: string; projectId?: string }) =>
-    api.post('/commands/execute', data),
+  getCommands: (workspaceId: string) => api.get('/commands', { params: { workspaceId } }),
+  executeCommand: (commandId: string, data: { workspaceId: string; projectId?: string; parameters: Record<string, unknown> }) =>
+    api.post(`/commands/${commandId}/execute`, data),
   
   // Workflows
-  getWorkflows: (workspaceId: string) =>
-    api.get(`/workspaces/${workspaceId}/workflows`),
+  getWorkflows: () => api.get('/workflows'),
   getWorkflow: (id: string) => api.get(`/workflows/${id}`),
-  createWorkflow: (data: Record<string, unknown>) => api.post('/workflows', data),
-  updateWorkflow: (id: string, data: Record<string, unknown>) =>
-    api.patch(`/workflows/${id}`, data),
-  runWorkflow: (id: string, inputs?: Record<string, unknown>) =>
-    api.post(`/workflows/${id}/run`, { inputs }),
   
   // Tools
   getTools: () => api.get('/tools'),
   getTool: (id: string) => api.get(`/tools/${id}`),
   
   // Analytics
-  getAnalytics: (workspaceId: string, params?: Record<string, unknown>) =>
-    api.get(`/workspaces/${workspaceId}/analytics`, { params }),
-  getAuditLogs: (workspaceId: string, params?: Record<string, unknown>) =>
-    api.get(`/workspaces/${workspaceId}/audit-logs`, { params }),
+  getAnalytics: () => api.get('/analytics'),
+  getAnalyticsById: (id: string) => api.get(`/analytics/${id}`),
   
   // Files
-  getFiles: (workspaceId: string, path?: string) =>
-    api.get(`/workspaces/${workspaceId}/files`, { params: { path } }),
-  uploadFile: (workspaceId: string, file: File, path?: string) => {
+  getFiles: () => api.get('/files'),
+  getFile: (id: string) => api.get(`/files/${id}`),
+  uploadFile: (_workspaceId: string, file: File, path?: string) => {
     const formData = new FormData();
     formData.append('file', file);
     if (path) formData.append('path', path);
-    return api.post(`/workspaces/${workspaceId}/files/upload`, formData, {
+    return api.post('/files/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },

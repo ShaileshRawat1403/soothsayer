@@ -95,11 +95,15 @@ export class ChatController {
       content: string;
       parentMessageId?: string;
       attachments?: unknown[];
+      provider?: string;
+      model?: string;
     },
   ) {
     return this.chatService.sendMessage(id, user.id, dto.content, {
       parentMessageId: dto.parentMessageId,
       attachments: dto.attachments,
+      provider: dto.provider,
+      model: dto.model,
     });
   }
 

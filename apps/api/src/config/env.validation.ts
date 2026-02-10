@@ -1,5 +1,21 @@
 import { z } from 'zod';
 
+const booleanFromEnv = z.preprocess((value) => {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['1', 'true', 'yes', 'on'].includes(normalized)) {
+      return true;
+    }
+    if (['0', 'false', 'no', 'off', ''].includes(normalized)) {
+      return false;
+    }
+  }
+  return value;
+}, z.boolean());
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   API_PORT: z.coerce.number().default(3000),
@@ -12,17 +28,29 @@ const envSchema = z.object({
   REDIS_HOST: z.string().default('localhost'),
   REDIS_PORT: z.coerce.number().default(6379),
   REDIS_PASSWORD: z.string().optional(),
+  REDIS_TLS: booleanFromEnv.default(false),
+  WS_REDIS_ENABLED: booleanFromEnv.default(false),
+  WS_REDIS_FORCE_IN_DEV: booleanFromEnv.default(false),
   
   // JWT
   JWT_SECRET: z.string().min(32),
   JWT_ACCESS_EXPIRATION: z.string().default('15m'),
   JWT_REFRESH_EXPIRATION: z.string().default('7d'),
+  AUTH_BYPASS: booleanFromEnv.default(false),
+  AUTH_BYPASS_EMAIL: z.string().email().default('admin@soothsayer.local'),
+  AUTH_BYPASS_NAME: z.string().default('Admin User'),
   
   // Session
   SESSION_SECRET: z.string().min(32).optional(),
   
   // AI Providers
+  OPENAI_BASE_URL: z.string().url().optional(),
   OPENAI_API_KEY: z.string().optional(),
+  GROQ_BASE_URL: z.string().url().optional(),
+  GROQ_API_KEY: z.string().optional(),
+  OLLAMA_BASE_URL: z.string().url().optional(),
+  AWS_REGION: z.string().optional(),
+  BEDROCK_MODEL_ID: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
   
   // Storage

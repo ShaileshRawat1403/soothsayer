@@ -1,19 +1,19 @@
 import { Controller, Get, Param, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
-@ApiTags('$(echo $module)')
-@Controller('$(echo $module)')
+@ApiTags('notifications')
+@Controller('notifications')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
-export class $(echo $module | sed 's/.*/\u&/')Controller {
+export class NotificationsController {
   @Get()
   async findAll() {
-    return { message: '$(echo $module) endpoint - TODO' };
+    return { message: 'notifications endpoint - TODO' };
   }
 
   @Get(':id')
   async findOne(@Param('id') id: string) {
-    return { id, message: '$(echo $module) detail - TODO' };
+    return { id, message: 'notifications detail - TODO' };
   }
 }

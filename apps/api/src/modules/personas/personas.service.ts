@@ -179,7 +179,7 @@ export class PersonasService {
         workspaceId: dto.workspaceId,
         createdById: userId,
         isBuiltIn: false,
-        config: dto.config,
+        config: dto.config as any,
       },
     });
 
@@ -188,7 +188,7 @@ export class PersonasService {
       data: {
         personaId: persona.id,
         version: 1,
-        config: dto.config,
+        config: dto.config as any,
         changelog: 'Initial version',
         createdById: userId,
       },
@@ -206,7 +206,7 @@ export class PersonasService {
     }
 
     // Merge config
-    const currentConfig = persona.config as PersonaConfig;
+    const currentConfig = persona.config as unknown as PersonaConfig;
     const newConfig = dto.config
       ? { ...currentConfig, ...dto.config }
       : currentConfig;
@@ -220,7 +220,7 @@ export class PersonasService {
         name: dto.name,
         description: dto.description,
         avatarUrl: dto.avatarUrl,
-        config: newConfig,
+        config: newConfig as any,
         version: newVersion,
       },
     });
@@ -230,7 +230,7 @@ export class PersonasService {
       data: {
         personaId: id,
         version: newVersion,
-        config: newConfig,
+        config: newConfig as any,
         changelog: dto.changelog,
         createdById: userId,
       },
@@ -266,7 +266,7 @@ export class PersonasService {
         workspaceId,
         createdById: userId,
         isBuiltIn: false,
-        config: source.config as Record<string, unknown>,
+        config: source.config as any,
       },
     });
 
@@ -275,7 +275,7 @@ export class PersonasService {
       data: {
         personaId: persona.id,
         version: 1,
-        config: source.config as Record<string, unknown>,
+        config: source.config as any,
         changelog: `Cloned from ${source.name}`,
         createdById: userId,
       },
@@ -340,7 +340,7 @@ export class PersonasService {
     const updated = await this.prisma.persona.update({
       where: { id },
       data: {
-        config: version.config as Record<string, unknown>,
+        config: version.config as any,
         version: newVersion,
       },
     });
@@ -350,7 +350,7 @@ export class PersonasService {
       data: {
         personaId: id,
         version: newVersion,
-        config: version.config as Record<string, unknown>,
+        config: version.config as any,
         changelog: `Rolled back to version ${targetVersion}`,
         createdById: userId,
       },
@@ -494,7 +494,7 @@ export class PersonasService {
     });
 
     // Calculate confidence and create recommendations
-    const recommendations = personas.map((p, index) => ({
+    const recommendations = personas.map((p: any, index: number) => ({
       personaId: p.id,
       persona: p,
       confidence: Math.max(0.9 - index * 0.15, 0.3),

@@ -1,19 +1,19 @@
 import { Controller, Get, Param, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
-@ApiTags('$(echo $module)')
-@Controller('$(echo $module)')
+@ApiTags('workflows')
+@Controller('workflows')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
-export class $(echo $module | sed 's/.*/\u&/')Controller {
+export class WorkflowsController {
   @Get()
   async findAll() {
-    return { message: '$(echo $module) endpoint - TODO' };
+    return { message: 'workflows endpoint - TODO' };
   }
 
   @Get(':id')
   async findOne(@Param('id') id: string) {
-    return { id, message: '$(echo $module) detail - TODO' };
+    return { id, message: 'workflows detail - TODO' };
   }
 }

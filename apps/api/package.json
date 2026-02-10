@@ -19,10 +19,12 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:push": "prisma db push",
     "prisma:seed": "ts-node prisma/seed.ts",
+    "admin:seed": "ts-node scripts/seed-admin.ts",
     "prisma:studio": "prisma studio",
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.986.0",
     "@nestjs/common": "^10.3.0",
     "@nestjs/config": "^3.1.1",
     "@nestjs/core": "^10.3.0",
@@ -34,6 +36,7 @@
     "@nestjs/throttler": "^5.1.1",
     "@nestjs/websockets": "^10.3.0",
     "@prisma/client": "^5.7.1",
+    "@socket.io/redis-adapter": "^8.3.0",
     "bcrypt": "^5.1.1",
     "bullmq": "^5.1.0",
     "class-transformer": "^0.5.1",
@@ -79,13 +82,19 @@
     "typescript": "^5.3.3"
   },
   "jest": {
-    "moduleFileExtensions": ["js", "json", "ts"],
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
-    "collectCoverageFrom": ["**/*.(t|j)s"],
+    "collectCoverageFrom": [
+      "**/*.(t|j)s"
+    ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
   }

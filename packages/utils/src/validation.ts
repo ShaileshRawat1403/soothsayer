@@ -47,38 +47,38 @@ export const sortSchema = z.object({
 });
 
 // Date range validation
-export const dateRangeSchema = z.object({
-  startDate: z.coerce.date().optional(),
-  endDate: z.coerce.date().optional(),
-}).refine(
-  (data) => {
-    if (data.startDate && data.endDate) {
-      return data.startDate <= data.endDate;
-    }
-    return true;
-  },
-  { message: 'Start date must be before end date' }
-);
+export const dateRangeSchema = z
+  .object({
+    startDate: z.coerce.date().optional(),
+    endDate: z.coerce.date().optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.startDate && data.endDate) {
+        return data.startDate <= data.endDate;
+      }
+      return true;
+    },
+    { message: 'Start date must be before end date' }
+  );
 
 // URL validation
 export const urlSchema = z.string().url('Invalid URL');
 
 // Path validation (prevent traversal)
-export const safePathSchema = z
-  .string()
-  .refine(
-    (path) => {
-      // Check for path traversal attempts
-      const normalized = path.replace(/\\/g, '/');
-      return (
-        !normalized.includes('..') &&
-        !normalized.includes('//') &&
-        !normalized.startsWith('/') &&
-        !normalized.includes('\0')
-      );
-    },
-    { message: 'Invalid path: potential path traversal detected' }
-  );
+export const safePathSchema = z.string().refine(
+  (path) => {
+    // Check for path traversal attempts
+    const normalized = path.replace(/\\/g, '/');
+    return (
+      !normalized.includes('..') &&
+      !normalized.includes('//') &&
+      !normalized.startsWith('/') &&
+      !normalized.includes('\0')
+    );
+  },
+  { message: 'Invalid path: potential path traversal detected' }
+);
 
 // JSON validation
 export const jsonSchema = z.string().refine(
@@ -100,25 +100,26 @@ export const envSchema = z.object({
   APP_URL: z.string().url().default('http://localhost:5173'),
   API_URL: z.string().url().default('http://localhost:3000'),
   API_PORT: z.coerce.number().default(3000),
-  
+
   DATABASE_URL: z.string(),
-  
+
   REDIS_HOST: z.string().default('localhost'),
   REDIS_PORT: z.coerce.number().default(6379),
   REDIS_PASSWORD: z.string().optional(),
-  
+  REDIS_TLS: z.coerce.boolean().default(false),
+
   JWT_SECRET: z.string().min(32),
   JWT_ACCESS_EXPIRATION: z.string().default('15m'),
   JWT_REFRESH_EXPIRATION: z.string().default('7d'),
-  
+
   SESSION_SECRET: z.string().min(32),
-  
+
   OPENAI_API_KEY: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
-  
+
   STORAGE_TYPE: z.enum(['local', 's3']).default('local'),
   STORAGE_LOCAL_PATH: z.string().default('./uploads'),
-  
+
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
 });
 

@@ -107,7 +107,7 @@ export class UsersService {
 
     // Find active workspace
     const defaultWorkspace = user.workspaceMembers.find(
-      (wm) => wm.workspace.isDefault,
+      (wm: any) => wm.workspace.isDefault,
     )?.workspace;
 
     return {
@@ -124,7 +124,7 @@ export class UsersService {
         updatedAt: user.updatedAt,
       },
       preferences: user.preferences as Record<string, unknown>,
-      organizations: user.organizationMembers.map((om) => ({
+      organizations: user.organizationMembers.map((om: any) => ({
         organizationId: om.organization.id,
         organizationName: om.organization.name,
         role: om.role,
@@ -134,7 +134,7 @@ export class UsersService {
             id: defaultWorkspace.id,
             name: defaultWorkspace.name,
             role: user.workspaceMembers.find(
-              (wm) => wm.workspace.id === defaultWorkspace.id,
+              (wm: any) => wm.workspace.id === defaultWorkspace.id,
             )?.role,
           }
         : undefined,
@@ -175,7 +175,7 @@ export class UsersService {
     }
 
     const currentPrefs = (user.preferences as Record<string, unknown>) || {};
-    const updatedPrefs = {
+    const updatedPrefs: Record<string, unknown> = {
       ...currentPrefs,
       ...(data.theme && { theme: data.theme }),
       ...(data.language && { language: data.language }),
@@ -194,7 +194,7 @@ export class UsersService {
 
     await this.prisma.user.update({
       where: { id: userId },
-      data: { preferences: updatedPrefs },
+      data: { preferences: updatedPrefs as any },
     });
 
     return updatedPrefs;

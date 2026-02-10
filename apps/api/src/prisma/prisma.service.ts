@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { PrismaClient, Prisma } from '@prisma/client';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
@@ -82,7 +83,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         
         // Check if it's a retryable error (deadlock, serialization failure)
         if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error instanceof PrismaClientKnownRequestError &&
           ['P2034'].includes(error.code)
         ) {
           this.logger.warn(`Transaction retry ${attempt}/${maxRetries}: ${error.message}`);

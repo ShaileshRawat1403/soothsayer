@@ -1265,10 +1265,20 @@ async function main() {
   const allPersonas = [...developerPersonas, ...businessPersonas, ...specialistPersonas];
   
   for (const personaData of allPersonas) {
-    await prisma.persona.upsert({
-      where: { workspaceId_slug: { workspaceId: null, slug: personaData.slug } },
-      update: { config: personaData.config },
-      create: {
+    const existingBuiltInPersona = await prisma.persona.findFirst({
+      where: { workspaceId: null, slug: personaData.slug },
+    });
+
+    if (existingBuiltInPersona) {
+      await prisma.persona.update({
+        where: { id: existingBuiltInPersona.id },
+        data: { config: personaData.config },
+      });
+      continue;
+    }
+
+    await prisma.persona.create({
+      data: {
         name: personaData.name,
         slug: personaData.slug,
         category: personaData.category,

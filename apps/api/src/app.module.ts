@@ -18,13 +18,22 @@ import { WebsocketModule } from './websocket/websocket.module';
 import { HealthModule } from './health/health.module';
 import { validateEnv } from './config/env.validation';
 
+const envFilePath = [
+  '.env.local',
+  '.env',
+  '../.env.local',
+  '../.env',
+  '../../.env.local',
+  '../../.env',
+];
+
 @Module({
   imports: [
     // Configuration
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnv,
-      envFilePath: ['.env.local', '.env'],
+      envFilePath,
     }),
 
     // Rate limiting

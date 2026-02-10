@@ -1,9 +1,30 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import {
+  BedrockRuntimeClient,
+  ConverseCommand,
+} from '@aws-sdk/client-bedrock-runtime';
 import { PrismaService } from '../../prisma/prisma.service';
+
+type ChatCompletionMessage = {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+};
 
 @Injectable()
 export class ChatService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(ChatService.name);
+
+  constructor(
+    private prisma: PrismaService,
+    private configService: ConfigService,
+  ) {}
 
   async createConversation(
     userId: string,
@@ -15,12 +36,18 @@ export class ChatService {
       memoryMode?: string;
     } = {},
   ) {
+    const resolvedPersonaId = await this.resolvePersonaId({
+      userId,
+      workspaceId,
+      requestedPersonaId: personaId,
+    });
+
     const conversation = await this.prisma.conversation.create({
       data: {
         workspaceId,
         projectId: options.projectId,
         userId,
-        personaId,
+        personaId: resolvedPersonaId,
         title: options.title || 'New Conversation',
         memoryMode: options.memoryMode || 'session',
         metadata: {},
@@ -74,7 +101,7 @@ export class ChatService {
     ]);
 
     return {
-      conversations: conversations.map((c) => ({
+      conversations: conversations.map((c: any) => ({
         id: c.id,
         title: c.title,
         personaId: c.personaId,
@@ -95,7 +122,7 @@ export class ChatService {
       where: { id, userId, deletedAt: null },
       include: {
         persona: {
-          select: { id: true, name: true, avatarUrl: true, category: true },
+          select: { id: true, name: true, avatarUrl: true, category: true, config: true },
         },
         messages: {
           orderBy: { createdAt: 'asc' },
@@ -118,6 +145,8 @@ export class ChatService {
     options: {
       parentMessageId?: string;
       attachments?: unknown[];
+      provider?: string;
+      model?: string;
     } = {},
   ) {
     const conversation = await this.findConversation(conversationId, userId);
@@ -147,17 +176,36 @@ export class ChatService {
       },
     });
 
-    // TODO: Queue AI response job
-    // For now, create a placeholder response
+    let assistantReply = '';
+    let providerUsed = options.provider ?? 'unknown';
+    let modelUsed = options.model ?? 'unknown';
+
+    try {
+      const completion = await this.generateAssistantReply(conversation, content, options);
+      assistantReply = completion.content;
+      providerUsed = completion.provider;
+      modelUsed = completion.model;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : 'unknown provider/inference error';
+      this.logger.error(
+        `Provider inference failed (${String(options.provider || 'default')}): ${String(error)}`,
+      );
+      throw new BadGatewayException(
+        `Model inference failed. Configure a working provider/model. Root cause: ${errorMessage}`,
+      );
+    }
+
     const assistantMessage = await this.prisma.message.create({
       data: {
         conversationId,
         personaId: conversation.personaId,
         role: 'assistant',
-        content: `[AI Response placeholder - Would process: "${content.substring(0, 50)}..."]`,
+        content: assistantReply,
         contentType: 'markdown',
         metadata: {
-          model: 'placeholder',
+          provider: providerUsed,
+          model: modelUsed,
           personaId: conversation.personaId,
         },
       },
@@ -168,6 +216,350 @@ export class ChatService {
       assistantMessage,
       jobId: `job_${Date.now()}`,
     };
+  }
+
+  private async resolvePersonaId(params: {
+    userId: string;
+    workspaceId: string;
+    requestedPersonaId?: string;
+  }): Promise<string> {
+    const requested = (params.requestedPersonaId || '').trim();
+
+    const resolveById = async (id: string) =>
+      this.prisma.persona.findFirst({
+        where: {
+          id,
+          isActive: true,
+          deletedAt: null,
+          OR: [{ workspaceId: params.workspaceId }, { isBuiltIn: true }],
+        },
+        select: { id: true },
+      });
+
+    const resolveBySlug = async (slug: string) =>
+      this.prisma.persona.findFirst({
+        where: {
+          slug,
+          isActive: true,
+          deletedAt: null,
+          OR: [{ workspaceId: params.workspaceId }, { isBuiltIn: true }],
+        },
+        select: { id: true },
+      });
+
+    // 1) Explicit persona id or slug from UI.
+    if (requested && requested.toLowerCase() !== 'auto') {
+      const byId = await resolveById(requested);
+      if (byId) return byId.id;
+
+      const bySlug = await resolveBySlug(requested.toLowerCase());
+      if (bySlug) return bySlug.id;
+
+      this.logger.warn(
+        `Requested persona "${requested}" not found in workspace ${params.workspaceId}; falling back`,
+      );
+    }
+
+    // 2) User default persona for this workspace.
+    const preferred = await this.prisma.personaPreference.findFirst({
+      where: {
+        userId: params.userId,
+        workspaceId: params.workspaceId,
+        isDefault: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        persona: {
+          select: { id: true, isActive: true, deletedAt: true },
+        },
+      },
+    });
+    if (preferred?.persona?.isActive && !preferred.persona.deletedAt) {
+      return preferred.persona.id;
+    }
+
+    // 3) Any active custom persona in this workspace.
+    const workspacePersona = await this.prisma.persona.findFirst({
+      where: {
+        workspaceId: params.workspaceId,
+        isActive: true,
+        deletedAt: null,
+      },
+      orderBy: [{ totalUsages: 'desc' }, { createdAt: 'asc' }],
+      select: { id: true },
+    });
+    if (workspacePersona) {
+      return workspacePersona.id;
+    }
+
+    // 4) Any built-in persona.
+    const builtInPersona = await this.prisma.persona.findFirst({
+      where: {
+        isBuiltIn: true,
+        isActive: true,
+        deletedAt: null,
+      },
+      orderBy: [{ totalUsages: 'desc' }, { createdAt: 'asc' }],
+      select: { id: true },
+    });
+    if (builtInPersona) {
+      return builtInPersona.id;
+    }
+
+    throw new BadRequestException(
+      'No active persona is available. Create a persona in this workspace first.',
+    );
+  }
+
+  private async generateAssistantReply(
+    conversation: {
+      persona: { name?: string; config?: unknown } | null;
+      messages: Array<{ role: string; content: string }>;
+    },
+    latestUserInput: string,
+    options: {
+      provider?: string;
+      model?: string;
+    },
+  ): Promise<{ content: string; provider: string; model: string }> {
+    const provider = (options.provider || 'openai').toLowerCase();
+    const model = this.normalizeModelId(
+      provider,
+      options.model || this.getDefaultModel(provider),
+    );
+
+    const personaConfig =
+      conversation.persona?.config && typeof conversation.persona.config === 'object'
+        ? (conversation.persona.config as Record<string, unknown>)
+        : null;
+    const systemPrompt = this.buildSystemPrompt(
+      conversation.persona?.name || 'Assistant',
+      personaConfig,
+    );
+
+    const messages: ChatCompletionMessage[] = [
+      { role: 'system', content: systemPrompt },
+      ...conversation.messages
+        .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
+        .slice(-12)
+        .map((msg) => ({
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+        })),
+      { role: 'user', content: latestUserInput },
+    ];
+
+    if (provider === 'ollama') {
+      const content = await this.callOllama(model, messages);
+      return { content, provider: 'ollama', model };
+    }
+
+    if (provider === 'openai') {
+      const content = await this.callOpenAiCompatible({
+        baseUrl: this.configService.get<string>('OPENAI_BASE_URL', 'https://api.openai.com/v1'),
+        apiKey: this.configService.get<string>('OPENAI_API_KEY'),
+        model,
+        messages,
+      });
+      return { content, provider: 'openai', model };
+    }
+
+    if (provider === 'groq') {
+      const content = await this.callOpenAiCompatible({
+        baseUrl: this.configService.get<string>('GROQ_BASE_URL', 'https://api.groq.com/openai/v1'),
+        apiKey: this.configService.get<string>('GROQ_API_KEY'),
+        model,
+        messages,
+      });
+      return { content, provider: 'groq', model };
+    }
+
+    if (provider === 'bedrock') {
+      const content = await this.callBedrock({
+        modelId: model,
+        systemPrompt,
+        messages,
+      });
+      return { content, provider: 'bedrock', model };
+    }
+
+    throw new Error(`Unsupported provider: ${provider}`);
+  }
+
+  private buildSystemPrompt(
+    personaName: string,
+    personaConfig: Record<string, unknown> | null,
+  ): string {
+    const configPrompt =
+      typeof personaConfig?.systemPromptTemplate === 'string'
+        ? personaConfig.systemPromptTemplate
+        : '';
+
+    if (configPrompt.trim()) {
+      return configPrompt;
+    }
+
+    return `You are ${personaName}. Be practical, concise, and helpful. Prefer actionable responses over generic advice.`;
+  }
+
+  private getDefaultModel(provider: string): string {
+    switch (provider) {
+      case 'groq':
+        return 'llama3-70b-8192';
+      case 'ollama':
+        return 'llama3.2:1b';
+      case 'bedrock':
+        return this.configService.get<string>('BEDROCK_MODEL_ID', 'anthropic.claude-3-5-sonnet-20240620-v1:0');
+      case 'openai':
+      default:
+        return 'gpt-4o-mini';
+    }
+  }
+
+  private normalizeModelId(provider: string, model: string): string {
+    if (provider !== 'ollama') {
+      return model;
+    }
+
+    const normalized = model.trim().toLowerCase();
+    const aliases: Record<string, string> = {
+      'lama3.2:1b': 'llama3.2:1b',
+      'llama3.2:latest': 'llama3.2:1b',
+      'phi3:latest': 'phi3:mini',
+      'ministral:3b': 'ministral-3:3b',
+      'ministral:latest': 'ministral-3:3b',
+    };
+
+    return aliases[normalized] ?? model;
+  }
+
+  private async callBedrock(params: {
+    modelId: string;
+    systemPrompt: string;
+    messages: ChatCompletionMessage[];
+  }): Promise<string> {
+    const region = this.configService.get<string>('AWS_REGION', 'us-east-1');
+    const client = new BedrockRuntimeClient({ region });
+
+    const result = await client.send(
+      new ConverseCommand({
+        modelId: params.modelId,
+        system: [{ text: params.systemPrompt }],
+        messages: params.messages
+          .filter((m) => m.role !== 'system')
+          .map((message) => ({
+            role: message.role === 'assistant' ? 'assistant' : 'user',
+            content: [{ text: message.content }],
+          })),
+        inferenceConfig: {
+          maxTokens: 1024,
+          temperature: 0.7,
+          topP: 0.9,
+        },
+      }),
+    );
+
+    const content = result.output?.message?.content?.[0];
+    if (!content || !('text' in content) || !content.text?.trim()) {
+      throw new Error('Empty Bedrock completion');
+    }
+
+    return content.text.trim();
+  }
+
+  private async callOpenAiCompatible(params: {
+    baseUrl: string;
+    apiKey?: string;
+    model: string;
+    messages: ChatCompletionMessage[];
+  }): Promise<string> {
+    if (!params.apiKey) {
+      throw new Error('Missing API key');
+    }
+
+    const response = await this.fetchWithTimeout(`${params.baseUrl.replace(/\/$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${params.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: params.model,
+        messages: params.messages,
+        temperature: 0.7,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Provider error ${response.status}: ${errorText}`);
+    }
+
+    const data = (await response.json()) as {
+      choices?: Array<{
+        message?: { content?: string };
+      }>;
+    };
+
+    const content = data.choices?.[0]?.message?.content?.trim();
+    if (!content) {
+      throw new Error('Empty completion');
+    }
+
+    return content;
+  }
+
+  private async callOllama(
+    model: string,
+    messages: ChatCompletionMessage[],
+  ): Promise<string> {
+    const baseUrl = this.configService.get<string>('OLLAMA_BASE_URL', 'http://127.0.0.1:11434');
+    const response = await this.fetchWithTimeout(`${baseUrl.replace(/\/$/, '')}/api/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        stream: false,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Ollama error ${response.status}: ${errorText}`);
+    }
+
+    const data = (await response.json()) as {
+      message?: {
+        content?: string;
+      };
+    };
+
+    const content = data.message?.content?.trim();
+    if (!content) {
+      throw new Error('Empty completion');
+    }
+
+    return content;
+  }
+
+  private async fetchWithTimeout(
+    input: RequestInfo | URL,
+    init: RequestInit,
+    timeoutMs = 45000,
+  ): Promise<Response> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(input, {
+        ...init,
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
   }
 
   async deleteConversation(id: string, userId: string) {

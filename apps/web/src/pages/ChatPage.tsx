@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
-import { useChatStore } from '@/stores/chat.store';
+import { useState, useRef, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { usePersonaStore } from '@/stores/persona.store';
+import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useAIProviderStore } from '@/stores/ai-provider.store';
+import { apiHelpers } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import {
   Send,
@@ -10,28 +11,21 @@ import {
   Loader2,
   Copy,
   RefreshCw,
-  MoreHorizontal,
   Bot,
   User,
-  Sparkles,
   Code,
-  FileText,
-  CheckCircle,
-  ChevronDown,
   Lightbulb,
   Wand2,
   Bug,
   Zap,
   BookOpen,
   Settings,
-  Image,
   Paperclip,
   Mic,
-  X,
   Check,
+  ChevronDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { CodeBlock } from '@/components/chat/CodeBlock';
 import { MessageContent } from '@/components/chat/MessageContent';
 
 interface Message {
@@ -40,6 +34,10 @@ interface Message {
   content: string;
   createdAt: string;
   isStreaming?: boolean;
+  metadata?: {
+    provider?: string;
+    model?: string;
+  };
 }
 
 const suggestedPrompts = [
@@ -51,18 +49,43 @@ const suggestedPrompts = [
   { icon: Zap, label: 'Optimize', prompt: 'Optimize this code:\n```\n\n```', color: 'text-orange-500' },
 ];
 
+function mapApiMessageToUi(message: any): Message {
+  return {
+    id: String(message.id),
+    role: message.role as 'user' | 'assistant' | 'system',
+    content: String(message.content || ''),
+    createdAt: String(message.createdAt || new Date().toISOString()),
+    metadata:
+      message.metadata && typeof message.metadata === 'object'
+        ? {
+            provider: message.metadata.provider,
+            model: message.metadata.model,
+          }
+        : undefined,
+  };
+}
+
 export function ChatPage() {
-  const { conversationId } = useParams();
+  const { conversationId: routeConversationId } = useParams();
+  const navigate = useNavigate();
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(routeConversationId || null);
   const [showModelSelector, setShowModelSelector] = useState(false);
+  const [isBootstrapping, setIsBootstrapping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const { currentPersona } = usePersonaStore();
+  const modelMenuRef = useRef<HTMLDivElement>(null);
+  const { currentPersona, setCurrentPersona } = usePersonaStore();
+  const { currentWorkspace, setCurrentWorkspace } = useWorkspaceStore();
   const { activeProvider, activeModel, providers, setActiveModel } = useAIProviderStore();
 
   const activeProviderConfig = providers.find((p) => p.id === activeProvider);
+
+  useEffect(() => {
+    setActiveConversationId(routeConversationId || null);
+  }, [routeConversationId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -72,60 +95,164 @@ export function ChatPage() {
     inputRef.current?.focus();
   }, []);
 
-  // Auto-resize textarea
+  useEffect(() => {
+    const onPointerDown = (event: MouseEvent) => {
+      if (!modelMenuRef.current) return;
+      if (!modelMenuRef.current.contains(event.target as Node)) {
+        setShowModelSelector(false);
+      }
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, []);
+
+  useEffect(() => {
+    async function loadConversation() {
+      if (!activeConversationId) {
+        setMessages([]);
+        return;
+      }
+
+      setIsBootstrapping(true);
+      try {
+        const response = await apiHelpers.getConversation(activeConversationId);
+        const conversation = response.data as any;
+        const loadedMessages: Message[] = (conversation.messages || []).map(mapApiMessageToUi);
+        setMessages(loadedMessages);
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to load conversation';
+        toast.error(errorMessage);
+      } finally {
+        setIsBootstrapping(false);
+      }
+    }
+    loadConversation();
+  }, [activeConversationId]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value);
     e.target.style.height = 'auto';
     e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
   };
 
-  const handleSend = async () => {
-    if (!input.trim() || isLoading) return;
+  const ensureWorkspaceId = async (): Promise<string> => {
+    if (currentWorkspace?.id) {
+      return currentWorkspace.id;
+    }
 
-    const userMessage: Message = {
-      id: `msg-${Date.now()}`,
+    const response = await apiHelpers.getWorkspaces();
+    const memberships = (response.data || []) as any[];
+    const first = memberships[0];
+    const workspace = first?.workspace || first;
+
+    if (!workspace?.id) {
+      throw new Error('No workspace found. Create a workspace first.');
+    }
+
+    setCurrentWorkspace(workspace);
+    return workspace.id as string;
+  };
+
+  const ensurePersona = async (): Promise<{ id: string; name: string }> => {
+    if (currentPersona?.id) {
+      return { id: currentPersona.id, name: currentPersona.name };
+    }
+
+    const response = await apiHelpers.getPersonas({ page: 1, limit: 20, includeBuiltIn: true, includeCustom: true });
+    const payload = response.data as any;
+    const firstPersona = Array.isArray(payload?.personas) ? payload.personas[0] : null;
+
+    if (!firstPersona?.id) {
+      throw new Error('No persona found. Create or import a persona first.');
+    }
+
+    setCurrentPersona({
+      id: firstPersona.id,
+      name: firstPersona.name,
+      slug: firstPersona.slug || firstPersona.name?.toLowerCase().replace(/\s+/g, '-') || 'persona',
+      category: firstPersona.category || 'General',
+      description: firstPersona.description || '',
+      icon: '🤖',
+      color: 'bg-primary',
+      systemPrompt: '',
+      temperature: 0.7,
+      maxTokens: 4096,
+      topP: 1,
+      capabilities: [],
+      preferredTools: [],
+      restrictions: [],
+      responseStyle: { tone: 'friendly', verbosity: 'balanced', formatting: ['markdown'] },
+      isDefault: false,
+      isCustom: true,
+      version: firstPersona.version || 1,
+    });
+
+    return { id: firstPersona.id, name: firstPersona.name };
+  };
+
+  const handleSend = async () => {
+    const text = input.trim();
+    if (!text || isLoading || isBootstrapping) return;
+
+    const optimisticUserMessage: Message = {
+      id: `temp-user-${Date.now()}`,
       role: 'user',
-      content: input.trim(),
+      content: text,
       createdAt: new Date().toISOString(),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages((prev) => [...prev, optimisticUserMessage]);
     setInput('');
     if (inputRef.current) {
       inputRef.current.style.height = 'auto';
     }
     setIsLoading(true);
 
-    // Simulate AI response with streaming effect
-    const assistantMessage: Message = {
-      id: `msg-${Date.now() + 1}`,
-      role: 'assistant',
-      content: '',
-      createdAt: new Date().toISOString(),
-      isStreaming: true,
-    };
-    setMessages((prev) => [...prev, assistantMessage]);
+    try {
+      let conversationId = activeConversationId;
+      const workspaceId = await ensureWorkspaceId();
+      const persona = await ensurePersona();
 
-    // Simulated streaming response
-    const responseContent = generateMockResponse(userMessage.content, currentPersona?.name);
-    
-    for (let i = 0; i < responseContent.length; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 10));
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === assistantMessage.id
-            ? { ...m, content: responseContent.slice(0, i + 1) }
-            : m
-        )
-      );
+      if (!conversationId) {
+        const createResponse = await apiHelpers.createConversation({
+          workspaceId,
+          personaId: persona.id,
+          title: text.slice(0, 80),
+        });
+        const createdConversation = createResponse.data as any;
+        conversationId = createdConversation.id as string;
+        setActiveConversationId(conversationId);
+        navigate(`/chat/${conversationId}`, { replace: true });
+      }
+
+      const sendResponse = await apiHelpers.sendMessage(conversationId, {
+        content: text,
+        provider: activeProvider,
+        model: activeModel,
+      });
+      const payload = sendResponse.data as any;
+      const assistantMessage = payload?.assistantMessage;
+
+      if (assistantMessage) {
+        setMessages((prev) => [...prev, mapApiMessageToUi(assistantMessage)]);
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `temp-assistant-${Date.now()}`,
+            role: 'assistant',
+            content: 'Message received. Assistant response is not available yet.',
+            createdAt: new Date().toISOString(),
+          },
+        ]);
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to send message';
+      toast.error(errorMessage);
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticUserMessage.id));
+    } finally {
+      setIsLoading(false);
     }
-
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === assistantMessage.id ? { ...m, isStreaming: false } : m
-      )
-    );
-    setIsLoading(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -140,35 +267,38 @@ export function ChatPage() {
     toast.success('Copied to clipboard');
   };
 
-  const regenerateMessage = (messageId: string) => {
-    toast.info('Regenerating response...');
+  const regenerateMessage = () => {
+    if (!isLoading) {
+      handleSend();
+    }
   };
 
   return (
     <div className="flex h-full flex-col bg-gradient-to-b from-background to-secondary/20">
-      {/* Header with model selector */}
-      <div className="flex items-center justify-between border-b border-border bg-card/50 backdrop-blur-sm px-4 py-2">
+      <div className="relative z-30 flex items-center justify-between border-b border-border bg-card/90 backdrop-blur-sm px-4 py-2">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <span className="text-2xl">{activeProviderConfig?.icon}</span>
-            <div>
+            <div className="min-w-0">
               <div className="text-sm font-medium">{activeProviderConfig?.name}</div>
-              <div className="text-xs text-muted-foreground">{activeModel}</div>
+              <div className="text-xs text-muted-foreground truncate max-w-[260px]" title={activeModel}>
+                {activeProviderConfig?.models.find((m) => m.id === activeModel)?.name || activeModel}
+              </div>
             </div>
           </div>
         </div>
-        <div className="relative">
+        <div className="relative" ref={modelMenuRef}>
           <button
             onClick={() => setShowModelSelector(!showModelSelector)}
             className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5 text-sm hover:bg-accent transition-colors"
           >
             <Settings className="h-4 w-4" />
             <span>Model</span>
-            <ChevronDown className={cn("h-4 w-4 transition-transform", showModelSelector && "rotate-180")} />
+            <ChevronDown className={cn('h-4 w-4 transition-transform', showModelSelector && 'rotate-180')} />
           </button>
-          
+
           {showModelSelector && (
-            <div className="absolute right-0 top-full mt-2 w-72 rounded-xl border border-border bg-card shadow-xl z-50 animate-in fade-in slide-in-from-top-2">
+            <div className="absolute right-0 top-full mt-2 w-80 rounded-xl border border-border bg-card shadow-xl z-[80] animate-in fade-in slide-in-from-top-2">
               <div className="p-2 border-b border-border">
                 <div className="text-xs font-medium text-muted-foreground px-2 py-1">Select Model</div>
               </div>
@@ -181,8 +311,8 @@ export function ChatPage() {
                       setShowModelSelector(false);
                     }}
                     className={cn(
-                      "w-full flex items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors",
-                      activeModel === model.id ? "bg-primary/10 text-primary" : "hover:bg-accent"
+                      'w-full flex items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors',
+                      activeModel === model.id ? 'bg-primary/10 text-primary' : 'hover:bg-accent',
                     )}
                   >
                     <div className="flex-1">
@@ -200,8 +330,7 @@ export function ChatPage() {
         </div>
       </div>
 
-      {/* Chat Messages */}
-      <div className="flex-1 overflow-auto px-4 py-6">
+      <div className="relative z-0 flex-1 overflow-auto px-4 py-6">
         {messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center">
             <div className="relative mb-8">
@@ -216,8 +345,7 @@ export function ChatPage() {
                 ? `I'm ${currentPersona.name}. ${currentPersona.description}`
                 : 'Select a persona or start chatting with the default assistant'}
             </p>
-            
-            {/* Suggested prompts grid */}
+
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 max-w-3xl">
               {suggestedPrompts.map((prompt) => (
                 <button
@@ -225,7 +353,7 @@ export function ChatPage() {
                   onClick={() => setInput(prompt.prompt)}
                   className="group flex items-center gap-3 rounded-xl border border-border bg-card p-4 text-left transition-all hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5"
                 >
-                  <div className={cn("flex h-10 w-10 items-center justify-center rounded-lg bg-secondary transition-colors group-hover:bg-primary/10", prompt.color)}>
+                  <div className={cn('flex h-10 w-10 items-center justify-center rounded-lg bg-secondary transition-colors group-hover:bg-primary/10', prompt.color)}>
                     <prompt.icon className="h-5 w-5" />
                   </div>
                   <span className="font-medium">{prompt.label}</span>
@@ -238,10 +366,7 @@ export function ChatPage() {
             {messages.map((message, index) => (
               <div
                 key={message.id}
-                className={cn(
-                  'flex gap-4 animate-in fade-in slide-in-from-bottom-2',
-                  message.role === 'user' ? 'flex-row-reverse' : ''
-                )}
+                className={cn('flex gap-4 animate-in fade-in slide-in-from-bottom-2', message.role === 'user' ? 'flex-row-reverse' : '')}
                 style={{ animationDelay: `${index * 50}ms` }}
               >
                 <div
@@ -249,35 +374,32 @@ export function ChatPage() {
                     'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl shadow-sm',
                     message.role === 'user'
                       ? 'bg-gradient-to-br from-primary to-purple-600 text-white'
-                      : 'bg-gradient-to-br from-secondary to-secondary/50 border border-border'
+                      : 'bg-gradient-to-br from-secondary to-secondary/50 border border-border',
                   )}
                 >
-                  {message.role === 'user' ? (
-                    <User className="h-5 w-5" />
-                  ) : (
-                    <Bot className="h-5 w-5" />
-                  )}
+                  {message.role === 'user' ? <User className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
                 </div>
                 <div
                   className={cn(
                     'group relative max-w-[85%] rounded-2xl px-4 py-3 shadow-sm',
                     message.role === 'user'
                       ? 'bg-gradient-to-br from-primary to-purple-600 text-white'
-                      : 'bg-card border border-border'
+                      : 'bg-card border border-border',
                   )}
                 >
-                  <MessageContent 
-                    content={message.content} 
-                    isUser={message.role === 'user'}
-                    isStreaming={message.isStreaming}
-                  />
-                  
-                  {/* Message actions */}
+                  <MessageContent content={message.content} isUser={message.role === 'user'} isStreaming={message.isStreaming} />
+                  {message.role === 'assistant' && message.metadata?.model && (
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      Model: {message.metadata.provider ? `${message.metadata.provider}/` : ''}
+                      {message.metadata.model}
+                    </div>
+                  )}
+
                   {!message.isStreaming && (
                     <div
                       className={cn(
                         'absolute -bottom-8 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100',
-                        message.role === 'user' ? 'right-0' : 'left-0'
+                        message.role === 'user' ? 'right-0' : 'left-0',
                       )}
                     >
                       <button
@@ -289,7 +411,7 @@ export function ChatPage() {
                       </button>
                       {message.role === 'assistant' && (
                         <button
-                          onClick={() => regenerateMessage(message.id)}
+                          onClick={regenerateMessage}
                           className="flex h-7 items-center gap-1 rounded-lg bg-card border border-border px-2 text-xs shadow-sm hover:bg-accent transition-colors"
                         >
                           <RefreshCw className="h-3 w-3" />
@@ -301,27 +423,26 @@ export function ChatPage() {
                 </div>
               </div>
             ))}
-            
-            {isLoading && messages[messages.length - 1]?.isStreaming && (
+
+            {isLoading && (
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 <span className="text-sm">Generating response...</span>
               </div>
             )}
-            
+
             <div ref={messagesEndRef} />
           </div>
         )}
       </div>
 
-      {/* Input Area */}
       <div className="border-t border-border bg-card/80 backdrop-blur-sm p-4">
         <div className="mx-auto max-w-3xl">
           <div className="relative flex items-end gap-2 rounded-2xl border border-border bg-background p-2 shadow-sm focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
             <button className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl hover:bg-accent transition-colors">
               <Plus className="h-5 w-5 text-muted-foreground" />
             </button>
-            
+
             <textarea
               ref={inputRef}
               value={input}
@@ -331,7 +452,7 @@ export function ChatPage() {
               rows={1}
               className="max-h-[200px] min-h-[40px] flex-1 resize-none bg-transparent py-2 text-sm outline-none placeholder:text-muted-foreground"
             />
-            
+
             <div className="flex items-center gap-1">
               <button className="flex h-9 w-9 items-center justify-center rounded-xl hover:bg-accent transition-colors">
                 <Paperclip className="h-5 w-5 text-muted-foreground" />
@@ -341,14 +462,14 @@ export function ChatPage() {
               </button>
               <button
                 onClick={handleSend}
-                disabled={!input.trim() || isLoading}
+                disabled={!input.trim() || isLoading || isBootstrapping}
                 className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground disabled:opacity-50 transition-all hover:scale-105 disabled:hover:scale-100"
               >
                 <Send className="h-4 w-4" />
               </button>
             </div>
           </div>
-          
+
           <div className="mt-2 flex items-center justify-between px-2 text-xs text-muted-foreground">
             <div className="flex items-center gap-2">
               {currentPersona && (
@@ -364,108 +485,4 @@ export function ChatPage() {
       </div>
     </div>
   );
-}
-
-// Mock response generator
-function generateMockResponse(userMessage: string, personaName?: string): string {
-  const lowerMessage = userMessage.toLowerCase();
-  
-  if (lowerMessage.includes('code') || lowerMessage.includes('function') || lowerMessage.includes('typescript')) {
-    return `Here's an example implementation:
-
-\`\`\`typescript
-// Example TypeScript function
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  createdAt: Date;
-}
-
-async function fetchUserById(id: string): Promise<User | null> {
-  try {
-    const response = await fetch(\`/api/users/\${id}\`);
-    
-    if (!response.ok) {
-      throw new Error(\`HTTP error! status: \${response.status}\`);
-    }
-    
-    const data = await response.json();
-    return data as User;
-  } catch (error) {
-    console.error('Failed to fetch user:', error);
-    return null;
-  }
-}
-
-// Usage example
-const user = await fetchUserById('user-123');
-if (user) {
-  console.log(\`Found user: \${user.name}\`);
-}
-\`\`\`
-
-**Key features of this implementation:**
-
-1. **Type Safety** - Uses TypeScript interfaces for better type checking
-2. **Error Handling** - Properly catches and handles errors
-3. **Async/Await** - Modern async pattern for cleaner code
-4. **Null Safety** - Returns null instead of throwing for not found cases
-
-Would you like me to explain any part of this code or modify it for your specific use case?`;
-  }
-
-  if (lowerMessage.includes('explain') || lowerMessage.includes('what is')) {
-    return `Great question! Let me explain this concept for you.
-
-## Overview
-
-${personaName ? `As ${personaName}, I'll provide a detailed explanation tailored to your needs.` : ''}
-
-The concept you're asking about is fundamental to modern software development. Here are the key points:
-
-### Key Concepts
-
-1. **First Principle** - Understanding the basics is crucial
-2. **Best Practices** - Always follow industry standards
-3. **Common Pitfalls** - Watch out for these mistakes
-
-### Practical Example
-
-\`\`\`javascript
-// Here's how it works in practice
-const example = {
-  concept: 'explained',
-  understanding: 'improved'
-};
-\`\`\`
-
-### Further Reading
-
-- Official documentation
-- Community resources
-- Related concepts to explore
-
-Would you like me to dive deeper into any of these topics?`;
-  }
-
-  return `I understand you're asking about: "${userMessage}"
-
-${personaName ? `As ${personaName}, ` : ''}I'm here to help you with this request. Here's what I can offer:
-
-### Analysis
-
-Your question touches on several important aspects:
-- **Context** - Understanding the broader picture
-- **Implementation** - Practical steps forward
-- **Best Practices** - Industry-standard approaches
-
-### Recommendations
-
-1. Start with a clear understanding of requirements
-2. Break down the problem into smaller parts
-3. Implement incrementally with testing
-4. Document your decisions
-
-Would you like me to elaborate on any of these points or help you with something specific?`;
 }

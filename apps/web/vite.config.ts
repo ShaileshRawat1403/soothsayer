@@ -13,28 +13,24 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3000,
+    port: 5173,
     host: '0.0.0.0',
     strictPort: true,
     allowedHosts: 'all',
-    hmr: {
-      clientPort: 443,
-      protocol: 'wss',
-      host: '3000-iwwnvyxrdr4iv6ajsfqja-cbeee0f9.sandbox.novita.ai',
-    },
+    hmr: false,
     proxy: {
       '/api': {
-        target: 'http://localhost:4000',
+        target: 'http://localhost:3000',
         changeOrigin: true,
       },
       '/socket.io': {
-        target: 'http://localhost:4000',
+        target: 'http://localhost:3000',
         ws: true,
       },
     },
   },
   preview: {
-    port: 3000,
+    port: 5173,
     host: true,
   },
   build: {

@@ -27,6 +27,8 @@ import {
   AlertCircle,
   CheckCircle,
   Info,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -49,13 +51,18 @@ export function SettingsPage() {
   const {
     providers,
     activeProvider,
-    activeModel,
     connectionStatus,
     setActiveProvider,
     updateProviderConfig,
     testConnection,
     isConnecting,
+    addModelToProvider,
+    removeModelFromProvider,
   } = useAIProviderStore();
+
+  const [newModelByProvider, setNewModelByProvider] = useState<
+    Record<string, { id: string; name: string; contextLength: string }>
+  >({});
 
   const [profileForm, setProfileForm] = useState({
     name: user?.name || '',
@@ -84,6 +91,35 @@ export function SettingsPage() {
     } else {
       toast.error('Connection failed. Please check your configuration.');
     }
+  };
+
+  const handleAddModel = (providerId: AIProvider) => {
+    const entry = newModelByProvider[providerId] || { id: '', name: '', contextLength: '8192' };
+    const modelId = entry.id.trim();
+    const modelName = entry.name.trim();
+    const contextLength = Number.parseInt(entry.contextLength, 10);
+
+    if (!modelId || !modelName) {
+      toast.error('Model ID and Model Name are required');
+      return;
+    }
+    if (!Number.isFinite(contextLength) || contextLength <= 0) {
+      toast.error('Context length must be a positive number');
+      return;
+    }
+
+    addModelToProvider(providerId, {
+      id: modelId,
+      name: modelName,
+      contextLength,
+      capabilities: ['chat', 'code'],
+    });
+
+    setNewModelByProvider((prev) => ({
+      ...prev,
+      [providerId]: { id: '', name: '', contextLength: '8192' },
+    }));
+    toast.success(`Added model "${modelName}"`);
   };
 
   const mockApiKey = 'sk-soothsayer-xxxx-xxxx-xxxx-xxxxxxxxxxxx';
@@ -244,20 +280,87 @@ export function SettingsPage() {
                             {/* Models */}
                             <div className="flex items-start gap-2">
                               <label className="text-sm font-medium w-24 pt-2">Models</label>
-                              <div className="flex-1 flex flex-wrap gap-2">
-                                {provider.models.slice(0, 4).map((model) => (
-                                  <span
-                                    key={model.id}
-                                    className="rounded-lg bg-secondary px-2.5 py-1 text-xs font-medium"
-                                  >
-                                    {model.name}
-                                  </span>
-                                ))}
-                                {provider.models.length > 4 && (
-                                  <span className="rounded-lg bg-secondary px-2.5 py-1 text-xs text-muted-foreground">
-                                    +{provider.models.length - 4} more
-                                  </span>
-                                )}
+                              <div className="flex-1 space-y-2">
+                                <div className="flex flex-wrap gap-2">
+                                  {provider.models.map((model) => (
+                                    <span
+                                      key={model.id}
+                                      className="inline-flex items-center gap-1 rounded-lg bg-secondary px-2.5 py-1 text-xs font-medium"
+                                    >
+                                      {model.name}
+                                      <button
+                                        type="button"
+                                        onClick={() => removeModelFromProvider(provider.id, model.id)}
+                                        className="text-muted-foreground hover:text-foreground"
+                                        title={`Remove ${model.name}`}
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </button>
+                                    </span>
+                                  ))}
+                                </div>
+
+                                <div className="grid gap-2 sm:grid-cols-3">
+                                  <input
+                                    type="text"
+                                    placeholder="Model ID (e.g. gpt-4o-mini)"
+                                    value={newModelByProvider[provider.id]?.id || ''}
+                                    onChange={(e) =>
+                                      setNewModelByProvider((prev) => ({
+                                        ...prev,
+                                        [provider.id]: {
+                                          id: e.target.value,
+                                          name: prev[provider.id]?.name || '',
+                                          contextLength: prev[provider.id]?.contextLength || '8192',
+                                        },
+                                      }))
+                                    }
+                                    className="h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                                  />
+                                  <input
+                                    type="text"
+                                    placeholder="Model name"
+                                    value={newModelByProvider[provider.id]?.name || ''}
+                                    onChange={(e) =>
+                                      setNewModelByProvider((prev) => ({
+                                        ...prev,
+                                        [provider.id]: {
+                                          id: prev[provider.id]?.id || '',
+                                          name: e.target.value,
+                                          contextLength: prev[provider.id]?.contextLength || '8192',
+                                        },
+                                      }))
+                                    }
+                                    className="h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                                  />
+                                  <div className="flex gap-2">
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      placeholder="Context"
+                                      value={newModelByProvider[provider.id]?.contextLength || '8192'}
+                                      onChange={(e) =>
+                                        setNewModelByProvider((prev) => ({
+                                          ...prev,
+                                          [provider.id]: {
+                                            id: prev[provider.id]?.id || '',
+                                            name: prev[provider.id]?.name || '',
+                                            contextLength: e.target.value,
+                                          },
+                                        }))
+                                      }
+                                      className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleAddModel(provider.id)}
+                                      className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 text-sm text-primary-foreground hover:bg-primary/90"
+                                    >
+                                      <Plus className="h-4 w-4" />
+                                      Add
+                                    </button>
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           </div>

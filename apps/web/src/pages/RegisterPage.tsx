@@ -32,7 +32,14 @@ export function RegisterPage() {
     try {
       const response = await apiHelpers.register({ email, password, name });
       const { user, accessToken, refreshToken } = response.data;
-      login(user, accessToken, refreshToken);
+      login(
+        {
+          ...user,
+          role: user.role || 'ADMIN',
+        },
+        accessToken,
+        refreshToken
+      );
       toast.success('Account created successfully!');
       navigate('/dashboard');
     } catch (error: unknown) {

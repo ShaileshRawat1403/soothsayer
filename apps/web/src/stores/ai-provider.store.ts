@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type AIProvider = 'openai' | 'anthropic' | 'ollama' | 'lmstudio' | 'groq' | 'together' | 'openrouter' | 'custom';
+export type AIProvider = 'openai' | 'anthropic' | 'ollama' | 'lmstudio' | 'groq' | 'together' | 'openrouter' | 'bedrock' | 'custom';
 
 export interface AIProviderConfig {
   id: AIProvider;
@@ -39,6 +39,8 @@ interface AIProviderState {
   setActiveProvider: (provider: AIProvider) => void;
   setActiveModel: (model: string) => void;
   updateProviderConfig: (id: AIProvider, config: Partial<AIProviderConfig>) => void;
+  addModelToProvider: (provider: AIProvider, model: AIModel) => void;
+  removeModelFromProvider: (provider: AIProvider, modelId: string) => void;
   testConnection: (provider: AIProvider) => Promise<boolean>;
   setConnectionStatus: (provider: AIProvider, status: 'connected' | 'disconnected' | 'error') => void;
 }
@@ -81,16 +83,18 @@ const DEFAULT_PROVIDERS: AIProviderConfig[] = [
     icon: '🦙',
     baseUrl: 'http://localhost:11434',
     models: [
+      { id: 'ministral-3:3b', name: 'Ministral 3B', contextLength: 8192, capabilities: ['chat', 'code'] },
+      { id: 'llama3.2:1b', name: 'Llama 3.2 1B', contextLength: 8192, capabilities: ['chat', 'code'] },
       { id: 'llama3:latest', name: 'Llama 3', contextLength: 8192, capabilities: ['chat', 'code'] },
       { id: 'codellama:latest', name: 'Code Llama', contextLength: 16384, capabilities: ['code'] },
       { id: 'mistral:latest', name: 'Mistral', contextLength: 8192, capabilities: ['chat', 'code'] },
       { id: 'mixtral:latest', name: 'Mixtral 8x7B', contextLength: 32768, capabilities: ['chat', 'code'] },
       { id: 'deepseek-coder:latest', name: 'DeepSeek Coder', contextLength: 16384, capabilities: ['code'] },
-      { id: 'phi3:latest', name: 'Phi-3', contextLength: 4096, capabilities: ['chat', 'code'] },
+      { id: 'phi3:mini', name: 'Phi-3 Mini', contextLength: 4096, capabilities: ['chat', 'code'] },
     ],
     isLocal: true,
     isConfigured: false,
-    defaultModel: 'llama3:latest',
+    defaultModel: 'llama3.2:1b',
   },
   {
     id: 'lmstudio',
@@ -152,6 +156,22 @@ const DEFAULT_PROVIDERS: AIProviderConfig[] = [
     defaultModel: 'openai/gpt-4-turbo-preview',
   },
   {
+    id: 'bedrock',
+    name: 'AWS Bedrock',
+    description: 'Managed foundation models on AWS',
+    icon: '☁️',
+    baseUrl: 'https://bedrock-runtime.us-east-1.amazonaws.com',
+    models: [
+      { id: 'anthropic.claude-3-5-sonnet-20240620-v1:0', name: 'Claude 3.5 Sonnet', contextLength: 200000, capabilities: ['chat', 'code', 'vision'] },
+      { id: 'anthropic.claude-3-haiku-20240307-v1:0', name: 'Claude 3 Haiku', contextLength: 200000, capabilities: ['chat', 'code'] },
+      { id: 'amazon.nova-pro-v1:0', name: 'Amazon Nova Pro', contextLength: 300000, capabilities: ['chat', 'code', 'vision'] },
+      { id: 'meta.llama3-1-70b-instruct-v1:0', name: 'Llama 3.1 70B Instruct', contextLength: 128000, capabilities: ['chat', 'code'] },
+    ],
+    isLocal: false,
+    isConfigured: true,
+    defaultModel: 'anthropic.claude-3-5-sonnet-20240620-v1:0',
+  },
+  {
     id: 'custom',
     name: 'Custom Endpoint',
     description: 'Connect to any OpenAI-compatible API',
@@ -178,6 +198,7 @@ export const useAIProviderStore = create<AIProviderState>()(
         groq: 'disconnected',
         together: 'disconnected',
         openrouter: 'disconnected',
+        bedrock: 'disconnected',
         custom: 'disconnected',
       },
       
@@ -197,6 +218,40 @@ export const useAIProviderStore = create<AIProviderState>()(
             p.id === id ? { ...p, ...config, isConfigured: !!(config.apiKey || p.isLocal) } : p
           ),
         })),
+
+      addModelToProvider: (provider, model) =>
+        set((state) => ({
+          providers: state.providers.map((p) => {
+            if (p.id !== provider) {
+              return p;
+            }
+            const alreadyExists = p.models.some((m) => m.id === model.id);
+            if (alreadyExists) {
+              return p;
+            }
+            return { ...p, models: [...p.models, model] };
+          }),
+        })),
+
+      removeModelFromProvider: (provider, modelId) =>
+        set((state) => {
+          const providers = state.providers.map((p) => {
+            if (p.id !== provider) {
+              return p;
+            }
+            return { ...p, models: p.models.filter((m) => m.id !== modelId) };
+          });
+
+          const currentProvider = providers.find((p) => p.id === state.activeProvider);
+          const activeModelStillExists = currentProvider?.models.some((m) => m.id === state.activeModel);
+
+          return {
+            providers,
+            activeModel: activeModelStillExists
+              ? state.activeModel
+              : (currentProvider?.models[0]?.id ?? ''),
+          };
+        }),
       
       testConnection: async (provider) => {
         set({ isConnecting: true });
@@ -221,9 +276,9 @@ export const useAIProviderStore = create<AIProviderState>()(
             return connected;
           }
           
-          // For cloud providers, we'd make a test API call
-          // For now, just check if API key is configured
-          const connected = !!providerConfig.apiKey;
+          // For cloud providers, we'd make a test API call.
+          // Bedrock generally uses IAM credentials on the server side, so no client API key is required.
+          const connected = provider === 'bedrock' ? true : !!providerConfig.apiKey;
           get().setConnectionStatus(provider, connected ? 'connected' : 'disconnected');
           set({ isConnecting: false });
           return connected;

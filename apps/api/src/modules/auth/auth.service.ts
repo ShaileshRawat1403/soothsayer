@@ -9,6 +9,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { v4 as uuidv4 } from 'uuid';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import {
@@ -65,6 +66,46 @@ export class AuthService {
   }
 
   async login(dto: LoginDto, userAgent?: string, ipAddress?: string): Promise<AuthTokens & { user: TokenPayload }> {
+    const authBypass = this.configService.get<boolean>('AUTH_BYPASS', false);
+    if (authBypass) {
+      const fallbackEmail = this.configService.get<string>('AUTH_BYPASS_EMAIL', 'admin@soothsayer.local');
+      const email = (dto.email || fallbackEmail).toLowerCase();
+      let user = await this.prisma.user.findUnique({ where: { email } });
+
+      if (!user) {
+        const generatedPassword = `Bypass${uuidv4()}Aa1!`;
+        const generatedName = dto.email ? dto.email.split('@')[0] : this.configService.get<string>('AUTH_BYPASS_NAME', 'Admin User');
+        const provisioned = await this.register({
+          email,
+          password: generatedPassword,
+          name: generatedName,
+          organizationName: `${generatedName}'s Workspace`,
+        });
+        return provisioned;
+      }
+
+      // Ensure bypass user stays active for local testing.
+      if (!user.isActive) {
+        user = await this.prisma.user.update({
+          where: { id: user.id },
+          data: { isActive: true },
+        });
+      }
+
+      const bypassPayload: TokenPayload = {
+        sub: user.id,
+        email: user.email,
+        name: user.name,
+      };
+      const bypassTokens = await this.generateTokens(bypassPayload);
+      await this.createSession(user.id, bypassTokens.refreshToken, userAgent, ipAddress);
+      this.logger.warn(`AUTH_BYPASS enabled. Logged in without password check: ${user.email}`);
+      return {
+        ...bypassTokens,
+        user: bypassPayload,
+      };
+    }
+
     const payload = await this.validateUser(dto.email, dto.password);
 
     if (!payload) {
@@ -104,7 +145,7 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(dto.password, this.saltRounds);
 
     // Create user and organization in a transaction
-    const result = await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Create user
       const user = await tx.user.create({
         data: {

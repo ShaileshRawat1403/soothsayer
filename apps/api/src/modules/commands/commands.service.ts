@@ -66,7 +66,7 @@ export class CommandsService {
         conversationId: options.conversationId,
         tier: options.tier || 0,
         command: resolvedCommand,
-        parameters: options.parameters,
+        parameters: options.parameters as any,
         status: 'pending',
         output: {},
       },

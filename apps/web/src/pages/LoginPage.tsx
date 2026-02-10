@@ -19,7 +19,14 @@ export function LoginPage() {
     try {
       const response = await apiHelpers.login(email, password);
       const { user, accessToken, refreshToken } = response.data;
-      login(user, accessToken, refreshToken);
+      login(
+        {
+          ...user,
+          role: user.role || 'ADMIN',
+        },
+        accessToken,
+        refreshToken
+      );
       toast.success('Welcome back!');
       navigate('/dashboard');
     } catch (error: unknown) {
