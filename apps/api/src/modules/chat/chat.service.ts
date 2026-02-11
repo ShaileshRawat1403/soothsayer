@@ -514,6 +514,9 @@ export class ChatService {
     messages: ChatCompletionMessage[],
   ): Promise<string> {
     const baseUrl = this.configService.get<string>('OLLAMA_BASE_URL', 'http://127.0.0.1:11434');
+    const keepAlive = this.configService.get<string>('OLLAMA_KEEP_ALIVE', '30m');
+    const numPredict = this.configService.get<number>('OLLAMA_NUM_PREDICT', 192);
+    const numCtx = this.configService.get<number>('OLLAMA_NUM_CTX', 1024);
     const response = await this.fetchWithTimeout(`${baseUrl.replace(/\/$/, '')}/api/chat`, {
       method: 'POST',
       headers: {
@@ -523,6 +526,11 @@ export class ChatService {
         model,
         messages,
         stream: false,
+        keep_alive: keepAlive,
+        options: {
+          num_predict: numPredict,
+          num_ctx: numCtx,
+        },
       }),
     });
 
@@ -548,7 +556,7 @@ export class ChatService {
   private async fetchWithTimeout(
     input: RequestInfo | URL,
     init: RequestInit,
-    timeoutMs = 45000,
+    timeoutMs = this.configService.get<number>('AI_REQUEST_TIMEOUT_MS', 600000),
   ): Promise<Response> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);

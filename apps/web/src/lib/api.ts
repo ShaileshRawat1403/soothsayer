@@ -2,6 +2,8 @@ import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import { useAuthStore } from '@/stores/auth.store';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+const API_TIMEOUT_MS = Number(import.meta.env.VITE_API_TIMEOUT_MS || '300000');
+const CHAT_TIMEOUT_MS = Number(import.meta.env.VITE_CHAT_TIMEOUT_MS || '600000');
 
 type WrappedResponse<T> = {
   success: boolean;
@@ -13,7 +15,7 @@ type WrappedResponse<T> = {
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 15000,
+  timeout: Number.isFinite(API_TIMEOUT_MS) ? API_TIMEOUT_MS : 300000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -165,7 +167,10 @@ export const apiHelpers = {
       provider?: string;
       model?: string;
     }
-  ) => api.post(`/chat/conversations/${conversationId}/messages`, payload),
+  ) =>
+    api.post(`/chat/conversations/${conversationId}/messages`, payload, {
+      timeout: Number.isFinite(CHAT_TIMEOUT_MS) ? CHAT_TIMEOUT_MS : 600000,
+    }),
   
   // Commands
   getCommands: (workspaceId: string) => api.get('/commands', { params: { workspaceId } }),

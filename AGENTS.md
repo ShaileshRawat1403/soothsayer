@@ -26,6 +26,12 @@ Strongly recommended on EC2 dev:
 - `AWS_REGION=us-east-1` (if Bedrock used)
 - `BEDROCK_MODEL_ID=<model-id>` (if Bedrock used)
 - `OLLAMA_BASE_URL=http://127.0.0.1:11434` (if Ollama used)
+- `AI_REQUEST_TIMEOUT_MS=600000` (for slow local inference)
+- `VITE_API_TIMEOUT_MS=300000`
+- `VITE_CHAT_TIMEOUT_MS=600000`
+- `OLLAMA_KEEP_ALIVE=30m`
+- `OLLAMA_NUM_PREDICT=192`
+- `OLLAMA_NUM_CTX=1024`
 
 ## Process Model
 
@@ -65,6 +71,13 @@ npx -y pnpm@8.12.0 --filter @soothsayer/web exec vite --host 0.0.0.0 --port 5173
 5. Ollama 404 model not found:
 - Model tag mismatch. Check exact tags with `ollama list`.
 - Use exact IDs in UI and backend (e.g., `llama3.2:1b`, `phi3:mini`).
+
+6. Chat response only appears after refresh / timeout toast:
+- Usually timeout mismatch or slow Ollama inference.
+- Confirm `.env` has `AI_REQUEST_TIMEOUT_MS`, `VITE_API_TIMEOUT_MS`, `VITE_CHAT_TIMEOUT_MS` values above.
+- Restart both processes with env refresh:
+  - `pm2 restart soothsayer-api --update-env`
+  - `pm2 restart soothsayer-web --update-env`
 
 ## Functional Validation
 

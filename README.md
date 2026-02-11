@@ -223,6 +223,12 @@ JWT_REFRESH_EXPIRES_IN=7d
 OPENAI_API_KEY=sk-...
 GROQ_API_KEY=gsk_...
 OLLAMA_BASE_URL=http://127.0.0.1:11434
+OLLAMA_KEEP_ALIVE=30m
+OLLAMA_NUM_PREDICT=192
+OLLAMA_NUM_CTX=1024
+AI_REQUEST_TIMEOUT_MS=600000
+VITE_API_TIMEOUT_MS=300000
+VITE_CHAT_TIMEOUT_MS=600000
 AWS_REGION=us-east-1
 BEDROCK_MODEL_ID=amazon.nova-pro-v1:0
 
@@ -255,6 +261,8 @@ Provider behavior:
 - API returns explicit inference errors if provider/model fails.
 - Bedrock can fail due account setup or quota (`ResourceNotFoundException`, `ThrottlingException`).
 - Ollama model IDs must match exact local tags (`llama3.2:1b`, `phi3:mini`, etc.).
+- For CPU-bound EC2 inference, keep Ollama warm and cap generation/context (`OLLAMA_KEEP_ALIVE`, `OLLAMA_NUM_PREDICT`, `OLLAMA_NUM_CTX`).
+- If chat shows timeout toast but response appears after refresh, increase and align API/web timeouts (`AI_REQUEST_TIMEOUT_MS`, `VITE_API_TIMEOUT_MS`, `VITE_CHAT_TIMEOUT_MS`) and restart PM2 with `--update-env`.
 
 See:
 - `docs/EC2_STABILIZATION_RUNBOOK.md`
