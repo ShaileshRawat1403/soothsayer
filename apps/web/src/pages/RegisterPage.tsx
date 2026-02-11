@@ -16,6 +16,7 @@ export function RegisterPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const normalizedEmail = email.trim().replace(/,/g, '.').toLowerCase();
     
     if (password !== confirmPassword) {
       toast.error('Passwords do not match');
@@ -30,7 +31,7 @@ export function RegisterPage() {
     setIsLoading(true);
 
     try {
-      const response = await apiHelpers.register({ email, password, name });
+      const response = await apiHelpers.register({ email: normalizedEmail, password, name });
       const { user, accessToken, refreshToken } = response.data;
       login(
         {
@@ -74,9 +75,12 @@ export function RegisterPage() {
           </label>
           <input
             id="email"
-            type="email"
+            type="text"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => setEmail(e.target.value.replace(/,/g, '.'))}
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
             placeholder="you@company.com"
             required
             className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"

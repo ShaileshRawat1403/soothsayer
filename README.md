@@ -258,7 +258,39 @@ Provider behavior:
 
 See:
 - `docs/EC2_STABILIZATION_RUNBOOK.md`
+- `docs/EC2_LIVE_DEPLOY.md` (production-mode EC2 deploy with build + PM2)
 - `docs/HOW_TO_EC2_PITFALLS.md`
+
+EC2 live shortcut (single-origin via Nginx on port 80):
+
+```bash
+cp infra/ec2/prod.env.100.48.60.255.example .env
+PUBLIC_ORIGIN=http://100.48.60.255 SERVER_NAME=100.48.60.255 ./scripts/ec2/bootstrap-live.sh
+```
+
+### Resume Quick Checks (EC2)
+
+When returning to an EC2 testbox after restart/new session:
+
+```bash
+cd /home/ec2-user/soothsayer
+pm2 restart all --update-env || true
+pm2 status
+curl -sS http://localhost:3000/api/health
+curl -I http://localhost:5173
+```
+
+If login page spins:
+
+```bash
+curl -i -sS -X POST http://localhost:5173/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@soothsayer.local","password":"password123"}'
+```
+
+If API works but browser still fails, clear browser storage/cache and hard refresh.
+
+If chat fails with missing persona, create one from UI Personas page (or run `admin:seed`).
 
 ## Deployment
 

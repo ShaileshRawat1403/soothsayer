@@ -15,9 +15,10 @@ export function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    const normalizedEmail = email.trim().replace(/,/g, '.').toLowerCase();
 
     try {
-      const response = await apiHelpers.login(email, password);
+      const response = await apiHelpers.login(normalizedEmail, password);
       const { user, accessToken, refreshToken } = response.data;
       login(
         {
@@ -63,9 +64,12 @@ export function LoginPage() {
           </label>
           <input
             id="email"
-            type="email"
+            type="text"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => setEmail(e.target.value.replace(/,/g, '.'))}
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
             placeholder="you@company.com"
             required
             className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"

@@ -33,7 +33,21 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const port = configService.get<number>('API_PORT', 3000);
   const appUrl = configService.get<string>('APP_URL', 'http://localhost:5173');
+  const corsOriginsRaw = configService.get<string>('CORS_ORIGINS');
   const nodeEnv = configService.get<string>('NODE_ENV', 'development');
+  const corsOrigins = new Set(
+    [
+      appUrl,
+      'http://localhost:5173',
+      'http://localhost:3000',
+      ...(corsOriginsRaw
+        ? corsOriginsRaw
+            .split(',')
+            .map((origin) => origin.trim())
+            .filter(Boolean)
+        : []),
+    ].filter(Boolean),
+  );
 
   // Security middleware
   app.use(
@@ -44,7 +58,7 @@ async function bootstrap() {
 
   // CORS configuration
   app.enableCors({
-    origin: [appUrl, 'http://localhost:5173', 'http://localhost:3000'],
+    origin: Array.from(corsOrigins),
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Correlation-Id'],

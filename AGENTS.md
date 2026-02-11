@@ -76,6 +76,53 @@ Use:
 
 Then validate provider chat with explicit provider/model in UI.
 
+## Session Handoff Checklist (EC2)
+
+When resuming in a new session, run these first on the active EC2 host:
+
+```bash
+cd /home/ec2-user/soothsayer
+pm2 restart all --update-env || true
+pm2 status
+curl -sS http://localhost:3000/api/health
+curl -I http://localhost:5173
+```
+
+If web login spins forever:
+
+1. Confirm API and proxy login both work from EC2:
+```bash
+curl -i -sS -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@soothsayer.local","password":"password123"}'
+curl -i -sS -X POST http://localhost:5173/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@soothsayer.local","password":"password123"}'
+```
+2. Force frontend API path to proxy and restart web:
+```bash
+sed -i '/^VITE_API_URL=/d' .env
+echo 'VITE_API_URL=/api' >> .env
+pm2 restart soothsayer-web --update-env
+```
+3. In browser DevTools Console (not shell): `localStorage.clear(); sessionStorage.clear(); location.reload();`
+
+If chat shows `No persona found. Create or import a persona first.`:
+
+1. Create a persona in UI Personas page, or
+2. Seed and retry:
+```bash
+npx -y pnpm@8.12.0 --filter @soothsayer/api admin:seed
+```
+
+If DB connectivity fails (`P1001`):
+
+```bash
+nc -vz database-soothsayer.cgx0o42kagib.us-east-1.rds.amazonaws.com 5432
+```
+
+Ensure EC2<->RDS security group linkage is correct before retrying Prisma/seed.
+
 ## Non-Goals in Dev
 
 - Do not enable blanket auth bypass by default.
