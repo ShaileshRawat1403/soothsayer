@@ -65,6 +65,20 @@ function mapApiMessageToUi(message: any): Message {
   };
 }
 
+function improvePromptDraft(raw: string): string {
+  const draft = raw.trim();
+  if (!draft) return raw;
+
+  return [
+    'Please help with the following request.',
+    '',
+    `Task: ${draft}`,
+    'Context: This request is from the Soothsayer web app chat.',
+    'Constraints: Be practical, accurate, and concise. If assumptions are made, state them clearly.',
+    'Output format: Provide a direct answer first, then numbered next steps.',
+  ].join('\n');
+}
+
 export function ChatPage() {
   const { conversationId: routeConversationId } = useParams();
   const navigate = useNavigate();
@@ -73,6 +87,8 @@ export function ChatPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(routeConversationId || null);
   const [showModelSelector, setShowModelSelector] = useState(false);
+  const [showSystemInstructions, setShowSystemInstructions] = useState(false);
+  const [systemInstructions, setSystemInstructions] = useState('');
   const [isBootstrapping, setIsBootstrapping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -105,6 +121,15 @@ export function ChatPage() {
     document.addEventListener('mousedown', onPointerDown);
     return () => document.removeEventListener('mousedown', onPointerDown);
   }, []);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('soothsayer-chat-system-instructions') || '';
+    setSystemInstructions(stored);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('soothsayer-chat-system-instructions', systemInstructions);
+  }, [systemInstructions]);
 
   useEffect(() => {
     async function loadConversation() {
@@ -190,6 +215,20 @@ export function ChatPage() {
     return { id: firstPersona.id, name: firstPersona.name };
   };
 
+  const handleImprovePrompt = () => {
+    if (!input.trim()) {
+      toast.error('Type a draft prompt first');
+      return;
+    }
+    const improved = improvePromptDraft(input);
+    setInput(improved);
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+      inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 200) + 'px';
+    }
+    toast.success('Prompt improved');
+  };
+
   const handleSend = async () => {
     const text = input.trim();
     if (!text || isLoading || isBootstrapping) return;
@@ -229,6 +268,7 @@ export function ChatPage() {
         content: text,
         provider: activeProvider,
         model: activeModel,
+        systemPrompt: systemInstructions.trim() || undefined,
       });
       const payload = sendResponse.data as any;
       const assistantMessage = payload?.assistantMessage;
@@ -438,6 +478,30 @@ export function ChatPage() {
 
       <div className="border-t border-border bg-card/80 backdrop-blur-sm p-4">
         <div className="mx-auto max-w-3xl">
+          <div className="mb-2 flex items-center justify-between px-1">
+            <button
+              onClick={() => setShowSystemInstructions((v) => !v)}
+              className="rounded-lg border border-border bg-background px-3 py-1 text-xs hover:bg-accent transition-colors"
+            >
+              {showSystemInstructions ? 'Hide' : 'Show'} system instructions
+            </button>
+            {systemInstructions.trim() && (
+              <span className="text-xs text-muted-foreground">Custom instructions active</span>
+            )}
+          </div>
+
+          {showSystemInstructions && (
+            <div className="mb-3 rounded-xl border border-border bg-background p-2">
+              <textarea
+                value={systemInstructions}
+                onChange={(e) => setSystemInstructions(e.target.value)}
+                placeholder="Set chat-level system instructions (applies to each message in this chat view)."
+                rows={4}
+                className="w-full resize-y bg-transparent p-2 text-sm outline-none placeholder:text-muted-foreground"
+              />
+            </div>
+          )}
+
           <div className="relative flex items-end gap-2 rounded-2xl border border-border bg-background p-2 shadow-sm focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
             <button className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl hover:bg-accent transition-colors">
               <Plus className="h-5 w-5 text-muted-foreground" />
@@ -454,6 +518,13 @@ export function ChatPage() {
             />
 
             <div className="flex items-center gap-1">
+              <button
+                onClick={handleImprovePrompt}
+                disabled={!input.trim() || isLoading || isBootstrapping}
+                className="rounded-lg border border-border bg-background px-2 py-1 text-xs hover:bg-accent disabled:opacity-50 transition-colors"
+              >
+                Improve
+              </button>
               <button className="flex h-9 w-9 items-center justify-center rounded-xl hover:bg-accent transition-colors">
                 <Paperclip className="h-5 w-5 text-muted-foreground" />
               </button>

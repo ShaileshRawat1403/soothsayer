@@ -97,6 +97,7 @@ export class ChatController {
       attachments?: unknown[];
       provider?: string;
       model?: string;
+      systemPrompt?: string;
     },
   ) {
     return this.chatService.sendMessage(id, user.id, dto.content, {
@@ -104,6 +105,7 @@ export class ChatController {
       attachments: dto.attachments,
       provider: dto.provider,
       model: dto.model,
+      systemPrompt: dto.systemPrompt,
     });
   }
 

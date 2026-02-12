@@ -166,6 +166,7 @@ export const apiHelpers = {
       content: string;
       provider?: string;
       model?: string;
+      systemPrompt?: string;
     }
   ) =>
     api.post(`/chat/conversations/${conversationId}/messages`, payload, {

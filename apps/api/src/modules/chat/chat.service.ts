@@ -147,6 +147,7 @@ export class ChatService {
       attachments?: unknown[];
       provider?: string;
       model?: string;
+      systemPrompt?: string;
     } = {},
   ) {
     const conversation = await this.findConversation(conversationId, userId);
@@ -320,6 +321,7 @@ export class ChatService {
     options: {
       provider?: string;
       model?: string;
+      systemPrompt?: string;
     },
   ): Promise<{ content: string; provider: string; model: string }> {
     const provider = (options.provider || 'openai').toLowerCase();
@@ -332,10 +334,9 @@ export class ChatService {
       conversation.persona?.config && typeof conversation.persona.config === 'object'
         ? (conversation.persona.config as Record<string, unknown>)
         : null;
-    const systemPrompt = this.buildSystemPrompt(
-      conversation.persona?.name || 'Assistant',
-      personaConfig,
-    );
+    const systemPrompt =
+      (options.systemPrompt || '').trim() ||
+      this.buildSystemPrompt(conversation.persona?.name || 'Assistant', personaConfig);
 
     const messages: ChatCompletionMessage[] = [
       { role: 'system', content: systemPrompt },
@@ -440,31 +441,54 @@ export class ChatService {
   }): Promise<string> {
     const region = this.configService.get<string>('AWS_REGION', 'us-east-1');
     const client = new BedrockRuntimeClient({ region });
+    const maxRetries = this.configService.get<number>('BEDROCK_MAX_RETRIES', 4);
+    const baseBackoffMs = this.configService.get<number>('BEDROCK_BASE_BACKOFF_MS', 500);
+    const maxTokens = this.configService.get<number>('BEDROCK_MAX_TOKENS', 512);
 
-    const result = await client.send(
-      new ConverseCommand({
-        modelId: params.modelId,
-        system: [{ text: params.systemPrompt }],
-        messages: params.messages
-          .filter((m) => m.role !== 'system')
-          .map((message) => ({
-            role: message.role === 'assistant' ? 'assistant' : 'user',
-            content: [{ text: message.content }],
-          })),
-        inferenceConfig: {
-          maxTokens: 1024,
-          temperature: 0.7,
-          topP: 0.9,
-        },
-      }),
-    );
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+      try {
+        const result = await client.send(
+          new ConverseCommand({
+            modelId: params.modelId,
+            system: [{ text: params.systemPrompt }],
+            messages: params.messages
+              .filter((m) => m.role !== 'system')
+              .map((message) => ({
+                role: message.role === 'assistant' ? 'assistant' : 'user',
+                content: [{ text: message.content }],
+              })),
+            inferenceConfig: {
+              maxTokens,
+              temperature: 0.7,
+              topP: 0.9,
+            },
+          }),
+        );
 
-    const content = result.output?.message?.content?.[0];
-    if (!content || !('text' in content) || !content.text?.trim()) {
-      throw new Error('Empty Bedrock completion');
+        const content = result.output?.message?.content?.[0];
+        if (!content || !('text' in content) || !content.text?.trim()) {
+          throw new Error('Empty Bedrock completion');
+        }
+
+        return content.text.trim();
+      } catch (error) {
+        lastError = error;
+        const shouldRetry = attempt < maxRetries && this.isBedrockThrottleError(error);
+        if (!shouldRetry) {
+          throw error;
+        }
+
+        const jitter = Math.floor(Math.random() * 250);
+        const delayMs = baseBackoffMs * 2 ** attempt + jitter;
+        this.logger.warn(
+          `Bedrock throttled (attempt ${attempt + 1}/${maxRetries + 1}). Retrying in ${delayMs}ms`,
+        );
+        await this.sleep(delayMs);
+      }
     }
 
-    return content.text.trim();
+    throw lastError instanceof Error ? lastError : new Error('Bedrock request failed');
   }
 
   private async callOpenAiCompatible(params: {
@@ -477,12 +501,19 @@ export class ChatService {
       throw new Error('Missing API key');
     }
 
+    const isAzureEndpoint =
+      params.baseUrl.includes('azure.com') || params.baseUrl.includes('services.ai.azure.com');
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${params.apiKey}`,
+    };
+    if (isAzureEndpoint) {
+      headers['api-key'] = params.apiKey;
+    }
+
     const response = await this.fetchWithTimeout(`${params.baseUrl.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${params.apiKey}`,
-      },
+      headers,
       body: JSON.stringify({
         model: params.model,
         messages: params.messages,
@@ -568,6 +599,26 @@ export class ChatService {
     } finally {
       clearTimeout(timeout);
     }
+  }
+
+  private isBedrockThrottleError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+    const message = error.message.toLowerCase();
+    const name = (error as { name?: string }).name?.toLowerCase() || '';
+    return (
+      name.includes('throttling') ||
+      name.includes('toomanyrequests') ||
+      message.includes('throttl') ||
+      message.includes('too many request') ||
+      message.includes('rate exceeded') ||
+      message.includes('429')
+    );
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   async deleteConversation(id: string, userId: string) {

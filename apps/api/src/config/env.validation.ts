@@ -56,6 +56,9 @@ const envSchema = z.object({
   AI_REQUEST_TIMEOUT_MS: z.coerce.number().positive().optional(),
   AWS_REGION: z.string().optional(),
   BEDROCK_MODEL_ID: z.string().optional(),
+  BEDROCK_MAX_TOKENS: z.coerce.number().positive().optional(),
+  BEDROCK_MAX_RETRIES: z.coerce.number().min(0).max(10).optional(),
+  BEDROCK_BASE_BACKOFF_MS: z.coerce.number().positive().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
   
   // Storage
