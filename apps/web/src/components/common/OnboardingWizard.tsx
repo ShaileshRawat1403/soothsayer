@@ -55,7 +55,12 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
 
   // Default personas for selection
   const defaultPersonas = [
-    { id: 'auto', name: 'Auto (Recommended)', icon: '🎯', description: 'Automatically selects the best persona based on context' },
+    {
+      id: 'auto',
+      name: 'Soothsayer (Recommended)',
+      icon: '🎯',
+      description: 'Grounded assistant optimized to demo and guide this app end-to-end',
+    },
     { id: 'staff-swe', name: 'Staff Engineer', icon: '👨‍💻', description: 'Senior technical expert for complex problems' },
     { id: 'product-manager', name: 'Product Manager', icon: '📊', description: 'Product strategy and requirements' },
     { id: 'devops-engineer', name: 'DevOps Engineer', icon: '🚀', description: 'CI/CD and infrastructure' },

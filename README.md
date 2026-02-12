@@ -268,6 +268,30 @@ See:
 - `docs/EC2_STABILIZATION_RUNBOOK.md`
 - `docs/EC2_LIVE_DEPLOY.md` (production-mode EC2 deploy with build + PM2)
 - `docs/HOW_TO_EC2_PITFALLS.md`
+- `docs/HOW_TO_DUAL_SETUP_NON_DEVS.md` (non-dev dual setup: AWS hosting + Azure OpenAI)
+- `docs/MY_VERDICT_AWS_VS_AZURE.md` (practical comparison and final recommendation)
+
+## Dual Setup (Recommended for Demos)
+
+For non-dev teams and faster go-live demos, use:
+
+- AWS for hosting/runtime: EC2 + Soothsayer web/api
+- Azure OpenAI for model inference
+
+Why:
+
+- Avoids early Bedrock account-tier throttling blockers
+- Keeps existing AWS app deployment intact
+- Uses already-deployed Azure model endpoints
+
+Minimal env for this mode:
+
+```env
+OPENAI_BASE_URL=https://<your-azure-resource>.cognitiveservices.azure.com/openai/v1
+OPENAI_API_KEY=<azure-openai-key-from-same-resource>
+```
+
+UI model value must be the Azure deployment name (example: `gpt-4o`).
 
 EC2 live shortcut (single-origin via Nginx on port 80):
 
