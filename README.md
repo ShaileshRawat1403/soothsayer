@@ -1,11 +1,29 @@
 # The Soothsayer
 
+```text
+   _____              _   _                           _
+  / ____|            | | | |                         | |
+ | (___   ___   ___  | |_| |__   ___   ___  _ __ ___| |_
+  \___ \ / _ \ / _ \ | __| '_ \ / _ \ / _ \| '__/ __| __|
+  ____) | (_) | (_) || |_| | | | (_) | (_) | |  \__ \ |_
+ |_____/ \___/ \___/  \__|_| |_|\___/ \___/|_|  |___/\__|
+```
+
 > Enterprise AI Workspace Platform for Planning, Execution, Analysis, and Automation
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue.svg)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-18.2-61DAFB.svg)](https://reactjs.org/)
 [![NestJS](https://img.shields.io/badge/NestJS-10.0-E0234E.svg)](https://nestjs.com/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+
+## Release Snapshot
+
+- Default branch: `main`
+- Latest tested setup: EC2 + PM2 + Azure OpenAI deployment (`gpt-4o` style deployment IDs)
+- Non-dev setup guide: `docs/HOW_TO_DUAL_SETUP_NON_DEVS.md`
+- Practical platform comparison: `docs/MY_VERDICT_AWS_VS_AZURE.md`
+- EC2 production runbook: `docs/EC2_LIVE_DEPLOY.md`
+- Release playbook: `docs/RELEASE_GUIDE.md`
 
 ## Overview
 
@@ -77,8 +95,8 @@ The Soothsayer is a comprehensive enterprise AI workspace that enables teams to 
 
 1. **Clone and install dependencies**
 ```bash
-git clone https://github.com/your-org/the-soothsayer.git
-cd the-soothsayer
+git clone https://github.com/ShaileshRawat1403/soothsayer.git
+cd soothsayer
 pnpm install
 ```
 
@@ -138,7 +156,7 @@ pnpm format           # Format code with Prettier
 ## Project Structure
 
 ```
-the-soothsayer/
+soothsayer/
 ├── apps/
 │   ├── web/           # React frontend application
 │   ├── api/           # NestJS backend API
@@ -346,6 +364,32 @@ docker-compose down
 3. Start API: `cd apps/api && node dist/main.js`
 4. Start Worker: `cd apps/worker && node dist/main.js`
 5. Serve web build from `apps/web/dist`
+
+## Release to GitHub (Tag + Artifacts)
+
+Create a release with build artifacts:
+
+```bash
+git checkout main
+git pull origin main
+
+pnpm --filter @soothsayer/web build
+pnpm --filter @soothsayer/api build
+
+tar -czf soothsayer-web-dist.tar.gz -C apps/web dist
+tar -czf soothsayer-api-dist.tar.gz -C apps/api dist
+
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Then in GitHub:
+1. Open `Releases` -> `Draft a new release`
+2. Choose tag `v1.0.0`
+3. Attach:
+   - `soothsayer-web-dist.tar.gz`
+   - `soothsayer-api-dist.tar.gz`
+4. Publish release notes with deploy steps from `docs/EC2_LIVE_DEPLOY.md`
 
 ## Contributing
 
