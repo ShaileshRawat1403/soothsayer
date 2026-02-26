@@ -148,6 +148,8 @@ export class ChatService {
       provider?: string;
       model?: string;
       systemPrompt?: string;
+      fileContext?: string;
+      fileName?: string;
     } = {},
   ) {
     const conversation = await this.findConversation(conversationId, userId);
@@ -322,6 +324,8 @@ export class ChatService {
       provider?: string;
       model?: string;
       systemPrompt?: string;
+      fileContext?: string;
+      fileName?: string;
     },
   ): Promise<{ content: string; provider: string; model: string }> {
     const provider = (options.provider || 'openai').toLowerCase();
@@ -338,6 +342,8 @@ export class ChatService {
       (options.systemPrompt || '').trim() ||
       this.buildSystemPrompt(conversation.persona?.name || 'Assistant', personaConfig);
 
+    const augmentedInput = this.buildAugmentedUserInput(latestUserInput, options);
+
     const messages: ChatCompletionMessage[] = [
       { role: 'system', content: systemPrompt },
       ...conversation.messages
@@ -347,7 +353,7 @@ export class ChatService {
           role: msg.role as 'user' | 'assistant',
           content: msg.content,
         })),
-      { role: 'user', content: latestUserInput },
+      { role: 'user', content: augmentedInput },
     ];
 
     if (provider === 'ollama') {
@@ -401,6 +407,24 @@ export class ChatService {
     }
 
     return `You are ${personaName}. Be practical, concise, and helpful. Prefer actionable responses over generic advice.`;
+  }
+
+  private buildAugmentedUserInput(
+    latestUserInput: string,
+    options: { fileContext?: string; fileName?: string },
+  ): string {
+    const fileContext = (options.fileContext || '').trim();
+    if (!fileContext) {
+      return latestUserInput;
+    }
+
+    const contextName = (options.fileName || 'attachment').trim();
+    const boundedContext = fileContext.slice(0, 12000);
+    return `${latestUserInput}
+
+[Attached file context: ${contextName}]
+${boundedContext}
+[End of attached file context]`;
   }
 
   private getDefaultModel(provider: string): string {

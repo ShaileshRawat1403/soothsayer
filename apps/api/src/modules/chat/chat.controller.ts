@@ -98,6 +98,8 @@ export class ChatController {
       provider?: string;
       model?: string;
       systemPrompt?: string;
+      fileContext?: string;
+      fileName?: string;
     },
   ) {
     return this.chatService.sendMessage(id, user.id, dto.content, {
@@ -106,6 +108,8 @@ export class ChatController {
       provider: dto.provider,
       model: dto.model,
       systemPrompt: dto.systemPrompt,
+      fileContext: dto.fileContext,
+      fileName: dto.fileName,
     });
   }
 

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { usePersonaStore } from '@/stores/persona.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
@@ -24,6 +24,8 @@ import {
   Mic,
   Check,
   ChevronDown,
+  Square,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { MessageContent } from '@/components/chat/MessageContent';
@@ -40,7 +42,14 @@ interface Message {
   };
 }
 
-const suggestedPrompts = [
+type SuggestedPrompt = {
+  icon: typeof Code;
+  label: string;
+  prompt: string;
+  color: string;
+};
+
+const defaultSuggestedPrompts: SuggestedPrompt[] = [
   { icon: Code, label: 'Generate code', prompt: 'Write a TypeScript function that ', color: 'text-blue-500' },
   { icon: Bug, label: 'Debug code', prompt: 'Help me debug this code:\n```\n\n```', color: 'text-red-500' },
   { icon: Lightbulb, label: 'Explain concept', prompt: 'Explain the concept of ', color: 'text-amber-500' },
@@ -48,6 +57,57 @@ const suggestedPrompts = [
   { icon: BookOpen, label: 'Write docs', prompt: 'Write documentation for ', color: 'text-green-500' },
   { icon: Zap, label: 'Optimize', prompt: 'Optimize this code:\n```\n\n```', color: 'text-orange-500' },
 ];
+
+function getPersonaSuggestedPrompts(persona: { preferredTools?: string[]; capabilities?: string[] } | null): SuggestedPrompt[] {
+  if (!persona) {
+    return defaultSuggestedPrompts;
+  }
+
+  const hints = [
+    ...(persona.preferredTools || []).map((v) => v.toLowerCase()),
+    ...(persona.capabilities || []).map((v) => v.toLowerCase()),
+  ];
+  const has = (needle: string) => hints.some((h) => h.includes(needle));
+  const personaPrompts: SuggestedPrompt[] = [];
+
+  if (has('security') || has('vulnerability') || has('audit') || has('compliance')) {
+    personaPrompts.push(
+      { icon: Bug, label: 'Scan vulnerabilities', prompt: 'Scan this codebase for likely vulnerabilities:\n```\n\n```', color: 'text-red-500' },
+      { icon: BookOpen, label: 'Audit logs', prompt: 'Audit these logs and identify suspicious events:\n```\n\n```', color: 'text-amber-500' },
+    );
+  }
+
+  if (has('ci') || has('cd') || has('infra') || has('monitoring') || has('devops') || has('automation')) {
+    personaPrompts.push(
+      { icon: Zap, label: 'Troubleshoot deployment', prompt: 'Troubleshoot this deployment issue and provide a recovery plan:\n```\n\n```', color: 'text-orange-500' },
+      { icon: Lightbulb, label: 'Create runbook', prompt: 'Create an operational runbook for ', color: 'text-green-500' },
+    );
+  }
+
+  if (has('product') || has('strategy') || has('roadmap') || has('requirements') || has('research')) {
+    personaPrompts.push(
+      { icon: Wand2, label: 'Draft PRD', prompt: 'Draft a PRD for ', color: 'text-purple-500' },
+      { icon: Lightbulb, label: 'Prioritize roadmap', prompt: 'Prioritize this roadmap with rationale:\n', color: 'text-blue-500' },
+    );
+  }
+
+  if (has('architecture') || has('design') || has('performance') || has('code')) {
+    personaPrompts.push(
+      { icon: Code, label: 'Generate code', prompt: 'Write a TypeScript function that ', color: 'text-blue-500' },
+      { icon: Wand2, label: 'Refactor code', prompt: 'Refactor this code for better performance:\n```\n\n```', color: 'text-purple-500' },
+    );
+  }
+
+  const deduped = personaPrompts.filter(
+    (item, index, arr) => arr.findIndex((candidate) => candidate.label === item.label) === index,
+  );
+
+  if (deduped.length >= 4) {
+    return deduped.slice(0, 6);
+  }
+
+  return [...deduped, ...defaultSuggestedPrompts].slice(0, 6);
+}
 
 function mapApiMessageToUi(message: any): Message {
   return {
@@ -90,14 +150,23 @@ export function ChatPage() {
   const [showSystemInstructions, setShowSystemInstructions] = useState(false);
   const [systemInstructions, setSystemInstructions] = useState('');
   const [isBootstrapping, setIsBootstrapping] = useState(false);
+  const [isParsingFile, setIsParsingFile] = useState(false);
+  const [attachedFile, setAttachedFile] = useState<{
+    fileName: string;
+    text: string;
+    truncated?: boolean;
+  } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const modelMenuRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   const { currentPersona, setCurrentPersona } = usePersonaStore();
   const { currentWorkspace, setCurrentWorkspace } = useWorkspaceStore();
   const { activeProvider, activeModel, providers, setActiveModel } = useAIProviderStore();
 
   const activeProviderConfig = providers.find((p) => p.id === activeProvider);
+  const suggestedPrompts = useMemo(() => getPersonaSuggestedPrompts(currentPersona), [currentPersona]);
 
   useEffect(() => {
     setActiveConversationId(routeConversationId || null);
@@ -126,6 +195,13 @@ export function ChatPage() {
     const stored = localStorage.getItem('soothsayer-chat-system-instructions') || '';
     setSystemInstructions(stored);
   }, []);
+
+  useEffect(
+    () => () => {
+      abortControllerRef.current?.abort();
+    },
+    [],
+  );
 
   useEffect(() => {
     localStorage.setItem('soothsayer-chat-system-instructions', systemInstructions);
@@ -191,6 +267,17 @@ export function ChatPage() {
       throw new Error('No persona found. Create or import a persona first.');
     }
 
+    let personaDetails: any = null;
+    try {
+      const detailsResponse = await apiHelpers.getPersona(firstPersona.id);
+      personaDetails = detailsResponse.data;
+    } catch {
+      personaDetails = null;
+    }
+
+    const config = personaDetails?.config && typeof personaDetails.config === 'object' ? personaDetails.config : {};
+    const toolPreferences = Array.isArray((config as any).toolPreferences) ? (config as any).toolPreferences : [];
+
     setCurrentPersona({
       id: firstPersona.id,
       name: firstPersona.name,
@@ -203,8 +290,8 @@ export function ChatPage() {
       temperature: 0.7,
       maxTokens: 4096,
       topP: 1,
-      capabilities: [],
-      preferredTools: [],
+      capabilities: Array.isArray((config as any).expertiseTags) ? (config as any).expertiseTags : [],
+      preferredTools: toolPreferences.map((tool: any) => String(tool?.toolId || '')).filter(Boolean),
       restrictions: [],
       responseStyle: { tone: 'friendly', verbosity: 'balanced', formatting: ['markdown'] },
       isDefault: false,
@@ -229,6 +316,48 @@ export function ChatPage() {
     toast.success('Prompt improved');
   };
 
+  const handleAttachClick = () => {
+    if (isLoading || isBootstrapping || isParsingFile) return;
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsParsingFile(true);
+    try {
+      const workspaceId = currentWorkspace?.id || (await ensureWorkspaceId());
+      const response = await apiHelpers.uploadFile(workspaceId, file);
+      const parsed = response.data as any;
+      const text = String(parsed?.text || '').trim();
+      if (!text) {
+        throw new Error('No text extracted from file');
+      }
+
+      setAttachedFile({
+        fileName: String(parsed?.fileName || file.name),
+        text,
+        truncated: Boolean(parsed?.truncated),
+      });
+      toast.success(`Attached ${file.name}`);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to parse file';
+      toast.error(errorMessage);
+    } finally {
+      setIsParsingFile(false);
+      e.target.value = '';
+    }
+  };
+
+  const handleStopGeneration = () => {
+    if (!isLoading) return;
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = null;
+    setIsLoading(false);
+    toast.message('Generation stopped');
+  };
+
   const handleSend = async () => {
     const text = input.trim();
     if (!text || isLoading || isBootstrapping) return;
@@ -246,6 +375,8 @@ export function ChatPage() {
       inputRef.current.style.height = 'auto';
     }
     setIsLoading(true);
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
 
     try {
       let conversationId = activeConversationId;
@@ -269,6 +400,10 @@ export function ChatPage() {
         provider: activeProvider,
         model: activeModel,
         systemPrompt: systemInstructions.trim() || undefined,
+        fileContext: attachedFile?.text,
+        fileName: attachedFile?.fileName,
+      }, {
+        signal: abortController.signal,
       });
       const payload = sendResponse.data as any;
       const assistantMessage = payload?.assistantMessage;
@@ -286,11 +421,25 @@ export function ChatPage() {
           },
         ]);
       }
+      setAttachedFile(null);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to send message';
-      toast.error(errorMessage);
-      setMessages((prev) => prev.filter((m) => m.id !== optimisticUserMessage.id));
+      if (errorMessage.toLowerCase().includes('canceled') || errorMessage.toLowerCase().includes('abort')) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `temp-assistant-stop-${Date.now()}`,
+            role: 'assistant',
+            content: 'Generation stopped.',
+            createdAt: new Date().toISOString(),
+          },
+        ]);
+      } else {
+        toast.error(errorMessage);
+        setMessages((prev) => prev.filter((m) => m.id !== optimisticUserMessage.id));
+      }
     } finally {
+      abortControllerRef.current = null;
       setIsLoading(false);
     }
   };
@@ -502,10 +651,35 @@ export function ChatPage() {
             </div>
           )}
 
+          {attachedFile && (
+            <div className="mb-2 flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-xs">
+              <span className="truncate text-muted-foreground">
+                Attached: {attachedFile.fileName}
+                {attachedFile.truncated ? ' (truncated to context limit)' : ''}
+              </span>
+              <button
+                onClick={() => setAttachedFile(null)}
+                disabled={isLoading}
+                className="ml-2 rounded p-1 hover:bg-accent disabled:opacity-50"
+                aria-label="Remove attachment"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          )}
+
           <div className="relative flex items-end gap-2 rounded-2xl border border-border bg-background p-2 shadow-sm focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
             <button className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl hover:bg-accent transition-colors">
               <Plus className="h-5 w-5 text-muted-foreground" />
             </button>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept=".pdf,.txt,.md,.markdown,.log,.json,.yml,.yaml,text/plain,application/pdf"
+              onChange={handleFileSelected}
+            />
 
             <textarea
               ref={inputRef}
@@ -525,18 +699,23 @@ export function ChatPage() {
               >
                 Improve
               </button>
-              <button className="flex h-9 w-9 items-center justify-center rounded-xl hover:bg-accent transition-colors">
-                <Paperclip className="h-5 w-5 text-muted-foreground" />
+              <button
+                onClick={handleAttachClick}
+                disabled={isLoading || isBootstrapping || isParsingFile}
+                className="flex h-9 w-9 items-center justify-center rounded-xl hover:bg-accent transition-colors disabled:opacity-50"
+                title="Attach file"
+              >
+                {isParsingFile ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : <Paperclip className="h-5 w-5 text-muted-foreground" />}
               </button>
               <button className="flex h-9 w-9 items-center justify-center rounded-xl hover:bg-accent transition-colors">
                 <Mic className="h-5 w-5 text-muted-foreground" />
               </button>
               <button
-                onClick={handleSend}
-                disabled={!input.trim() || isLoading || isBootstrapping}
+                onClick={isLoading ? handleStopGeneration : handleSend}
+                disabled={isBootstrapping || (!isLoading && !input.trim())}
                 className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground disabled:opacity-50 transition-all hover:scale-105 disabled:hover:scale-100"
               >
-                <Send className="h-4 w-4" />
+                {isLoading ? <Square className="h-4 w-4" /> : <Send className="h-4 w-4" />}
               </button>
             </div>
           </div>

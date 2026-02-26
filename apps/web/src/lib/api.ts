@@ -167,10 +167,16 @@ export const apiHelpers = {
       provider?: string;
       model?: string;
       systemPrompt?: string;
-    }
+      fileContext?: string;
+      fileName?: string;
+    },
+    options?: {
+      signal?: AbortSignal;
+    },
   ) =>
     api.post(`/chat/conversations/${conversationId}/messages`, payload, {
       timeout: Number.isFinite(CHAT_TIMEOUT_MS) ? CHAT_TIMEOUT_MS : 600000,
+      signal: options?.signal,
     }),
   
   // Commands
@@ -196,6 +202,7 @@ export const apiHelpers = {
   uploadFile: (_workspaceId: string, file: File, path?: string) => {
     const formData = new FormData();
     formData.append('file', file);
+    if (_workspaceId) formData.append('workspaceId', _workspaceId);
     if (path) formData.append('path', path);
     return api.post('/files/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },

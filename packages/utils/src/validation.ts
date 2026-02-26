@@ -121,6 +121,9 @@ export const envSchema = z.object({
   STORAGE_LOCAL_PATH: z.string().default('./uploads'),
 
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
+
+  SANDBOX_ENABLED: z.coerce.boolean().default(false),
+  SANDBOX_IMAGE: z.string().default('node:18-alpine'),
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;
