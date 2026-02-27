@@ -8,6 +8,12 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 ### Security
 
+## [0.1.2] - 2026-02-27
+### Added
+- Added `kernel_version` tool for deterministic client handshake data.
+- Added `self_check` tool for runtime sanity checks (`policy_loaded`, `bounded_stores`, `meta_contract`).
+- Added contract snapshot tests for new kernel tools.
+
 ## [0.1.1] - 2026-02-27
 ### Changed
 - Enforced response contract alignment: `meta.code` now always matches top-level `code`.
