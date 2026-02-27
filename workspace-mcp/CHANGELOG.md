@@ -8,6 +8,13 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 ### Security
 
+## [0.1.1] - 2026-02-27
+### Changed
+- Enforced response contract alignment: `meta.code` now always matches top-level `code`.
+
+### Added
+- Contract snapshot tests for code alignment across success and blocked responses.
+
 ## [0.1.0] - 2026-02-27
 ### Added
 - Deterministic Kernel API v1: run lifecycle (OPT-IN run_id), bundles, explainability
