@@ -27,3 +27,11 @@ Both runners (Python and Rust) MUST:
 - Python runner is the initial reference validator.
 - Rust runner is added as parity work begins.
 - Rust cutover is blocked until all spec-tests pass.
+
+## Bundle Hash Freezing
+
+Regenerate/freeze bundle hash goldens with:
+
+```bash
+python spec-tests/generate_bundle_hashes.py --write
+```
