@@ -4,6 +4,22 @@ import json
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Literal, Optional
 
+CANONICAL_META_KEYS = {
+    "audit_id",
+    "tool",
+    "risk",
+    "decision",
+    "code",
+    "duration_ms",
+    "run_id",
+    "run_counter",
+    "policy_hash",
+    "policy_profile",
+    "server_instance_id",
+    "output_truncated",
+    "timestamp",
+}
+
 
 @dataclass(slots=True)
 class ToolResponse:
@@ -25,6 +41,10 @@ class ToolResponse:
         meta = out.get("meta")
         if isinstance(meta, dict):
             meta["code"] = out.get("code")
+            if set(meta.keys()) != CANONICAL_META_KEYS:
+                raise RuntimeError(
+                    f"Meta contract drift detected. Expected keys={CANONICAL_META_KEYS}, got={set(meta.keys())}"
+                )
         return out
 
     def model_dump_json(self) -> str:
