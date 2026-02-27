@@ -48,7 +48,7 @@ class Governor:
             "decision": "allowed",
             "code": "success",
             "duration_ms": duration_ms,
-            "config_hash": self.config_hash,
+            "run_id": run_id,
             "server_instance_id": self.server_instance_id,
             "run_counter": self.run_counter,
             "output_truncated": output_truncated,
@@ -56,12 +56,6 @@ class Governor:
             "policy_hash": self.config_hash,
             "policy_profile": self.config.profile
         }
-        if run_id:
-            meta["run_id"] = run_id
-        if owner_id:
-            owner_hash = hashlib.sha256(owner_id.encode("utf-8")).hexdigest()
-            meta["owner_id_hash"] = owner_hash
-            meta["owner_hint"] = owner_hash[:8]
         return meta
 
     def validate_action(
@@ -237,7 +231,7 @@ class Governor:
                 
             if run and (not owner_hash or run.get("owner_hash") == owner_hash) and run.get("status") == "active":
                 # Control-plane lifecycle tools should not skew run activity metrics.
-                non_counted_tools = {"start_run", "end_run", "get_run_summary"}
+                non_counted_tools = {"start_run", "end_run", "get_run_summary", "kernel_version", "self_check"}
                 if tool in non_counted_tools:
                     self.audit_logs.set(audit_id, log_entry)
                     self.event_logs.set(audit_id, log_entry)

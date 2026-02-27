@@ -20,6 +20,8 @@ from .tools.run_task import run_task as _run_task
 from .tools.run_lifecycle import start_run as _start_run, end_run as _end_run, get_run_summary as _get_run_summary
 from .tools.change_bundle import create_change_bundle as _create_change_bundle, bundle_report as _bundle_report
 from .tools.explain_policy import explain_policy_decision as _explain_policy_decision
+from .tools.kernel_version import kernel_version as _kernel_version
+from .tools.self_check import self_check as _self_check
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -103,6 +105,14 @@ def _bind_tools(mcp: FastMCP, governor: Governor) -> None:
     @mcp.tool()
     def explain_policy_decision(audit_id: str, owner_id: Optional[str] = None) -> dict[str, Any]:
         return _explain_policy_decision(governor, audit_id, owner_id=owner_id).model_dump()
+
+    @mcp.tool()
+    def kernel_version(run_id: Optional[str] = None, owner_id: Optional[str] = None) -> dict[str, Any]:
+        return _kernel_version(governor, run_id=run_id, owner_id=owner_id).model_dump()
+
+    @mcp.tool()
+    def self_check(run_id: Optional[str] = None, owner_id: Optional[str] = None) -> dict[str, Any]:
+        return _self_check(governor, run_id=run_id, owner_id=owner_id).model_dump()
 
 
 def main(argv: list[str] | None = None) -> int:
