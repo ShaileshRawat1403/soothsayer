@@ -56,3 +56,5 @@ Thumbs.db
 /test-results/
 /playwright-report/
 /playwright/.cache/
+# Legacy MCP scratch artifacts
+packages/utils/src/__pycache__/
