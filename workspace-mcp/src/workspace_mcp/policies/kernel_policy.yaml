@@ -1,0 +1,65 @@
+version: 1
+profiles:
+  dev:
+    allow_paths: ["."]
+    deny_globs:
+      - "*.env"
+      - "*.key"
+      - "**/.git/**"
+      - "**/__pycache__/**"
+    allow_tasks:
+      test: ["pytest", "-q"]
+      lint: ["flake8", "."]
+      build: ["make", "build"]
+      echo: ["echo", "Hello World"]
+    max_file_bytes: 200000
+    max_runtime_seconds: 15
+    max_output_bytes: 50000
+    max_runs: 100
+    run_ttl_seconds: 3600
+    max_bundles: 100
+    bundle_ttl_seconds: 3600
+    max_audit_logs: 200
+    audit_ttl_seconds: 86400
+    risk_rules:
+      high_globs: ["**/*config*", "**/*.yaml", "**/*.yml", "**/*policy*"]
+      medium_globs: ["**/*.py", "**/*.ts", "**/*.rs"]
+      low_globs: ["**/*"]
+
+  ci:
+    allow_paths: ["."]
+    deny_globs: ["*.env", "*.key", "**/.git/**", "**/__pycache__/**"]
+    allow_tasks:
+      test: ["pytest", "-q"]
+      lint: ["flake8", "."]
+    max_file_bytes: 200000
+    max_runtime_seconds: 60
+    max_output_bytes: 50000
+    max_runs: 200
+    run_ttl_seconds: 7200
+    max_bundles: 200
+    bundle_ttl_seconds: 7200
+    max_audit_logs: 500
+    audit_ttl_seconds: 86400
+    risk_rules:
+      high_globs: ["**/*config*", "**/*.yaml", "**/*.yml", "**/*policy*"]
+      medium_globs: ["**/*.py", "**/*.ts", "**/*.rs"]
+      low_globs: ["**/*"]
+
+  read_only:
+    allow_paths: ["."]
+    deny_globs: ["*.env", "*.key", "**/.git/**", "**/__pycache__/**"]
+    allow_tasks: {}
+    max_file_bytes: 200000
+    max_runtime_seconds: 0
+    max_output_bytes: 50000
+    max_runs: 50
+    run_ttl_seconds: 3600
+    max_bundles: 0
+    bundle_ttl_seconds: 1
+    max_audit_logs: 200
+    audit_ttl_seconds: 86400
+    risk_rules:
+      high_globs: ["**/*"]
+      medium_globs: []
+      low_globs: []
