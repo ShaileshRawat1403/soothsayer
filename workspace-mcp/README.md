@@ -2,6 +2,11 @@
 
 Deterministic, policy-governed MCP orchestration kernel (stdio transport).
 
+## Release Scope
+
+Scope for `v0.1.2` and current reference releases: `workspace-mcp/` package only.
+The Soothsayer application is out of scope for this kernel baseline.
+
 ## Why This Exists
 
 Most MCP servers are tool-first and stateless.  
@@ -33,6 +38,14 @@ Feature surface is frozen in `0.1.x`.
 - Meta shape is strict and immutable unless intentionally versioned
 - Timestamp format is ISO8601 UTC (`...Z`)
 - Violations are structured and deterministic for client handling
+
+## Deprecation Policy
+
+Violation payload compatibility in Python `0.1.x`:
+
+- Current compatibility fields may include `data.policy_violation` (blocked paths) and `data.details` (error details).
+- Canonical target is `data.violation = {"key": "...", "details": {...}}`.
+- Legacy fields will be removed only with a documented contract bump (not in frozen `0.1.x` unless explicitly announced).
 
 ## Quickstart
 

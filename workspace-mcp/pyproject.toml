@@ -28,6 +28,7 @@ workspace-mcp = "workspace_mcp.server:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+license-files = ["LICENSE"]
 
 [tool.setuptools.package-data]
 workspace_mcp = ["policies/*.yaml"]

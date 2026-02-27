@@ -30,5 +30,31 @@ jobs:
       - name: Verify bundle hash goldens
         run: python spec-tests/generate_bundle_hashes.py --check
 
+      - name: Validate spec-test JSON fixtures
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          required = [
+              Path("spec-tests/bundle_hash_cases.json"),
+              Path("spec-tests/meta_contract.json"),
+              Path("spec-tests/violation_cases.json"),
+              Path("spec-tests/run_lifecycle_cases.json"),
+          ]
+          for path in required:
+              if not path.exists():
+                  raise SystemExit(f"Missing required fixture: {path}")
+              with path.open("r", encoding="utf-8") as f:
+                  data = json.load(f)
+              if not isinstance(data, dict):
+                  raise SystemExit(f"Fixture must be a JSON object: {path}")
+              if "version" not in data or "cases" not in data:
+                  raise SystemExit(f"Fixture must include version/cases: {path}")
+              if not isinstance(data["cases"], list):
+                  raise SystemExit(f"'cases' must be a list: {path}")
+          print("spec-test fixtures are valid.")
+          PY
+
       - name: Run tests
         run: pytest -q

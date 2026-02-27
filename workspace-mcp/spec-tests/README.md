@@ -10,9 +10,9 @@ Language-neutral parity fixtures for Kernel API v1.
 ## Files
 
 - `bundle_hash_cases.json`: deterministic bundle hashing golden cases
-- `meta_contract.json`: canonical meta contract fixtures (planned)
-- `violation_cases.json`: violation shape/code fixtures (planned)
-- `run_lifecycle_cases.json`: run lifecycle behavior fixtures (planned)
+- `meta_contract.json`: canonical meta contract fixtures
+- `violation_cases.json`: violation shape/code fixtures
+- `run_lifecycle_cases.json`: run lifecycle behavior fixtures
 
 ## Runner Contract
 
