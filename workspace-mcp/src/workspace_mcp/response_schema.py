@@ -20,7 +20,12 @@ class ToolResponse:
     meta: Dict[str, Any] = field(default_factory=dict)
 
     def model_dump(self) -> Dict[str, Any]:
-        return asdict(self)
+        out = asdict(self)
+        # Stability rule: meta.code must always match top-level code.
+        meta = out.get("meta")
+        if isinstance(meta, dict):
+            meta["code"] = out.get("code")
+        return out
 
     def model_dump_json(self) -> str:
         return json.dumps(self.model_dump(), ensure_ascii=False)
