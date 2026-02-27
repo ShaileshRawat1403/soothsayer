@@ -35,3 +35,9 @@ Regenerate/freeze bundle hash goldens with:
 ```bash
 python spec-tests/generate_bundle_hashes.py --write
 ```
+
+Verify goldens without modifying files (CI mode):
+
+```bash
+python spec-tests/generate_bundle_hashes.py --check
+```

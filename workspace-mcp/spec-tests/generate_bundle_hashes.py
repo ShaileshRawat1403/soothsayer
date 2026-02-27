@@ -50,24 +50,81 @@ def _compute_cases(doc: dict[str, Any]) -> dict[str, Any]:
     return doc
 
 
+def _check_cases(doc: dict[str, Any]) -> tuple[bool, list[str]]:
+    algorithm = doc.get("algorithm", {})
+    default_contract_version = str(algorithm.get("contract_version", "1.1"))
+    mismatches: list[str] = []
+
+    for case in doc.get("cases", []):
+        contract_version = str(case.get("contract_version", default_contract_version))
+        diff_text = str(case.get("diff_text", case.get("diff", "")))
+        target_files = case.get("target_files", [])
+        policy_hash = str(case.get("policy_hash", ""))
+        expected = str(case.get("expected_bundle_id", ""))
+
+        actual = _canonical_bundle_id(
+            diff_text=diff_text,
+            target_files=target_files,
+            policy_hash=policy_hash,
+            contract_version=contract_version,
+        )
+        if actual != expected:
+            mismatches.append(
+                f"- {case.get('name', '<unnamed>')}: expected={expected} actual={actual}"
+            )
+
+    return (len(mismatches) == 0, mismatches)
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Generate/freeze deterministic bundle hash golden values.")
+    parser = argparse.ArgumentParser(
+        description="Generate/freeze deterministic bundle hash golden values."
+    )
     parser.add_argument(
         "--cases-file",
         default=str(ROOT / "spec-tests" / "bundle_hash_cases.json"),
         help="Path to bundle_hash_cases.json",
     )
-    parser.add_argument("--write", action="store_true", help="Write updates in place instead of printing to stdout")
+    parser.add_argument(
+        "--write",
+        action="store_true",
+        help="Write updated expected_bundle_id values in place.",
+    )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Verify expected_bundle_id values and exit non-zero on drift.",
+    )
+    parser.add_argument(
+        "--print",
+        action="store_true",
+        help="Print computed JSON to stdout (default for generate mode).",
+    )
     args = parser.parse_args()
 
     cases_path = Path(args.cases_file)
     payload = json.loads(cases_path.read_text(encoding="utf-8"))
+    if args.check or not args.write:
+        ok, mismatches = _check_cases(payload)
+        if not ok:
+            print("Bundle hash drift detected:", file=sys.stderr)
+            for line in mismatches:
+                print(line, file=sys.stderr)
+            print(
+                "Run with --write to refresh golden hashes intentionally.",
+                file=sys.stderr,
+            )
+            return 1
+        print("bundle_hash_cases.json is in sync.")
+        if args.check:
+            return 0
+
     updated = _compute_cases(payload)
     rendered = json.dumps(updated, indent=2, ensure_ascii=False) + "\n"
-
     if args.write:
         cases_path.write_text(rendered, encoding="utf-8")
-    else:
+        print(f"Updated {cases_path}.")
+    elif args.print:
         print(rendered, end="")
 
     return 0
