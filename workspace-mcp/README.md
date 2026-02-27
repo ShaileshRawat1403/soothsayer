@@ -1,22 +1,82 @@
 # workspace-mcp
 
-Deterministic, policy-governed MCP workspace kernel (stdio).
+Deterministic, policy-governed MCP orchestration kernel (stdio transport).
 
-## Why not just use an MCP tool server directly?
+## Why This Exists
 
-Most MCP servers expose tools and stop there.
+Most MCP servers are tool-first and stateless.  
+`workspace-mcp` is built as a reusable kernel with explicit state, governance, and a frozen response contract.
 
-`workspace-mcp` is built as a deterministic orchestration kernel:
+## Reference Implementation Freeze Policy
 
-- Explicit run lifecycle: opt-in state tracking via `run_id`
-- Owner scoping: safe semantics for future multi-tenant transports
-- Deterministic change bundles: stable `bundle_id` derived from canonical diff hashing
-- Strict response contract: runtime-enforced meta shape, stable `violation` payload
-- Bounded memory model: TTL + max-size stores for runs, bundles, and audit logs
+Python is the reference implementation for Kernel API v1.  
+Feature surface is frozen in `0.1.x`.
 
-This makes it reusable as a project-swappable kernel rather than a one-off MCP server.
+- Allowed in Python track: bug fixes, docs/spec clarifications, spec-test additions, packaging hygiene
+- Not allowed in Python track: new tools, policy feature expansion, meta/schema shape changes, output behavior drift
+- Rust parity track uses the same repo (sibling implementation) and must pass spec-tests before replacement
 
-## Architecture (compact)
+## What It Provides
+
+- Deterministic policy layering: packaged kernel policy + optional project overlay
+- Explicit run lifecycle: opt-in tracking with `run_id`
+- Owner-scoped state access for runs and bundles
+- Deterministic change bundles via canonical diff hashing
+- Bounded in-memory state (runs, bundles, audits) with TTL + max size
+- Canonical violation shape for blocked/error flows
+- Strict meta contract freeze enforced at runtime and in tests
+- `kernel_version` and `self_check` tools for handshake + sanity
+
+## Contract Guarantees
+
+- Top-level `code` is canonical, and `meta.code` is forced to match
+- Meta shape is strict and immutable unless intentionally versioned
+- Timestamp format is ISO8601 UTC (`...Z`)
+- Violations are structured and deterministic for client handling
+
+## Quickstart
+
+1. Install from source:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+```
+
+2. Run the server (stdio):
+
+```bash
+workspace-mcp --workspace-root /tmp/workspace --profile dev
+```
+
+3. Run checks:
+
+```bash
+pytest -q
+ruff check .
+mypy src
+```
+
+## Minimal Example
+
+A full lifecycle demo is included in:
+
+- `examples/minimal-project/README.md`
+- `examples/minimal-project/demo_flow.json`
+
+Demo flow:
+
+1. `kernel_version`
+2. `self_check`
+3. `start_run`
+4. `repo_search`
+5. `create_change_bundle`
+6. `bundle_report`
+7. `end_run`
+8. `get_run_summary`
+
+## Architecture
 
 ```text
 Client (JSON-RPC)
@@ -35,3 +95,15 @@ workspace-mcp (stdio)
         +-- execute tools (run_task)
         +-- control-plane tools (kernel_version, self_check, lifecycle)
 ```
+
+## Policy Model
+
+- Kernel default policy ships in `src/workspace_mcp/policies/kernel_policy.yaml`
+- Project policies can overlay kernel defaults using `--policy-path`
+- Profile selection is explicit: `dev | ci | read_only`
+
+## Roadmap
+
+- Stability track: contract snapshots, invariant checks, release discipline
+- Adoption track: examples, operator docs, integration guides
+- Expansion track: plugins, additional transports, external audit sinks

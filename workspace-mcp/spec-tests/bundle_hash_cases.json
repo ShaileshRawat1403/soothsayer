@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "algorithm": {
+    "hash": "sha256",
+    "canonical_json": "sorted_keys + separators(',', ':') + utf-8",
+    "diff_normalization": "CRLF->LF, strip trailing whitespace per line, trim trailing empty lines",
+    "contract_version": "1.1"
+  },
+  "cases": [
+    {
+      "name": "single_file_basic",
+      "policy_hash": "policy-demo-v1",
+      "target_files": ["app.py"],
+      "diff_text": "--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-return 'Hello'\n+return 'Hello, world'\n",
+      "expected_bundle_id": "f04d8c7bd3c9603f27bad61cd4a4a978c56c6b396dd8dccf4d731db29dfe991d"
+    },
+    {
+      "name": "line_endings_and_trailing_ws_normalization",
+      "policy_hash": "policy-demo-v1",
+      "target_files": ["app.py"],
+      "diff_text": "--- a/app.py\r\n+++ b/app.py\r\n@@ -1 +1 @@\r\n-return 'Hello'   \r\n+return 'Hello, world'    \r\n\r\n",
+      "expected_bundle_id": "f04d8c7bd3c9603f27bad61cd4a4a978c56c6b396dd8dccf4d731db29dfe991d"
+    },
+    {
+      "name": "multi_file_sorted_targets",
+      "policy_hash": "policy-demo-v1",
+      "target_files": ["z.py", "a.py"],
+      "diff_text": "--- a/z.py\n+++ b/z.py\n@@ -1 +1 @@\n-print('z')\n+print('Z')\n--- a/a.py\n+++ b/a.py\n@@ -1 +1 @@\n-print('a')\n+print('A')\n",
+      "expected_bundle_id": "80726ae7cfc66e1c0ecbb887c4d628920ad907320eb6597389266a09fe962993"
+    }
+  ]
+}
