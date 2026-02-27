@@ -1,5 +1,8 @@
 # Kernel API v1 (Reference Specification)
 
+Version: 1.0 (aligned with Python 0.1.2 reference)
+Contract Version: 1.1
+
 Status: Draft (Reference)
 
 ## 1. Scope
