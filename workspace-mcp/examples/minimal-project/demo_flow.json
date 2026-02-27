@@ -1,0 +1,73 @@
+[
+  {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "kernel_version",
+    "params": {}
+  },
+  {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "method": "self_check",
+    "params": {}
+  },
+  {
+    "jsonrpc": "2.0",
+    "id": 3,
+    "method": "start_run",
+    "params": {
+      "metadata": { "purpose": "minimal-project-demo" },
+      "owner_id": "demo-user"
+    }
+  },
+  {
+    "jsonrpc": "2.0",
+    "id": 4,
+    "method": "repo_search",
+    "params": {
+      "query": "greet",
+      "file_globs": "*.py",
+      "limit": 20,
+      "run_id": "__RUN_ID__",
+      "owner_id": "demo-user"
+    }
+  },
+  {
+    "jsonrpc": "2.0",
+    "id": 5,
+    "method": "create_change_bundle",
+    "params": {
+      "diff_text": "diff --git a/app.py b/app.py\nindex 0000000..1111111 100644\n--- a/app.py\n+++ b/app.py\n@@ -1,2 +1,2 @@\n-def greet(name: str) -> str:\n-    return f\"Hello {name}\"\n+def greet(name: str) -> str:\n+    return f\"Hello, {name}\"",
+      "metadata": { "reason": "demo bundle" },
+      "run_id": "__RUN_ID__",
+      "owner_id": "demo-user"
+    }
+  },
+  {
+    "jsonrpc": "2.0",
+    "id": 6,
+    "method": "bundle_report",
+    "params": {
+      "bundle_id": "__BUNDLE_ID__",
+      "owner_id": "demo-user"
+    }
+  },
+  {
+    "jsonrpc": "2.0",
+    "id": 7,
+    "method": "end_run",
+    "params": {
+      "run_id": "__RUN_ID__",
+      "owner_id": "demo-user"
+    }
+  },
+  {
+    "jsonrpc": "2.0",
+    "id": 8,
+    "method": "get_run_summary",
+    "params": {
+      "run_id": "__RUN_ID__",
+      "owner_id": "demo-user"
+    }
+  }
+]
