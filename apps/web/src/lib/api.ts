@@ -191,6 +191,11 @@ export const apiHelpers = {
   // Tools
   getTools: () => api.get('/tools'),
   getTool: (id: string) => api.get(`/tools/${id}`),
+
+  // MCP
+  getMcpHealth: () => api.get('/mcp/health'),
+  callMcpTool: (name: string, args: Record<string, unknown> = {}) =>
+    api.post('/mcp/tools/call', { name, arguments: args }),
   
   // Analytics
   getAnalytics: () => api.get('/analytics'),
