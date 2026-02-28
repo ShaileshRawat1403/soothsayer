@@ -187,6 +187,21 @@ soothsayer/
 
 ## Core Features
 
+### MCP Kernel Integration (workspace-mcp)
+- Soothsayer API can bridge to a standalone MCP kernel (`workspace-mcp`) via stdio.
+- Bridge endpoints:
+  - `GET /api/mcp/health` (calls `kernel_version` + `self_check`)
+  - `POST /api/mcp/tools/call` (allowlisted MCP tools only)
+- Chat can optionally enrich prompts with MCP context (feature-flagged).
+
+Default behavior is safe-off:
+- `MCP_ENABLED=false`
+- `CHAT_MCP_PREFLIGHT_ENABLED=false`
+- `CHAT_MCP_TOOL_CALL_ENABLED=false`
+
+When enabled, recommended allowlist:
+- `MCP_ALLOWED_TOOLS=kernel_version,self_check,workspace_info,repo_search,read_file`
+
 ### Persona Engine
 - 30+ professional personas (Engineering, Business, Security, etc.)
 - Runtime persona switching affects AI behavior
@@ -259,6 +274,19 @@ VITE_CHAT_TIMEOUT_MS=600000
 AWS_REGION=us-east-1
 BEDROCK_MODEL_ID=amazon.nova-pro-v1:0
 
+# MCP bridge (Soothsayer API -> workspace-mcp)
+MCP_ENABLED=false
+MCP_SERVER_BIN=workspace-mcp
+MCP_SERVER_ARGS=
+MCP_ALLOWED_TOOLS=kernel_version,self_check,workspace_info,repo_search,read_file
+MCP_WORKDIR=
+MCP_WORKSPACE_ROOT=
+MCP_PROFILE=dev
+MCP_POLICY_PATH=
+MCP_TIMEOUT_MS=15000
+CHAT_MCP_PREFLIGHT_ENABLED=false
+CHAT_MCP_TOOL_CALL_ENABLED=false
+
 # Server
 API_PORT=3000
 WEB_PORT=5173
@@ -282,6 +310,28 @@ WS_REDIS_ENABLED=false
 WS_REDIS_FORCE_IN_DEV=false
 ADMIN_SEED_EMAIL=admin@soothsayer.local
 ADMIN_SEED_PASSWORD=password123
+```
+
+### MCP Bridge Smoke Check (Local/EC2)
+
+1. Start Soothsayer API and web.
+2. Start `workspace-mcp` process (or configure `MCP_SERVER_BIN` to its installed path).
+3. Enable MCP in Soothsayer API env:
+
+```env
+MCP_ENABLED=true
+CHAT_MCP_PREFLIGHT_ENABLED=true
+CHAT_MCP_TOOL_CALL_ENABLED=true
+```
+
+4. Verify health and allowlisted tool calls:
+
+```bash
+curl -sS http://localhost:3000/api/mcp/health -H "Authorization: Bearer <token>"
+curl -sS -X POST http://localhost:3000/api/mcp/tools/call \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"kernel_version","arguments":{}}'
 ```
 
 Provider behavior:
