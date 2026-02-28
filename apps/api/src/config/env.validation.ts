@@ -60,6 +60,19 @@ const envSchema = z.object({
   BEDROCK_MAX_RETRIES: z.coerce.number().min(0).max(10).optional(),
   BEDROCK_BASE_BACKOFF_MS: z.coerce.number().positive().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
+
+  // MCP Integration
+  MCP_ENABLED: booleanFromEnv.default(false),
+  MCP_SERVER_BIN: z.string().default('workspace-mcp'),
+  MCP_SERVER_ARGS: z.string().optional(),
+  MCP_ALLOWED_TOOLS: z.string().optional(),
+  MCP_WORKDIR: z.string().optional(),
+  MCP_WORKSPACE_ROOT: z.string().optional(),
+  MCP_PROFILE: z.enum(['dev', 'ci', 'read_only']).default('dev'),
+  MCP_POLICY_PATH: z.string().optional(),
+  MCP_TIMEOUT_MS: z.coerce.number().positive().default(15000),
+  CHAT_MCP_PREFLIGHT_ENABLED: booleanFromEnv.default(false),
+  CHAT_MCP_TOOL_CALL_ENABLED: booleanFromEnv.default(false),
   
   // Storage
   STORAGE_TYPE: z.enum(['local', 's3']).default('local'),

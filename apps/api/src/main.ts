@@ -131,6 +131,7 @@ async function bootstrap() {
       .addTag('commands', 'Command execution')
       .addTag('workflows', 'Workflow management')
       .addTag('tools', 'Tool registry')
+      .addTag('mcp', 'MCP kernel bridge')
       .addTag('analytics', 'Analytics & audit')
       .build();
 
