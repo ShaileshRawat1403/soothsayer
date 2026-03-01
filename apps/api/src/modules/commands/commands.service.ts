@@ -1,4 +1,5 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { spawn } from 'child_process';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -78,13 +79,169 @@ export class CommandsService {
       },
     });
 
-    // TODO: Queue execution job
-    
+    const startedAt = Date.now();
+    await this.prisma.commandExecution.update({
+      where: { id: execution.id },
+      data: {
+        status: 'running',
+        startedAt: new Date(),
+      },
+    });
+
+    const result = await this.runCommandWithGuards(
+      resolvedCommand,
+      command.timeout || 30000,
+      process.cwd(),
+    );
+
+    const finalStatus = result.exitCode === 0 ? 'completed' : 'failed';
+    const completed = await this.prisma.commandExecution.update({
+      where: { id: execution.id },
+      data: {
+        status: finalStatus,
+        output: {
+          stdout: result.stdout,
+          stderr: result.stderr,
+          exitCode: result.exitCode,
+          timedOut: result.timedOut,
+          truncated: result.truncated,
+        } as any,
+        completedAt: new Date(),
+        durationMs: Date.now() - startedAt,
+      },
+    });
+
     return {
-      execution,
+      execution: completed,
       requiresApproval: command.requiresApproval,
       policyResult: { allowed: true, matchedPolicies: [], requiredApprovals: [] },
     };
+  }
+
+  async executeTerminal(userId: string, workspaceId: string, command: string, cwd?: string) {
+    await this.ensureWorkspaceAccess(workspaceId, userId);
+
+    const trimmed = (command || '').trim();
+    if (!trimmed) {
+      throw new ForbiddenException('Command is required');
+    }
+    if (trimmed.length > 500) {
+      throw new ForbiddenException('Command is too long');
+    }
+
+    const result = await this.runCommandWithGuards(trimmed, 30000, cwd || process.cwd());
+    return {
+      command: trimmed,
+      status: result.exitCode === 0 ? 'completed' : 'failed',
+      output: result.stdout,
+      errorOutput: result.stderr,
+      exitCode: result.exitCode,
+      durationMs: result.durationMs,
+      timedOut: result.timedOut,
+      truncated: result.truncated,
+    };
+  }
+
+  private async ensureWorkspaceAccess(workspaceId: string, userId: string) {
+    const membership = await this.prisma.workspaceMember.findUnique({
+      where: {
+        workspaceId_userId: {
+          workspaceId,
+          userId,
+        },
+      },
+    });
+
+    if (!membership) {
+      throw new ForbiddenException('You do not have access to this workspace');
+    }
+  }
+
+  private isDangerousCommand(command: string): boolean {
+    const blockedPatterns = [
+      /(^|\s)sudo(\s|$)/i,
+      /rm\s+-rf\s+\//i,
+      /\bmkfs\b/i,
+      /\bdd\b/i,
+      /\bshutdown\b/i,
+      /\breboot\b/i,
+      />\s*\/dev\//i,
+      /\bcurl\b.*\|\s*(sh|bash|zsh)/i,
+      /\bwget\b.*\|\s*(sh|bash|zsh)/i,
+    ];
+    return blockedPatterns.some((p) => p.test(command));
+  }
+
+  private runCommandWithGuards(
+    command: string,
+    timeoutMs: number,
+    cwd: string,
+  ): Promise<{
+    stdout: string;
+    stderr: string;
+    exitCode: number;
+    durationMs: number;
+    timedOut: boolean;
+    truncated: boolean;
+  }> {
+    if (this.isDangerousCommand(command)) {
+      throw new ForbiddenException('Command blocked by security policy');
+    }
+
+    const maxBytes = 100_000;
+
+    return new Promise((resolve) => {
+      const startedAt = Date.now();
+      const child = spawn('/bin/sh', ['-lc', command], {
+        cwd,
+        env: {
+          PATH: process.env.PATH || '',
+          HOME: process.env.HOME || '',
+        },
+      });
+
+      let stdout = '';
+      let stderr = '';
+      let timedOut = false;
+      let truncated = false;
+
+      const timer = setTimeout(() => {
+        timedOut = true;
+        child.kill('SIGKILL');
+      }, timeoutMs);
+
+      child.stdout.on('data', (chunk: Buffer) => {
+        const next = stdout + chunk.toString('utf8');
+        if (next.length > maxBytes) {
+          stdout = next.slice(0, maxBytes);
+          truncated = true;
+          return;
+        }
+        stdout = next;
+      });
+
+      child.stderr.on('data', (chunk: Buffer) => {
+        const next = stderr + chunk.toString('utf8');
+        if (next.length > maxBytes) {
+          stderr = next.slice(0, maxBytes);
+          truncated = true;
+          return;
+        }
+        stderr = next;
+      });
+
+      child.on('close', (code) => {
+        clearTimeout(timer);
+        resolve({
+          stdout,
+          stderr,
+          exitCode: timedOut ? 124 : (code ?? 1),
+          durationMs: Date.now() - startedAt,
+          timedOut,
+          truncated,
+        });
+      });
+    });
   }
 
   private resolveTemplate(template: string, parameters: Record<string, unknown>): string {

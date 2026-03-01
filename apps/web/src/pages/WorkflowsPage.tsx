@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
+import { api, apiHelpers } from '@/lib/api';
+import { toast } from 'sonner';
 import {
   Plus,
   Play,
@@ -92,16 +94,64 @@ const workflowTemplates = [
 ];
 
 export function WorkflowsPage() {
-  const [workflows] = useState<Workflow[]>(mockWorkflows);
+  const [workflows, setWorkflows] = useState<Workflow[]>(mockWorkflows);
   const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [isLoading, setIsLoading] = useState(true);
 
-  const filteredWorkflows = workflows.filter((w) => {
-    const matchesSearch = w.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || w.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      try {
+        const response = await apiHelpers.getWorkflows();
+        const payload = response.data as unknown as {
+          workflows?: Array<Record<string, any>>;
+        };
+        const mapped =
+          payload?.workflows?.map((w) => {
+            const triggerType = (w.trigger?.type || 'manual') as Workflow['trigger'];
+            return {
+              id: String(w.id),
+              name: String(w.name),
+              description: String(w.description || ''),
+              status: (w.status || 'draft') as Workflow['status'],
+              trigger: triggerType,
+              runCount: Number(w.runCount || w.totalRuns || 0),
+              steps: Array.isArray(w.steps) ? w.steps.length : 0,
+              lastRun: undefined,
+            } as Workflow;
+          }) || [];
+
+        if (mounted && mapped.length > 0) {
+          setWorkflows(mapped);
+        }
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : 'Failed to load workflows, showing demo data';
+        toast.warning(message);
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const filteredWorkflows = useMemo(
+    () =>
+      workflows.filter((w) => {
+        const matchesSearch = w.name.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesStatus = statusFilter === 'all' || w.status === statusFilter;
+        return matchesSearch && matchesStatus;
+      }),
+    [searchQuery, statusFilter, workflows],
+  );
 
   const getTriggerIcon = (trigger: string) => {
     switch (trigger) {
@@ -114,6 +164,40 @@ export function WorkflowsPage() {
       default:
         return GitBranch;
     }
+  };
+
+  const refreshWorkflows = async () => {
+    const response = await apiHelpers.getWorkflows();
+    const payload = response.data as unknown as { workflows?: Array<Record<string, any>> };
+    const mapped =
+      payload?.workflows?.map((w) => ({
+        id: String(w.id),
+        name: String(w.name),
+        description: String(w.description || ''),
+        status: (w.status || 'draft') as Workflow['status'],
+        trigger: (w.trigger?.type || 'manual') as Workflow['trigger'],
+        runCount: Number(w.runCount || w.totalRuns || 0),
+        steps: Array.isArray(w.steps) ? w.steps.length : 0,
+      })) || [];
+    if (mapped.length > 0) {
+      setWorkflows(mapped as Workflow[]);
+      if (selectedWorkflow) {
+        const next = mapped.find((w) => w.id === selectedWorkflow.id);
+        if (next) setSelectedWorkflow(next as Workflow);
+      }
+    }
+  };
+
+  const updateWorkflowStatus = async (workflow: Workflow, status: Workflow['status']) => {
+    await api.patch(`/workflows/${workflow.id}/status`, { status });
+    await refreshWorkflows();
+    toast.success(`Workflow ${status}`);
+  };
+
+  const runWorkflowNow = async (workflow: Workflow) => {
+    await api.post(`/workflows/${workflow.id}/run`, { inputs: {} });
+    await refreshWorkflows();
+    toast.success('Workflow run completed');
   };
 
   return (
@@ -155,6 +239,9 @@ export function WorkflowsPage() {
 
         {/* Workflow List */}
         <div className="flex-1 overflow-auto">
+          {isLoading && (
+            <div className="p-4 text-sm text-muted-foreground">Loading workflows...</div>
+          )}
           {filteredWorkflows.map((workflow) => {
             const TriggerIcon = getTriggerIcon(workflow.trigger);
             return (
@@ -213,17 +300,26 @@ export function WorkflowsPage() {
               </div>
               <div className="flex items-center gap-2">
                 {selectedWorkflow.status === 'active' ? (
-                  <button className="flex h-9 items-center gap-2 rounded-md border border-input px-4 text-sm hover:bg-accent">
+                  <button
+                    onClick={() => updateWorkflowStatus(selectedWorkflow, 'paused')}
+                    className="flex h-9 items-center gap-2 rounded-md border border-input px-4 text-sm hover:bg-accent"
+                  >
                     <Pause className="h-4 w-4" />
                     Pause
                   </button>
                 ) : (
-                  <button className="flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-sm text-primary-foreground">
+                  <button
+                    onClick={() => updateWorkflowStatus(selectedWorkflow, 'active')}
+                    className="flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-sm text-primary-foreground"
+                  >
                     <Play className="h-4 w-4" />
                     Activate
                   </button>
                 )}
-                <button className="flex h-9 items-center gap-2 rounded-md border border-input px-4 text-sm hover:bg-accent">
+                <button
+                  onClick={() => runWorkflowNow(selectedWorkflow)}
+                  className="flex h-9 items-center gap-2 rounded-md border border-input px-4 text-sm hover:bg-accent"
+                >
                   <Play className="h-4 w-4" />
                   Run Now
                 </button>

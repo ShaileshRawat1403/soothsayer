@@ -219,7 +219,13 @@ export function ChatPage() {
         const response = await apiHelpers.getConversation(activeConversationId);
         const conversation = response.data as any;
         const loadedMessages: Message[] = (conversation.messages || []).map(mapApiMessageToUi);
-        setMessages(loadedMessages);
+        setMessages((prev) => {
+          const hasOptimistic = prev.some((m) => m.id.startsWith('temp-user-') || m.id.startsWith('temp-assistant-'));
+          if (hasOptimistic && loadedMessages.length === 0) {
+            return prev;
+          }
+          return loadedMessages;
+        });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to load conversation';
         toast.error(errorMessage);
@@ -406,10 +412,38 @@ export function ChatPage() {
         signal: abortController.signal,
       });
       const payload = sendResponse.data as any;
+      const userMessage = payload?.userMessage;
       const assistantMessage = payload?.assistantMessage;
 
-      if (assistantMessage) {
-        setMessages((prev) => [...prev, mapApiMessageToUi(assistantMessage)]);
+      if (userMessage || assistantMessage) {
+        setMessages((prev) => {
+          const withoutTemp = prev.filter((m) => m.id !== optimisticUserMessage.id);
+          const next = [...withoutTemp];
+
+          if (userMessage) {
+            const mappedUser = mapApiMessageToUi(userMessage);
+            const existingUserIdx = next.findIndex((m) => m.id === mappedUser.id);
+            if (existingUserIdx >= 0) {
+              next[existingUserIdx] = mappedUser;
+            } else {
+              next.push(mappedUser);
+            }
+          } else if (!withoutTemp.some((m) => m.id === optimisticUserMessage.id)) {
+            next.push(optimisticUserMessage);
+          }
+
+          if (assistantMessage) {
+            const mappedAssistant = mapApiMessageToUi(assistantMessage);
+            const existingAssistantIdx = next.findIndex((m) => m.id === mappedAssistant.id);
+            if (existingAssistantIdx >= 0) {
+              next[existingAssistantIdx] = mappedAssistant;
+            } else {
+              next.push(mappedAssistant);
+            }
+          }
+
+          return next;
+        });
       } else {
         setMessages((prev) => [
           ...prev,
@@ -436,7 +470,15 @@ export function ChatPage() {
         ]);
       } else {
         toast.error(errorMessage);
-        setMessages((prev) => prev.filter((m) => m.id !== optimisticUserMessage.id));
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `temp-assistant-error-${Date.now()}`,
+            role: 'assistant',
+            content: `Request failed: ${errorMessage}`,
+            createdAt: new Date().toISOString(),
+          },
+        ]);
       }
     } finally {
       abortControllerRef.current = null;
