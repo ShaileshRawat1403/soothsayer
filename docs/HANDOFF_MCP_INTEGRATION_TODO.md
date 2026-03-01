@@ -13,11 +13,15 @@ Branch: `feat/soothsayer-mcp-integration`
 - Env schema + `.env.example` enriched for MCP flags.
 - Functional checks and API/web typecheck passed.
 - Real-world MCP chat path validated via API (assistant message persisted with `metadata.mcp` + `metadata.mcpTool`).
+- Regression pass updates:
+  - fixed `GET /api/commands` pagination NaN bug (now returns `200`).
+  - added Playwright MCP chat E2E coverage and ran it successfully (`1 passed`).
+  - executed small soak run (`5/5` chat requests succeeded with MCP preflight + tool context).
 
 ## Current Constraints / Known Gaps
 - Full app-wide regression not yet complete (workflows, analytics, terminal UI deep checks).
-- UI Playwright E2E coverage for MCP chat path not yet added/executed.
-- Ollama model mismatch can still break chat if `llama3.2:1b` is missing; local test used `llama3:latest`.
+- Redis-enabled validation pass is blocked on this machine (`redis-server` unavailable and Docker daemon unavailable).
+- Ollama model mismatch can still break chat if `llama3.2:1b` is selected; local test uses `llama3:latest`.
 
 ## Next Actions (in order)
 1. Run full regression matrix across modules (manual + API checks).
