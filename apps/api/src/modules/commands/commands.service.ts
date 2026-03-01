@@ -6,7 +6,13 @@ export class CommandsService {
   constructor(private prisma: PrismaService) {}
 
   async findAll(workspaceId: string, options: { category?: string; search?: string; page?: number; limit?: number } = {}) {
-    const { category, search, page = 1, limit = 20 } = options;
+    const { category, search } = options;
+    const page = Number.isFinite(options.page as number) && (options.page as number) > 0
+      ? Math.floor(options.page as number)
+      : 1;
+    const limit = Number.isFinite(options.limit as number) && (options.limit as number) > 0
+      ? Math.floor(options.limit as number)
+      : 20;
 
     const where: Record<string, unknown> = { workspaceId, deletedAt: null };
     if (category) where.category = category;
