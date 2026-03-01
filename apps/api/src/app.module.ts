@@ -14,6 +14,7 @@ import { PoliciesModule } from './modules/policies/policies.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { FilesModule } from './modules/files/files.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { McpModule } from './modules/mcp/mcp.module';
 import { WebsocketModule } from './websocket/websocket.module';
 import { HealthModule } from './health/health.module';
@@ -65,6 +66,7 @@ const envFilePath = [
     AnalyticsModule,
     FilesModule,
     NotificationsModule,
+    IntegrationsModule,
     McpModule,
 
     // Real-time

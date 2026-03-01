@@ -16,6 +16,13 @@ const booleanFromEnv = z.preprocess((value) => {
   return value;
 }, z.boolean());
 
+const emptyToUndefined = (value: unknown) => {
+  if (typeof value === 'string' && value.trim() === '') {
+    return undefined;
+  }
+  return value;
+};
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   API_PORT: z.coerce.number().default(3000),
@@ -60,6 +67,41 @@ const envSchema = z.object({
   BEDROCK_MAX_RETRIES: z.coerce.number().min(0).max(10).optional(),
   BEDROCK_BASE_BACKOFF_MS: z.coerce.number().positive().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
+
+  // Integrations
+  SLACK_BOT_TOKEN: z.string().optional(),
+  SLACK_TEST_CHANNEL: z.string().optional(),
+  GITHUB_TOKEN: z.string().optional(),
+  GOOGLE_DRIVE_ACCESS_TOKEN: z.string().optional(),
+  JIRA_BASE_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  JIRA_EMAIL: z.preprocess(emptyToUndefined, z.string().email().optional()),
+  JIRA_API_TOKEN: z.string().optional(),
+  JIRA_CLIENT_ID: z.string().optional(),
+  JIRA_CLIENT_SECRET: z.string().optional(),
+  JIRA_REDIRECT_URI: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  LINEAR_API_TOKEN: z.string().optional(),
+  NOTION_API_TOKEN: z.string().optional(),
+  DISCORD_BOT_TOKEN: z.string().optional(),
+  INTEGRATIONS_ENCRYPTION_KEY: z.string().optional(),
+  API_PUBLIC_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  GITHUB_CLIENT_ID: z.string().optional(),
+  GITHUB_CLIENT_SECRET: z.string().optional(),
+  GITHUB_REDIRECT_URI: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  SLACK_CLIENT_ID: z.string().optional(),
+  SLACK_CLIENT_SECRET: z.string().optional(),
+  SLACK_REDIRECT_URI: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_REDIRECT_URI: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  NOTION_CLIENT_ID: z.string().optional(),
+  NOTION_CLIENT_SECRET: z.string().optional(),
+  NOTION_REDIRECT_URI: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  LINEAR_CLIENT_ID: z.string().optional(),
+  LINEAR_CLIENT_SECRET: z.string().optional(),
+  LINEAR_REDIRECT_URI: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  DISCORD_CLIENT_ID: z.string().optional(),
+  DISCORD_CLIENT_SECRET: z.string().optional(),
+  DISCORD_REDIRECT_URI: z.preprocess(emptyToUndefined, z.string().url().optional()),
 
   // MCP Integration
   MCP_ENABLED: booleanFromEnv.default(false),

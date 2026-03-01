@@ -55,6 +55,7 @@ model User {
   auditLogs             AuditLog[]
   notifications         Notification[]
   filesUploaded         FileRecord[]
+  integrationConnections IntegrationConnection[]
 
   @@index([email])
   @@index([isActive])
@@ -159,6 +160,7 @@ model Workspace {
   auditLogs          AuditLog[]
   files              FileRecord[]
   notifications      Notification[]
+  integrationConnections IntegrationConnection[]
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -791,4 +793,33 @@ model Notification {
   @@index([userId])
   @@index([read])
   @@index([createdAt])
+}
+
+// ============================================
+// INTEGRATIONS
+// ============================================
+
+model IntegrationConnection {
+  id              String   @id @default(cuid())
+  workspaceId     String
+  createdById     String
+  provider        String   // github, slack, google_drive, jira, linear, notion, discord
+  status          String   @default("connected") // connected, disconnected, error
+  accountId       String?
+  accountName     String?
+  accessTokenEnc  String
+  refreshTokenEnc String?
+  scopes          Json     @default("[]")
+  metadata        Json     @default("{}")
+  expiresAt       DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  disconnectedAt  DateTime?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, provider])
+  @@index([provider])
+  @@index([status])
 }

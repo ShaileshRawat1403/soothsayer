@@ -183,6 +183,8 @@ export const apiHelpers = {
   getCommands: (workspaceId: string) => api.get('/commands', { params: { workspaceId } }),
   executeCommand: (commandId: string, data: { workspaceId: string; projectId?: string; parameters: Record<string, unknown> }) =>
     api.post(`/commands/${commandId}/execute`, data),
+  executeTerminalCommand: (data: { workspaceId: string; command: string; cwd?: string }) =>
+    api.post('/commands/execute-terminal', data),
   
   // Workflows
   getWorkflows: () => api.get('/workflows'),
@@ -196,6 +198,30 @@ export const apiHelpers = {
   getMcpHealth: () => api.get('/mcp/health'),
   callMcpTool: (name: string, args: Record<string, unknown> = {}) =>
     api.post('/mcp/tools/call', { name, arguments: args }),
+
+  // Integrations
+  getIntegrationStatus: (workspaceId?: string) =>
+    api.get('/integrations/status', {
+      params: workspaceId ? { workspaceId } : undefined,
+    }),
+  testIntegration: (
+    name: 'slack' | 'github' | 'google_drive' | 'jira' | 'linear' | 'notion' | 'discord',
+    workspaceId?: string,
+  ) => api.post(`/integrations/${name}/test`, workspaceId ? { workspaceId } : {}),
+  getIntegrationConnectUrl: (
+    name: 'github' | 'slack' | 'google_drive' | 'jira' | 'notion' | 'linear' | 'discord',
+    workspaceId?: string,
+  ) =>
+    api.get(`/integrations/${name}/connect`, {
+      params: workspaceId ? { workspaceId } : undefined,
+    }),
+  disconnectIntegration: (
+    name: 'github' | 'slack' | 'google_drive' | 'jira' | 'notion' | 'linear' | 'discord',
+    workspaceId?: string,
+  ) =>
+    api.delete(`/integrations/${name}`, {
+      params: workspaceId ? { workspaceId } : undefined,
+    }),
   
   // Analytics
   getAnalytics: () => api.get('/analytics'),
