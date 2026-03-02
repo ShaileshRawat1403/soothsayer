@@ -41,4 +41,12 @@ export class WorkflowsController {
   ) {
     return this.workflowsService.run(id, user.id, dto);
   }
+
+  @Post('bootstrap/templates')
+  async bootstrapTemplates(
+    @GetCurrentUser() user: CurrentUser,
+    @Body() dto?: { workspaceId?: string },
+  ) {
+    return this.workflowsService.bootstrapTemplates(user.id, dto?.workspaceId);
+  }
 }

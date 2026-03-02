@@ -65,6 +65,7 @@ export function SettingsPage() {
   const [integrationStatus, setIntegrationStatus] = useState<
     Record<string, { configured: boolean; connected: boolean; message: string }>
   >({});
+  const [oauthReadiness, setOauthReadiness] = useState<Record<string, { ready: boolean; missing: string[] }>>({});
   const [testingIntegration, setTestingIntegration] = useState<string | null>(null);
   const [manualTokenByIntegration, setManualTokenByIntegration] = useState<Record<string, string>>({});
   const [manualAccountByIntegration, setManualAccountByIntegration] = useState<Record<string, string>>({});
@@ -128,8 +129,11 @@ export function SettingsPage() {
 
     const load = async () => {
       try {
-        const response = await apiHelpers.getIntegrationStatus(currentWorkspace?.id);
-        const list = (response.data || []) as Array<{
+        const [statusResponse, readinessResponse] = await Promise.all([
+          apiHelpers.getIntegrationStatus(currentWorkspace?.id),
+          apiHelpers.getOAuthReadiness(),
+        ]);
+        const list = (statusResponse.data || []) as Array<{
           name: string;
           configured: boolean;
           connected: boolean;
@@ -145,6 +149,20 @@ export function SettingsPage() {
           };
         }
         setIntegrationStatus(next);
+
+        const readinessList = (readinessResponse.data || []) as Array<{
+          name: string;
+          ready: boolean;
+          missing: string[];
+        }>;
+        const readinessMap: Record<string, { ready: boolean; missing: string[] }> = {};
+        for (const row of readinessList) {
+          readinessMap[row.name] = {
+            ready: Boolean(row.ready),
+            missing: Array.isArray(row.missing) ? row.missing.map(String) : [],
+          };
+        }
+        setOauthReadiness(readinessMap);
       } catch (error) {
         if (!mounted) return;
         const msg = error instanceof Error ? error.message : 'Failed to fetch integration status';
@@ -824,8 +842,13 @@ export function SettingsPage() {
                   { key: 'notion', name: 'Notion', icon: '📝', description: 'Sync with Notion pages' },
                   { key: 'discord', name: 'Discord', icon: '🎮', description: 'Bot integration for Discord' },
                   { key: 'google_drive', name: 'Google Drive', icon: '📁', description: 'Access files from Google Drive' },
-                ].map((integration) => (
-                  <div
+                ].map((integration) => {
+                  const oauthState = oauthReadiness[integration.key];
+                  const oauthReady = oauthState?.ready ?? false;
+                  const missingKeys = oauthState?.missing || [];
+                  const showOAuthUnavailable =
+                    oauthIntegrations.has(integration.key as IntegrationKey) && !oauthReady;
+                  return <div
                     key={integration.key}
                     className="rounded-xl border border-border p-4 transition-colors hover:bg-accent/50"
                   >
@@ -849,6 +872,11 @@ export function SettingsPage() {
                           >
                             {integrationStatus[integration.key]?.message || 'Not configured'}
                           </p>
+                          {showOAuthUnavailable && (
+                            <p className="mt-1 text-xs text-amber-600">
+                              OAuth unavailable: missing {missingKeys.join(', ')}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="flex gap-2">
@@ -885,6 +913,8 @@ export function SettingsPage() {
                                     | 'discord',
                                 )
                               }
+                              disabled={!oauthReady}
+                              title={!oauthReady ? `Missing: ${missingKeys.join(', ')}` : 'Connect via OAuth'}
                               className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
                             >
                               Connect OAuth
@@ -945,8 +975,8 @@ export function SettingsPage() {
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  </div>;
+                })}
               </div>
             </div>
           )}

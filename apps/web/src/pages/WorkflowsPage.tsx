@@ -13,7 +13,6 @@ import {
   GitBranch,
   Calendar,
   Webhook,
-  Filter,
   Search,
   ChevronRight,
 } from 'lucide-react';
@@ -22,7 +21,7 @@ interface Workflow {
   id: string;
   name: string;
   description: string;
-  status: 'active' | 'paused' | 'draft';
+  status: 'active' | 'paused' | 'draft' | 'archived';
   trigger: 'manual' | 'scheduled' | 'webhook';
   lastRun?: {
     status: 'success' | 'failed' | 'running';
@@ -33,68 +32,15 @@ interface Workflow {
   steps: number;
 }
 
-const mockWorkflows: Workflow[] = [
-  {
-    id: '1',
-    name: 'Bug Triage Automation',
-    description: 'Automatically categorize and assign incoming bug reports',
-    status: 'active',
-    trigger: 'webhook',
-    lastRun: { status: 'success', timestamp: '2 hours ago', duration: '45s' },
-    runCount: 156,
-    steps: 5,
-  },
-  {
-    id: '2',
-    name: 'Release Checklist',
-    description: 'Automated pre-release verification workflow',
-    status: 'active',
-    trigger: 'manual',
-    lastRun: { status: 'success', timestamp: '1 day ago', duration: '3m 20s' },
-    runCount: 24,
-    steps: 8,
-  },
-  {
-    id: '3',
-    name: 'Daily Standup Summary',
-    description: 'Generate daily standup summaries from team updates',
-    status: 'active',
-    trigger: 'scheduled',
-    lastRun: { status: 'running', timestamp: 'Running now', duration: '-' },
-    runCount: 89,
-    steps: 4,
-  },
-  {
-    id: '4',
-    name: 'Incident Response',
-    description: 'Automated incident triage and notification workflow',
-    status: 'paused',
-    trigger: 'webhook',
-    lastRun: { status: 'failed', timestamp: '3 days ago', duration: '12s' },
-    runCount: 12,
-    steps: 6,
-  },
-  {
-    id: '5',
-    name: 'Code Review Assistant',
-    description: 'Automated code review suggestions and checks',
-    status: 'draft',
-    trigger: 'webhook',
-    runCount: 0,
-    steps: 3,
-  },
-];
-
-const workflowTemplates = [
-  { name: 'Bug Triage', description: 'Categorize and assign bugs automatically' },
-  { name: 'Incident Summary', description: 'Generate incident post-mortems' },
-  { name: 'Release Checklist', description: 'Pre-release verification steps' },
-  { name: 'Data Report', description: 'Scheduled data analysis reports' },
-  { name: 'Content Review', description: 'Content approval workflow' },
+const workflowTemplates: Array<{ name: string; description: string }> = [
+  { name: 'Release Checklist', description: 'Pre-release verification with test and build steps' },
+  { name: 'Bug Triage', description: 'Issue ingestion, severity scoring, and owner notification' },
+  { name: 'Daily Standup Summary', description: 'Scheduled summary of updates and blockers' },
+  { name: 'Incident Escalation', description: 'Escalate critical events and notify responders' },
 ];
 
 export function WorkflowsPage() {
-  const [workflows, setWorkflows] = useState<Workflow[]>(mockWorkflows);
+  const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [selectedWorkflow, setSelectedWorkflow] = useState<Workflow | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -128,8 +74,8 @@ export function WorkflowsPage() {
         }
       } catch (error) {
         const message =
-          error instanceof Error ? error.message : 'Failed to load workflows, showing demo data';
-        toast.warning(message);
+          error instanceof Error ? error.message : 'Failed to load workflows';
+        toast.error(message);
       } finally {
         if (mounted) {
           setIsLoading(false);
@@ -200,6 +146,22 @@ export function WorkflowsPage() {
     toast.success('Workflow run completed');
   };
 
+  const bootstrapTemplates = async () => {
+    try {
+      const response = await apiHelpers.bootstrapWorkflowTemplates();
+      const payload = response.data as { created?: number };
+      await refreshWorkflows();
+      toast.success(
+        payload?.created && payload.created > 0
+          ? `Created ${payload.created} workflow templates`
+          : 'Templates already exist in this workspace',
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to bootstrap templates';
+      toast.error(message);
+    }
+  };
+
   return (
     <div className="flex h-full">
       {/* Workflow List */}
@@ -208,9 +170,12 @@ export function WorkflowsPage() {
         <div className="border-b border-border p-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">Workflows</h2>
-            <button className="flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-sm text-primary-foreground">
+            <button
+              onClick={bootstrapTemplates}
+              className="flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-sm text-primary-foreground"
+            >
               <Plus className="h-4 w-4" />
-              New
+              Templates
             </button>
           </div>
           <div className="mt-4 flex gap-2">
@@ -241,6 +206,11 @@ export function WorkflowsPage() {
         <div className="flex-1 overflow-auto">
           {isLoading && (
             <div className="p-4 text-sm text-muted-foreground">Loading workflows...</div>
+          )}
+          {!isLoading && filteredWorkflows.length === 0 && (
+            <div className="p-4 text-sm text-muted-foreground">
+              No workflows found. Click <span className="font-medium">Templates</span> to bootstrap starter workflows.
+            </div>
           )}
           {filteredWorkflows.map((workflow) => {
             const TriggerIcon = getTriggerIcon(workflow.trigger);

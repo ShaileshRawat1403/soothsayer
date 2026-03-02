@@ -189,6 +189,8 @@ export const apiHelpers = {
   // Workflows
   getWorkflows: () => api.get('/workflows'),
   getWorkflow: (id: string) => api.get(`/workflows/${id}`),
+  bootstrapWorkflowTemplates: (workspaceId?: string) =>
+    api.post('/workflows/bootstrap/templates', workspaceId ? { workspaceId } : {}),
   
   // Tools
   getTools: () => api.get('/tools'),
@@ -198,12 +200,16 @@ export const apiHelpers = {
   getMcpHealth: () => api.get('/mcp/health'),
   callMcpTool: (name: string, args: Record<string, unknown> = {}) =>
     api.post('/mcp/tools/call', { name, arguments: args }),
+  callMcpToolAsync: (name: string, args: Record<string, unknown> = {}) =>
+    api.post('/mcp/tools/call-async', { name, arguments: args }),
+  getMcpJobStatus: (jobId: string) => api.get(`/mcp/jobs/${jobId}`),
 
   // Integrations
   getIntegrationStatus: (workspaceId?: string) =>
     api.get('/integrations/status', {
       params: workspaceId ? { workspaceId } : undefined,
     }),
+  getOAuthReadiness: () => api.get('/integrations/oauth-readiness'),
   testIntegration: (
     name: 'slack' | 'github' | 'google_drive' | 'jira' | 'linear' | 'notion' | 'discord',
     workspaceId?: string,

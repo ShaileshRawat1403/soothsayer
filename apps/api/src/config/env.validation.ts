@@ -35,6 +35,7 @@ const envSchema = z.object({
   // Redis
   REDIS_HOST: z.string().default('localhost'),
   REDIS_PORT: z.coerce.number().default(6379),
+  REDIS_URL: z.string().optional(),
   REDIS_PASSWORD: z.string().optional(),
   REDIS_TLS: booleanFromEnv.default(false),
   WS_REDIS_ENABLED: booleanFromEnv.default(false),
@@ -113,8 +114,20 @@ const envSchema = z.object({
   MCP_PROFILE: z.enum(['dev', 'ci', 'read_only']).default('dev'),
   MCP_POLICY_PATH: z.string().optional(),
   MCP_TIMEOUT_MS: z.coerce.number().positive().default(15000),
+  MCP_MAX_CONCURRENT_CALLS: z.coerce.number().int().positive().default(2),
+  MCP_MAX_QUEUE_SIZE: z.coerce.number().int().min(0).default(25),
+  MCP_MAX_QUEUE_WAIT_MS: z.coerce.number().int().positive().default(5000),
+  MCP_WORKER_QUEUE: z.string().default('mcp-tool-execution'),
+  MCP_WORKER_JOB_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
+  MCP_WORKER_RETRIES: z.coerce.number().int().min(0).max(5).default(1),
   CHAT_MCP_PREFLIGHT_ENABLED: booleanFromEnv.default(false),
   CHAT_MCP_TOOL_CALL_ENABLED: booleanFromEnv.default(false),
+  PERSONA_RECOMMENDER_MODE: z.enum(['keyword', 'hybrid', 'semantic']).default('hybrid'),
+  PERSONA_EMBEDDING_MODEL: z.string().default('text-embedding-3-small'),
+  PERSONA_EMBEDDING_TIMEOUT_MS: z.coerce.number().int().positive().default(1500),
+  PERSONA_EMBEDDING_CACHE_TTL_MS: z.coerce.number().int().positive().default(600000),
+  PERSONA_RECOMMENDATION_TOP_K: z.coerce.number().int().positive().default(5),
+  PERSONA_SEMANTIC_MIN_SCORE: z.coerce.number().min(0).max(1).default(0.2),
   
   // Storage
   STORAGE_TYPE: z.enum(['local', 's3']).default('local'),

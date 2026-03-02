@@ -1,6 +1,8 @@
-import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { spawn } from 'child_process';
+import { Queue } from 'bullmq';
+import Redis from 'ioredis';
 
 interface JsonRpcRequest {
   jsonrpc: '2.0';
@@ -30,6 +32,15 @@ export class McpService {
     'repo_search',
     'read_file',
   ]);
+  private inflightCalls = 0;
+  private readonly queuedCalls: Array<{
+    id: number;
+    run: () => void;
+    timer?: NodeJS.Timeout;
+  }> = [];
+  private queueCounter = 0;
+  private asyncQueue: Queue | null = null;
+  private asyncQueueConnection: Redis | null = null;
 
   constructor(private readonly configService: ConfigService) {}
 
@@ -85,6 +96,22 @@ export class McpService {
       throw new Error('MCP integration is disabled. Set MCP_ENABLED=true');
     }
 
+    const startedAt = Date.now();
+    try {
+      const result = await this.callWithConcurrencyLimit(name, () => this.callToolProcess(name, args));
+      this.logger.log(
+        `MCP tool "${name}" succeeded in ${Date.now() - startedAt}ms (inflight=${this.inflightCalls}, queued=${this.queuedCalls.length})`,
+      );
+      return result;
+    } catch (error) {
+      this.logger.warn(
+        `MCP tool "${name}" failed in ${Date.now() - startedAt}ms: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      throw error;
+    }
+  }
+
+  private async callToolProcess(name: string, args: Record<string, unknown>): Promise<any> {
     const bin = this.configService.get<string>('MCP_SERVER_BIN', 'workspace-mcp');
     const workspaceRoot = this.configService.get<string>('MCP_WORKSPACE_ROOT', process.cwd());
     const profile = this.configService.get<string>('MCP_PROFILE', 'dev');
@@ -216,6 +243,79 @@ export class McpService {
     });
   }
 
+  private async callWithConcurrencyLimit<T>(toolName: string, invoke: () => Promise<T>): Promise<T> {
+    const maxConcurrent = this.configService.get<number>('MCP_MAX_CONCURRENT_CALLS', 2);
+    const maxQueue = this.configService.get<number>('MCP_MAX_QUEUE_SIZE', 25);
+    const maxQueueWaitMs = this.configService.get<number>('MCP_MAX_QUEUE_WAIT_MS', 5000);
+
+    if (this.inflightCalls < maxConcurrent) {
+      return this.startCall(invoke);
+    }
+
+    if (this.queuedCalls.length >= maxQueue) {
+      throw new Error(
+        `MCP queue is full (${this.queuedCalls.length}/${maxQueue}) while calling "${toolName}"`,
+      );
+    }
+
+    return new Promise<T>((resolve, reject) => {
+      const id = ++this.queueCounter;
+      const run = () => {
+        this.startCall(invoke).then(resolve).catch(reject);
+      };
+
+      const queued = {
+        id,
+        run,
+        timer: undefined as NodeJS.Timeout | undefined,
+      };
+
+      queued.timer = setTimeout(() => {
+        const index = this.queuedCalls.findIndex((item) => item.id === id);
+        if (index >= 0) {
+          this.queuedCalls.splice(index, 1);
+        }
+        reject(
+          new Error(
+            `MCP queue wait exceeded ${maxQueueWaitMs}ms while calling "${toolName}"`,
+          ),
+        );
+      }, maxQueueWaitMs);
+
+      this.queuedCalls.push(queued);
+      this.logger.warn(
+        `MCP call queued for "${toolName}" (inflight=${this.inflightCalls}, queued=${this.queuedCalls.length})`,
+      );
+    });
+  }
+
+  private async startCall<T>(invoke: () => Promise<T>): Promise<T> {
+    this.inflightCalls += 1;
+    try {
+      return await invoke();
+    } finally {
+      this.inflightCalls = Math.max(0, this.inflightCalls - 1);
+      this.drainQueue();
+    }
+  }
+
+  private drainQueue(): void {
+    const maxConcurrent = this.configService.get<number>('MCP_MAX_CONCURRENT_CALLS', 2);
+
+    while (this.inflightCalls < maxConcurrent && this.queuedCalls.length > 0) {
+      const next = this.queuedCalls.shift();
+      if (!next) {
+        return;
+      }
+
+      if (next.timer) {
+        clearTimeout(next.timer);
+      }
+
+      next.run();
+    }
+  }
+
   async callAllowedTool(name: string, args: Record<string, unknown>): Promise<any> {
     const allowed = this.getAllowedTools();
     if (!allowed.has(name)) {
@@ -224,6 +324,84 @@ export class McpService {
       );
     }
     return this.callTool(name, args);
+  }
+
+  async callAllowedToolAsync(name: string, args: Record<string, unknown>): Promise<{
+    mode: 'worker-queue';
+    queue: string;
+    jobId: string;
+    status: string;
+  }> {
+    const allowed = this.getAllowedTools();
+    if (!allowed.has(name)) {
+      throw new ForbiddenException(
+        `Tool "${name}" is not allowlisted. Allowed tools: ${Array.from(allowed).join(', ')}`,
+      );
+    }
+
+    const queue = this.ensureAsyncQueue();
+    const timeoutMs = this.configService.get<number>('MCP_WORKER_JOB_TIMEOUT_MS', 30000);
+    const job = await queue.add(
+      'mcp-tool-call',
+      {
+        name,
+        args,
+        timeoutMs,
+      },
+      {},
+    );
+
+    return {
+      mode: 'worker-queue',
+      queue: queue.name,
+      jobId: String(job.id),
+      status: 'queued',
+    };
+  }
+
+  async getToolJobStatus(jobId: string): Promise<{
+    mode: 'worker-queue';
+    queue: string;
+    jobId: string;
+    state: string;
+    progress: unknown;
+    attemptsMade: number;
+    result?: unknown;
+    error?: string;
+  }> {
+    const queue = this.ensureAsyncQueue();
+    const job = await queue.getJob(jobId);
+    if (!job) {
+      throw new NotFoundException(`MCP job not found: ${jobId}`);
+    }
+
+    const state = await job.getState();
+    const progress = job.progress ?? 0;
+    const payload: {
+      mode: 'worker-queue';
+      queue: string;
+      jobId: string;
+      state: string;
+      progress: unknown;
+      attemptsMade: number;
+      result?: unknown;
+      error?: string;
+    } = {
+      mode: 'worker-queue',
+      queue: queue.name,
+      jobId,
+      state,
+      progress,
+      attemptsMade: job.attemptsMade,
+    };
+
+    if (state === 'completed') {
+      payload.result = job.returnvalue;
+    } else if (state === 'failed') {
+      payload.error = job.failedReason || 'MCP worker job failed';
+    }
+
+    return payload;
   }
 
   private handleLine(params: {
@@ -305,5 +483,49 @@ export class McpService {
       .filter(Boolean);
 
     return new Set(parsed.length ? parsed : Array.from(this.defaultAllowedTools));
+  }
+
+  private ensureAsyncQueue(): Queue {
+    if (this.asyncQueue) {
+      return this.asyncQueue;
+    }
+
+    const queueName = this.configService.get<string>('MCP_WORKER_QUEUE', 'mcp-tool-execution');
+    const retries = this.configService.get<number>('MCP_WORKER_RETRIES', 1);
+
+    const redisUrl = this.configService.get<string>('REDIS_URL');
+    if (redisUrl?.trim()) {
+      this.asyncQueueConnection = new Redis(redisUrl, {
+        maxRetriesPerRequest: null,
+      });
+    } else {
+      const host = this.configService.get<string>('REDIS_HOST', 'localhost');
+      const port = this.configService.get<number>('REDIS_PORT', 6379);
+      const password = this.configService.get<string>('REDIS_PASSWORD');
+      const tls = this.configService.get<boolean>('REDIS_TLS', false);
+
+      this.asyncQueueConnection = new Redis({
+        host,
+        port,
+        password: password || undefined,
+        tls: tls ? {} : undefined,
+        maxRetriesPerRequest: null,
+      });
+    }
+
+    this.asyncQueue = new Queue(queueName, {
+      connection: this.asyncQueueConnection,
+      defaultJobOptions: {
+        attempts: retries,
+        removeOnComplete: 100,
+        removeOnFail: 500,
+        backoff: {
+          type: 'exponential',
+          delay: 500,
+        },
+      },
+    });
+
+    return this.asyncQueue;
   }
 }

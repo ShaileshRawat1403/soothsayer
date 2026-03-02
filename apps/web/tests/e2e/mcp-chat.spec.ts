@@ -48,5 +48,48 @@ test.describe('MCP chat flow', () => {
 
     await expect(page.getByText('Model:')).toBeVisible();
   });
-});
 
+  test('keeps user message visible after Enter submit and page reload', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('soothsayer-onboarding-complete', 'true');
+      localStorage.setItem(
+        'soothsayer-ai-providers',
+        JSON.stringify({
+          state: {
+            activeProvider: 'ollama',
+            activeModel: 'llama3:latest',
+          },
+          version: 0,
+        }),
+      );
+    });
+
+    await page.goto('/login');
+    await page.getByLabel('Email').fill('admin@soothsayer.local');
+    await page.getByLabel('Password').fill('password123');
+    await page.getByRole('button', { name: 'Sign In' }).click();
+    await expect(page).toHaveURL(/\/dashboard$/);
+
+    await page.goto('/chat');
+    const input = page.getByPlaceholder('Ask anything... (Shift+Enter for new line)');
+    await expect(input).toBeVisible();
+
+    const prompt = `stability-check-${Date.now()}`;
+    const responsePromise = page.waitForResponse((response) => {
+      return (
+        response.request().method() === 'POST' &&
+        response.url().includes('/api/chat/conversations/') &&
+        response.url().includes('/messages')
+      );
+    });
+
+    await input.fill(prompt);
+    await input.press('Enter');
+    const response = await responsePromise;
+    expect(response.status()).toBe(201);
+
+    await expect(page.getByText(prompt).first()).toBeVisible();
+    await page.reload();
+    await expect(page.getByText(prompt).first()).toBeVisible();
+  });
+});

@@ -19,6 +19,12 @@ export interface IntegrationStatus {
   message: string;
 }
 
+export interface OAuthReadiness {
+  name: OAuthProvider;
+  ready: boolean;
+  missing: string[];
+}
+
 type OAuthProvider = 'github' | 'slack' | 'google_drive' | 'jira' | 'notion' | 'linear' | 'discord';
 
 @Injectable()
@@ -40,6 +46,27 @@ export class IntegrationsService {
       this.testDiscord(wsId),
     ]);
     return [github, slack, drive, jira, linear, notion, discord];
+  }
+
+  getOAuthReadiness(): OAuthReadiness[] {
+    const checks: Array<{ name: OAuthProvider; keys: string[] }> = [
+      { name: 'github', keys: ['GITHUB_CLIENT_ID', 'GITHUB_CLIENT_SECRET'] },
+      { name: 'slack', keys: ['SLACK_CLIENT_ID', 'SLACK_CLIENT_SECRET'] },
+      { name: 'google_drive', keys: ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'] },
+      { name: 'jira', keys: ['JIRA_CLIENT_ID', 'JIRA_CLIENT_SECRET'] },
+      { name: 'notion', keys: ['NOTION_CLIENT_ID', 'NOTION_CLIENT_SECRET'] },
+      { name: 'linear', keys: ['LINEAR_CLIENT_ID', 'LINEAR_CLIENT_SECRET'] },
+      { name: 'discord', keys: ['DISCORD_CLIENT_ID', 'DISCORD_CLIENT_SECRET'] },
+    ];
+
+    return checks.map((item) => {
+      const missing = item.keys.filter((key) => !this.config.get<string>(key, '').trim());
+      return {
+        name: item.name,
+        ready: missing.length === 0,
+        missing,
+      };
+    });
   }
 
   async test(name: IntegrationName, userId: string, workspaceId?: string): Promise<IntegrationStatus> {

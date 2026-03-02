@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { IsObject, IsOptional, IsString } from 'class-validator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -37,5 +37,29 @@ export class McpController {
     }
 
     return this.mcpService.callAllowedTool(name, dto.arguments || {});
+  }
+
+  @Post('tools/call-async')
+  @ApiOperation({ summary: 'Enqueue an allowlisted MCP tool call for worker execution' })
+  @ApiResponse({ status: 201, description: 'MCP tool call queued' })
+  async callToolAsync(@Body() dto: McpToolCallDto) {
+    const name = (dto.name || '').trim();
+    if (!name) {
+      throw new BadRequestException('Tool name is required');
+    }
+
+    return this.mcpService.callAllowedToolAsync(name, dto.arguments || {});
+  }
+
+  @Get('jobs/:jobId')
+  @ApiOperation({ summary: 'Get status/result for a queued MCP tool call' })
+  @ApiResponse({ status: 200, description: 'MCP queued job status' })
+  async getJobStatus(@Param('jobId') jobId: string) {
+    const id = (jobId || '').trim();
+    if (!id) {
+      throw new BadRequestException('jobId is required');
+    }
+
+    return this.mcpService.getToolJobStatus(id);
   }
 }

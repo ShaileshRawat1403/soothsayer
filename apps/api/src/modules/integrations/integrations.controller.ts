@@ -25,6 +25,13 @@ export class IntegrationsController {
     return this.integrationsService.getStatus(user.id, workspaceId);
   }
 
+  @Get('oauth-readiness')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Get OAuth configuration readiness per integration provider' })
+  async oauthReadiness() {
+    return this.integrationsService.getOAuthReadiness();
+  }
+
   @Post(':name/test')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Test a specific integration connection' })

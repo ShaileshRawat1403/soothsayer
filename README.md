@@ -194,6 +194,8 @@ soothsayer/
 - Bridge endpoints:
   - `GET /api/mcp/health` (calls `kernel_version` + `self_check`)
   - `POST /api/mcp/tools/call` (allowlisted MCP tools only)
+  - `POST /api/mcp/tools/call-async` (queue MCP tool call in worker)
+  - `GET /api/mcp/jobs/:jobId` (poll queued MCP tool status/result)
 - Chat can optionally enrich prompts with MCP context (feature-flagged).
 
 Default behavior is safe-off:
@@ -203,6 +205,16 @@ Default behavior is safe-off:
 
 When enabled, recommended allowlist:
 - `MCP_ALLOWED_TOOLS=kernel_version,self_check,workspace_info,repo_search,read_file`
+
+For overload protection in API->MCP bridge:
+- `MCP_MAX_CONCURRENT_CALLS=2`
+- `MCP_MAX_QUEUE_SIZE=25`
+- `MCP_MAX_QUEUE_WAIT_MS=5000`
+
+For worker MCP orchestration:
+- `MCP_WORKER_QUEUE=mcp-tool-execution`
+- `MCP_WORKER_JOB_TIMEOUT_MS=30000`
+- `MCP_WORKER_RETRIES=1`
 
 ### Persona Engine
 - 30+ professional personas (Engineering, Business, Security, etc.)
@@ -241,7 +253,9 @@ GET    /api/workspaces          # List workspaces
 POST   /api/chat/conversations  # Create conversation
 POST   /api/commands/execute    # Execute command
 POST   /api/workflows/:id/run   # Run workflow
+POST   /api/workflows/bootstrap/templates # Seed starter workflow templates
 GET    /api/personas            # List personas
+GET    /api/integrations/oauth-readiness # OAuth env readiness per provider
 ```
 
 ## Environment Variables
@@ -253,6 +267,7 @@ DATABASE_URL=postgresql://user:password@localhost:5432/soothsayer
 # Redis
 REDIS_HOST=localhost
 REDIS_PORT=6379
+REDIS_URL=
 REDIS_PASSWORD=
 REDIS_TLS=false
 WS_REDIS_ENABLED=false
@@ -275,6 +290,12 @@ VITE_API_TIMEOUT_MS=300000
 VITE_CHAT_TIMEOUT_MS=600000
 AWS_REGION=us-east-1
 BEDROCK_MODEL_ID=amazon.nova-pro-v1:0
+PERSONA_RECOMMENDER_MODE=hybrid
+PERSONA_EMBEDDING_MODEL=text-embedding-3-small
+PERSONA_EMBEDDING_TIMEOUT_MS=1500
+PERSONA_EMBEDDING_CACHE_TTL_MS=600000
+PERSONA_RECOMMENDATION_TOP_K=5
+PERSONA_SEMANTIC_MIN_SCORE=0.2
 
 # MCP bridge (Soothsayer API -> workspace-mcp)
 MCP_ENABLED=false
@@ -286,6 +307,12 @@ MCP_WORKSPACE_ROOT=
 MCP_PROFILE=dev
 MCP_POLICY_PATH=
 MCP_TIMEOUT_MS=15000
+MCP_MAX_CONCURRENT_CALLS=2
+MCP_MAX_QUEUE_SIZE=25
+MCP_MAX_QUEUE_WAIT_MS=5000
+MCP_WORKER_QUEUE=mcp-tool-execution
+MCP_WORKER_JOB_TIMEOUT_MS=30000
+MCP_WORKER_RETRIES=1
 CHAT_MCP_PREFLIGHT_ENABLED=false
 CHAT_MCP_TOOL_CALL_ENABLED=false
 
@@ -334,6 +361,15 @@ curl -sS -X POST http://localhost:3000/api/mcp/tools/call \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{"name":"kernel_version","arguments":{}}'
+
+# Async (worker queue) MCP call
+curl -sS -X POST http://localhost:3000/api/mcp/tools/call-async \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"repo_search","arguments":{"pattern":"TODO","dir_path":"."}}'
+
+# Poll queued job status
+curl -sS http://localhost:3000/api/mcp/jobs/<jobId> -H "Authorization: Bearer <token>"
 ```
 
 Provider behavior:
