@@ -220,10 +220,14 @@ export class ChatService {
     ) {
       try {
         const toolName = options.mcpToolName.trim();
-        const result = await this.mcpService.callAllowedTool(toolName, options.mcpToolArgs || {});
+        const preferAsync = this.configService.get<boolean>('CHAT_MCP_TOOL_CALL_ASYNC_ENABLED', true);
+        const result = await this.mcpService.callAllowedToolSmart(toolName, options.mcpToolArgs || {}, {
+          preferAsync,
+        });
         mcpToolResult = {
           ok: true,
           name: toolName,
+          mode: preferAsync ? 'async' : 'sync',
           result,
         };
       } catch (error) {
@@ -231,6 +235,7 @@ export class ChatService {
         mcpToolResult = {
           ok: false,
           name: options.mcpToolName,
+          mode: this.configService.get<boolean>('CHAT_MCP_TOOL_CALL_ASYNC_ENABLED', true) ? 'async' : 'sync',
           error: error instanceof Error ? error.message : String(error),
         };
       }

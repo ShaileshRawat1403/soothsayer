@@ -106,3 +106,78 @@ describe('McpService concurrency limits', () => {
     await expect(p1).resolves.toEqual({ ok: true });
   });
 });
+
+describe('McpService smart async strategy', () => {
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
+  it('uses synchronous path when async preference is disabled', async () => {
+    const service = new McpService(createConfigService());
+    const syncSpy = jest
+      .spyOn(service, 'callAllowedTool')
+      .mockResolvedValue({ ok: true, mode: 'sync' } as any);
+
+    const result = await service.callAllowedToolSmart('workspace_info', {}, { preferAsync: false });
+    expect(result).toEqual({ ok: true, mode: 'sync' });
+    expect(syncSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses async queue and returns completed job result', async () => {
+    const service = new McpService(createConfigService());
+    jest.spyOn(service, 'callAllowedToolAsync').mockResolvedValue({
+      mode: 'worker-queue',
+      queue: 'mcp-tool-execution',
+      jobId: 'job-1',
+      status: 'queued',
+    });
+
+    const statusSpy = jest
+      .spyOn(service, 'getToolJobStatus')
+      .mockResolvedValueOnce({
+        mode: 'worker-queue',
+        queue: 'mcp-tool-execution',
+        jobId: 'job-1',
+        state: 'completed',
+        progress: 100,
+        attemptsMade: 0,
+        result: { data: { ok: true } },
+      });
+
+    const result = await service.callAllowedToolSmart('workspace_info', {}, {
+      preferAsync: true,
+      asyncPollIntervalMs: 1,
+      asyncTimeoutMs: 200,
+    });
+
+    expect(result).toEqual({ data: { ok: true } });
+    expect(statusSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails when async job does not complete before timeout', async () => {
+    const service = new McpService(createConfigService());
+    jest.spyOn(service, 'callAllowedToolAsync').mockResolvedValue({
+      mode: 'worker-queue',
+      queue: 'mcp-tool-execution',
+      jobId: 'job-timeout',
+      status: 'queued',
+    });
+    jest.spyOn(service, 'getToolJobStatus').mockResolvedValue({
+      mode: 'worker-queue',
+      queue: 'mcp-tool-execution',
+      jobId: 'job-timeout',
+      state: 'active',
+      progress: 50,
+      attemptsMade: 0,
+    });
+
+    await expect(
+      service.callAllowedToolSmart('workspace_info', {}, {
+        preferAsync: true,
+        asyncPollIntervalMs: 1,
+        asyncTimeoutMs: 5,
+      }),
+    ).rejects.toThrow('MCP async job timed out');
+  });
+});

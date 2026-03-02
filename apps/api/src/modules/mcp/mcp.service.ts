@@ -326,6 +326,33 @@ export class McpService {
     return this.callTool(name, args);
   }
 
+  async callAllowedToolSmart(
+    name: string,
+    args: Record<string, unknown>,
+    options?: {
+      preferAsync?: boolean;
+      asyncTimeoutMs?: number;
+      asyncPollIntervalMs?: number;
+    },
+  ): Promise<any> {
+    const preferAsync = options?.preferAsync ?? false;
+    if (!preferAsync) {
+      return this.callAllowedTool(name, args);
+    }
+
+    const queued = await this.callAllowedToolAsync(name, args);
+    const timeoutMs =
+      options?.asyncTimeoutMs ?? this.configService.get<number>('MCP_ASYNC_POLL_TIMEOUT_MS', 30000);
+    const pollIntervalMs =
+      options?.asyncPollIntervalMs ??
+      this.configService.get<number>('MCP_ASYNC_POLL_INTERVAL_MS', 500);
+
+    return this.waitForToolJobResult(queued.jobId, {
+      timeoutMs,
+      pollIntervalMs,
+    });
+  }
+
   async callAllowedToolAsync(name: string, args: Record<string, unknown>): Promise<{
     mode: 'worker-queue';
     queue: string;
@@ -402,6 +429,24 @@ export class McpService {
     }
 
     return payload;
+  }
+
+  private async waitForToolJobResult(
+    jobId: string,
+    options: { timeoutMs: number; pollIntervalMs: number },
+  ): Promise<unknown> {
+    const startedAt = Date.now();
+    while (Date.now() - startedAt < options.timeoutMs) {
+      const status = await this.getToolJobStatus(jobId);
+      if (status.state === 'completed') {
+        return status.result;
+      }
+      if (status.state === 'failed') {
+        throw new Error(status.error || `MCP async job failed: ${jobId}`);
+      }
+      await new Promise((resolve) => setTimeout(resolve, options.pollIntervalMs));
+    }
+    throw new Error(`MCP async job timed out after ${options.timeoutMs}ms (${jobId})`);
   }
 
   private handleLine(params: {
