@@ -29,10 +29,12 @@
 
 - Default branch: `main`
 - Latest tested setup: EC2 + PM2 + Azure OpenAI deployment (`gpt-4o` style deployment IDs)
+- Beginner guide (ELI12): `docs/SOOTHSAYER_ELI12_GUIDE.md`
 - Non-dev setup guide: `docs/HOW_TO_DUAL_SETUP_NON_DEVS.md`
 - Practical platform comparison: `docs/MY_VERDICT_AWS_VS_AZURE.md`
 - EC2 production runbook: `docs/EC2_LIVE_DEPLOY.md`
 - Release playbook: `docs/RELEASE_GUIDE.md`
+- Release gates checklist: `docs/RELEASE_GATE_CHECKLIST.md`
 
 ## Overview
 
