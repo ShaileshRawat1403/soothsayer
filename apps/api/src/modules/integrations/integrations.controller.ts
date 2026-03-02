@@ -36,6 +36,23 @@ export class IntegrationsController {
     return this.integrationsService.test(name, user.id, dto?.workspaceId);
   }
 
+  @Post(':name/manual')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Save manual token for integration (non-OAuth path)' })
+  async setManualToken(
+    @Param('name') name: IntegrationName,
+    @GetCurrentUser() user: CurrentUser,
+    @Body()
+    dto: {
+      workspaceId?: string;
+      accessToken: string;
+      accountName?: string;
+      cloudId?: string;
+    },
+  ) {
+    return this.integrationsService.setManualToken(name, user.id, dto);
+  }
+
   @Get(':name/connect')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Get OAuth connect URL for provider' })

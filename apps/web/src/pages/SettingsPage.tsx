@@ -66,6 +66,10 @@ export function SettingsPage() {
     Record<string, { configured: boolean; connected: boolean; message: string }>
   >({});
   const [testingIntegration, setTestingIntegration] = useState<string | null>(null);
+  const [manualTokenByIntegration, setManualTokenByIntegration] = useState<Record<string, string>>({});
+  const [manualAccountByIntegration, setManualAccountByIntegration] = useState<Record<string, string>>({});
+  const [manualCloudIdByIntegration, setManualCloudIdByIntegration] = useState<Record<string, string>>({});
+  const [savingManualFor, setSavingManualFor] = useState<string | null>(null);
   const oauthIntegrations = useMemo(
     () => new Set<IntegrationKey>(['github', 'slack', 'google_drive', 'jira', 'notion', 'linear', 'discord']),
     [],
@@ -206,6 +210,30 @@ export function SettingsPage() {
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Failed to disconnect integration';
       toast.error(msg);
+    }
+  };
+
+  const saveManualToken = async (name: IntegrationKey) => {
+    const accessToken = (manualTokenByIntegration[name] || '').trim();
+    if (!accessToken) {
+      toast.error('Access token is required');
+      return;
+    }
+    setSavingManualFor(name);
+    try {
+      await apiHelpers.setIntegrationManualToken(name, {
+        workspaceId: currentWorkspace?.id,
+        accessToken,
+        accountName: (manualAccountByIntegration[name] || '').trim() || undefined,
+        cloudId: name === 'jira' ? (manualCloudIdByIntegration[name] || '').trim() || undefined : undefined,
+      });
+      await testIntegration(name);
+      toast.success(`${name} manual token saved`);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to save manual token';
+      toast.error(msg);
+    } finally {
+      setSavingManualFor(null);
     }
   };
 
@@ -799,76 +827,123 @@ export function SettingsPage() {
                 ].map((integration) => (
                   <div
                     key={integration.key}
-                    className="flex items-center justify-between rounded-xl border border-border p-4 transition-colors hover:bg-accent/50"
+                    className="rounded-xl border border-border p-4 transition-colors hover:bg-accent/50"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary text-2xl">
-                        {integration.icon}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary text-2xl">
+                          {integration.icon}
+                        </div>
+                        <div>
+                          <h4 className="font-semibold">{integration.name}</h4>
+                          <p className="text-sm text-muted-foreground">{integration.description}</p>
+                          <p
+                            className={cn(
+                              'mt-1 text-xs',
+                              integrationStatus[integration.key]?.connected
+                                ? 'text-green-600'
+                                : integrationStatus[integration.key]?.configured
+                                  ? 'text-amber-600'
+                                  : 'text-muted-foreground',
+                            )}
+                          >
+                            {integrationStatus[integration.key]?.message || 'Not configured'}
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="font-semibold">{integration.name}</h4>
-                        <p className="text-sm text-muted-foreground">{integration.description}</p>
-                        <p
-                          className={cn(
-                            'mt-1 text-xs',
-                            integrationStatus[integration.key]?.connected
-                              ? 'text-green-600'
-                              : integrationStatus[integration.key]?.configured
-                                ? 'text-amber-600'
-                                : 'text-muted-foreground',
-                          )}
+                      <div className="flex gap-2">
+                        {oauthIntegrations.has(integration.key as IntegrationKey) && (
+                          integrationStatus[integration.key]?.connected ? (
+                            <button
+                              onClick={() =>
+                                disconnectOAuthIntegration(
+                                  integration.key as
+                                    | 'github'
+                                    | 'slack'
+                                    | 'google_drive'
+                                    | 'jira'
+                                    | 'notion'
+                                    | 'linear'
+                                    | 'discord',
+                                )
+                              }
+                              className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium hover:bg-accent transition-colors"
+                            >
+                              Disconnect
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() =>
+                                connectOAuthIntegration(
+                                  integration.key as
+                                    | 'github'
+                                    | 'slack'
+                                    | 'google_drive'
+                                    | 'jira'
+                                    | 'notion'
+                                    | 'linear'
+                                    | 'discord',
+                                )
+                              }
+                              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+                            >
+                              Connect OAuth
+                            </button>
+                          )
+                        )}
+                        <button
+                          onClick={() => testIntegration(integration.key as IntegrationKey)}
+                          disabled={testingIntegration === integration.key}
+                          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
                         >
-                          {integrationStatus[integration.key]?.message || 'Not configured'}
-                        </p>
+                          {testingIntegration === integration.key ? 'Testing...' : 'Test'}
+                        </button>
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      {oauthIntegrations.has(integration.key as IntegrationKey) && (
-                        integrationStatus[integration.key]?.connected ? (
+                    <div className="mt-3 w-full border-t border-border pt-3">
+                      <p className="mb-2 text-xs text-muted-foreground">
+                        Manual token mode (alternative to OAuth)
+                      </p>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <input
+                          type="password"
+                          placeholder="Access token / PAT"
+                          value={manualTokenByIntegration[integration.key] || ''}
+                          onChange={(e) =>
+                            setManualTokenByIntegration((prev) => ({ ...prev, [integration.key]: e.target.value }))
+                          }
+                          className="h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Account name (optional)"
+                          value={manualAccountByIntegration[integration.key] || ''}
+                          onChange={(e) =>
+                            setManualAccountByIntegration((prev) => ({ ...prev, [integration.key]: e.target.value }))
+                          }
+                          className="h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        />
+                        <div className="flex gap-2">
+                          {integration.key === 'jira' && (
+                            <input
+                              type="text"
+                              placeholder="Jira cloudId (optional)"
+                              value={manualCloudIdByIntegration[integration.key] || ''}
+                              onChange={(e) =>
+                                setManualCloudIdByIntegration((prev) => ({ ...prev, [integration.key]: e.target.value }))
+                              }
+                              className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                            />
+                          )}
                           <button
-                            onClick={() =>
-                              disconnectOAuthIntegration(
-                                integration.key as
-                                  | 'github'
-                                  | 'slack'
-                                  | 'google_drive'
-                                  | 'jira'
-                                  | 'notion'
-                                  | 'linear'
-                                  | 'discord',
-                              )
-                            }
-                            className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium hover:bg-accent transition-colors"
+                            onClick={() => saveManualToken(integration.key as IntegrationKey)}
+                            disabled={savingManualFor === integration.key}
+                            className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium hover:bg-accent transition-colors disabled:opacity-50"
                           >
-                            Disconnect
+                            {savingManualFor === integration.key ? 'Saving...' : 'Save Token'}
                           </button>
-                        ) : (
-                          <button
-                            onClick={() =>
-                              connectOAuthIntegration(
-                                integration.key as
-                                  | 'github'
-                                  | 'slack'
-                                  | 'google_drive'
-                                  | 'jira'
-                                  | 'notion'
-                                  | 'linear'
-                                  | 'discord',
-                              )
-                            }
-                            className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-                          >
-                            Connect OAuth
-                          </button>
-                        )
-                      )}
-                      <button
-                        onClick={() => testIntegration(integration.key as IntegrationKey)}
-                        disabled={testingIntegration === integration.key}
-                        className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-                      >
-                        {testingIntegration === integration.key ? 'Testing...' : 'Test'}
-                      </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ))}

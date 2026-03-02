@@ -222,6 +222,15 @@ export const apiHelpers = {
     api.delete(`/integrations/${name}`, {
       params: workspaceId ? { workspaceId } : undefined,
     }),
+  setIntegrationManualToken: (
+    name: 'github' | 'slack' | 'google_drive' | 'jira' | 'notion' | 'linear' | 'discord',
+    payload: {
+      workspaceId?: string;
+      accessToken: string;
+      accountName?: string;
+      cloudId?: string;
+    },
+  ) => api.post(`/integrations/${name}/manual`, payload),
   
   // Analytics
   getAnalytics: () => api.get('/analytics'),

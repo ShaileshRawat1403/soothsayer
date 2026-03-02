@@ -69,6 +69,116 @@ export class IntegrationsService {
     }
   }
 
+  async setManualToken(
+    name: IntegrationName,
+    userId: string,
+    dto: {
+      workspaceId?: string;
+      accessToken: string;
+      accountName?: string;
+      cloudId?: string;
+    },
+  ) {
+    const wsId = await this.resolveWorkspaceId(userId, dto.workspaceId);
+    const token = (dto.accessToken || '').trim();
+    if (!token) {
+      throw new BadRequestException('accessToken is required');
+    }
+
+    let accountName = dto.accountName?.trim() || `${name}-account`;
+    let accountId: string | undefined;
+    const metadata: Record<string, unknown> = {};
+
+    if (name === 'github') {
+      const user = await this.fetchGitHubUser(token);
+      accountName = user.login || accountName;
+      accountId = user.id ? String(user.id) : undefined;
+    } else if (name === 'slack') {
+      const res = await fetch('https://slack.com/api/auth.test', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: '',
+      });
+      const body = (await res.json()) as {
+        ok?: boolean;
+        team?: string;
+        user_id?: string;
+        error?: string;
+      };
+      if (!res.ok || !body.ok) {
+        throw new BadRequestException(body.error || `Slack auth failed (${res.status})`);
+      }
+      accountName = body.team || accountName;
+      accountId = body.user_id;
+    } else if (name === 'google_drive') {
+      const profile = await this.fetchGoogleProfile(token);
+      accountName = profile.email || profile.name || accountName;
+      accountId = profile.sub;
+    } else if (name === 'jira') {
+      const resources = await this.fetchJiraAccessibleResources(token);
+      const primary =
+        resources.find((r) => r.id === dto.cloudId) ||
+        resources[0];
+      if (!primary?.id) {
+        throw new BadRequestException('No Jira cloud resource available for this token');
+      }
+      const me = await this.fetchJiraMyself(token, primary.id);
+      accountName = me.displayName || primary.name || accountName;
+      accountId = me.accountId || primary.id;
+      metadata.cloudId = primary.id;
+      metadata.cloudName = primary.name || null;
+      metadata.cloudUrl = primary.url || null;
+    } else if (name === 'linear') {
+      const viewer = await this.fetchLinearViewer(token);
+      accountName = viewer.email || viewer.name || accountName;
+      accountId = viewer.id;
+    } else if (name === 'notion') {
+      const res = await fetch('https://api.notion.com/v1/users/me', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Notion-Version': '2022-06-28',
+          Accept: 'application/json',
+        },
+      });
+      const body = (await res.json()) as {
+        id?: string;
+        name?: string;
+        bot?: { owner?: { user?: { name?: string } } };
+        message?: string;
+      };
+      if (!res.ok) {
+        throw new BadRequestException(body.message || `Notion auth failed (${res.status})`);
+      }
+      accountName = body.name || body.bot?.owner?.user?.name || accountName;
+      accountId = body.id;
+    } else if (name === 'discord') {
+      const me = await this.fetchDiscordUser(token);
+      accountName = me.username || accountName;
+      accountId = me.id;
+    }
+
+    await this.upsertConnection({
+      workspaceId: wsId,
+      createdById: userId,
+      provider: name,
+      accountId,
+      accountName,
+      accessToken: token,
+      refreshToken: undefined,
+      scopes: [],
+      metadata,
+    });
+
+    return {
+      provider: name,
+      connected: true,
+      message: `Manual token saved for ${name}`,
+    };
+  }
+
   async getConnectUrl(provider: OAuthProvider, userId: string, workspaceId?: string) {
     const wsId = await this.resolveWorkspaceId(userId, workspaceId);
     const apiBaseUrl = this.config.get<string>('API_PUBLIC_URL', 'http://localhost:3000').replace(/\/+$/, '');
