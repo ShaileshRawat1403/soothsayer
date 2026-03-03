@@ -56,15 +56,23 @@ const tabs = [
 ];
 
 export function SettingsPage() {
+  type IntegrationState = {
+    configured: boolean;
+    connected: boolean;
+    message: string;
+    accountName?: string;
+    connectedAt?: string;
+    lastTestAt?: string;
+    lastTestStatus?: 'pass' | 'fail' | 'not_configured';
+  };
+
   const location = useLocation();
   const { user, updateUser } = useAuthStore();
   const { currentWorkspace } = useWorkspaceStore();
   const { theme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState('ai-providers');
   const [showApiKey, setShowApiKey] = useState<Record<string, boolean>>({});
-  const [integrationStatus, setIntegrationStatus] = useState<
-    Record<string, { configured: boolean; connected: boolean; message: string }>
-  >({});
+  const [integrationStatus, setIntegrationStatus] = useState<Record<string, IntegrationState>>({});
   const [oauthReadiness, setOauthReadiness] = useState<Record<string, { ready: boolean; missing: string[] }>>({});
   const [testingIntegration, setTestingIntegration] = useState<string | null>(null);
   const [manualTokenByIntegration, setManualTokenByIntegration] = useState<Record<string, string>>({});
@@ -138,14 +146,22 @@ export function SettingsPage() {
           configured: boolean;
           connected: boolean;
           message: string;
+          accountName?: string;
+          connectedAt?: string;
+          lastTestAt?: string;
+          lastTestStatus?: 'pass' | 'fail' | 'not_configured';
         }>;
         if (!mounted) return;
-        const next: Record<string, { configured: boolean; connected: boolean; message: string }> = {};
+        const next: Record<string, IntegrationState> = {};
         for (const row of list) {
           next[row.name] = {
             configured: Boolean(row.configured),
             connected: Boolean(row.connected),
             message: String(row.message || ''),
+            accountName: row.accountName ? String(row.accountName) : undefined,
+            connectedAt: row.connectedAt ? String(row.connectedAt) : undefined,
+            lastTestAt: row.lastTestAt ? String(row.lastTestAt) : undefined,
+            lastTestStatus: row.lastTestStatus,
           };
         }
         setIntegrationStatus(next);
@@ -176,17 +192,28 @@ export function SettingsPage() {
     };
   }, [activeTab, currentWorkspace?.id]);
 
+  const formatDateTime = (value?: string) => {
+    if (!value) return '';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return '';
+    return parsed.toLocaleString();
+  };
+
   const testIntegration = async (name: IntegrationKey) => {
     setTestingIntegration(name);
     try {
       const response = await apiHelpers.testIntegration(name, currentWorkspace?.id);
-      const row = response.data as { configured: boolean; connected: boolean; message: string };
+      const row = response.data as IntegrationState;
       setIntegrationStatus((prev) => ({
         ...prev,
         [name]: {
           configured: Boolean(row.configured),
           connected: Boolean(row.connected),
           message: String(row.message || ''),
+          accountName: row.accountName,
+          connectedAt: row.connectedAt,
+          lastTestAt: row.lastTestAt,
+          lastTestStatus: row.lastTestStatus,
         },
       }));
       if (row.connected) {
@@ -848,6 +875,8 @@ export function SettingsPage() {
                   const missingKeys = oauthState?.missing || [];
                   const showOAuthUnavailable =
                     oauthIntegrations.has(integration.key as IntegrationKey) && !oauthReady;
+                  const status = integrationStatus[integration.key];
+                  const guidedOAuth = integration.key === 'github' || integration.key === 'google_drive';
                   return <div
                     key={integration.key}
                     className="rounded-xl border border-border p-4 transition-colors hover:bg-accent/50"
@@ -863,25 +892,42 @@ export function SettingsPage() {
                           <p
                             className={cn(
                               'mt-1 text-xs',
-                              integrationStatus[integration.key]?.connected
+                              status?.connected
                                 ? 'text-green-600'
-                                : integrationStatus[integration.key]?.configured
+                                : status?.configured
                                   ? 'text-amber-600'
                                   : 'text-muted-foreground',
                             )}
                           >
-                            {integrationStatus[integration.key]?.message || 'Not configured'}
+                            {status?.message || 'Not configured'}
                           </p>
+                          {status?.accountName && (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Connected as: <span className="font-medium">{status.accountName}</span>
+                            </p>
+                          )}
+                          {status?.lastTestAt && (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Last test: {formatDateTime(status.lastTestAt)}
+                              {status.lastTestStatus ? ` (${status.lastTestStatus})` : ''}
+                            </p>
+                          )}
                           {showOAuthUnavailable && (
                             <p className="mt-1 text-xs text-amber-600">
-                              OAuth unavailable: missing {missingKeys.join(', ')}
+                              OAuth unavailable. Admin must configure: {missingKeys.join(', ')}
+                            </p>
+                          )}
+                          {guidedOAuth && oauthReady && !status?.connected && (
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Recommended: click <span className="font-medium">Connect OAuth</span> and sign in on
+                              the provider page.
                             </p>
                           )}
                         </div>
                       </div>
                       <div className="flex gap-2">
                         {oauthIntegrations.has(integration.key as IntegrationKey) && (
-                          integrationStatus[integration.key]?.connected ? (
+                          status?.connected ? (
                             <button
                               onClick={() =>
                                 disconnectOAuthIntegration(

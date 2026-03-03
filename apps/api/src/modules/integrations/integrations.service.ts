@@ -17,6 +17,10 @@ export interface IntegrationStatus {
   configured: boolean;
   connected: boolean;
   message: string;
+  accountName?: string;
+  connectedAt?: string;
+  lastTestAt?: string;
+  lastTestStatus?: 'pass' | 'fail' | 'not_configured';
 }
 
 export interface OAuthReadiness {
@@ -1127,15 +1131,21 @@ export class IntegrationsService {
   }
 
   private async testGitHub(workspaceId: string): Promise<IntegrationStatus> {
+    const snapshot = await this.getConnectionSnapshot('github', workspaceId);
     const token =
       (await this.getTokenFromDb('github', workspaceId)) ||
       this.config.get<string>('GITHUB_TOKEN', '').trim();
+    const now = new Date().toISOString();
     if (!token) {
       return {
         name: 'github',
         configured: false,
         connected: false,
         message: 'Not connected. Use OAuth Connect or set GITHUB_TOKEN',
+        accountName: snapshot?.accountName || undefined,
+        connectedAt: snapshot?.status === 'connected' ? snapshot.updatedAt.toISOString() : undefined,
+        lastTestAt: now,
+        lastTestStatus: 'not_configured',
       };
     }
 
@@ -1154,6 +1164,10 @@ export class IntegrationsService {
           configured: true,
           connected: false,
           message: body.message || `GitHub auth failed (${res.status})`,
+          accountName: snapshot?.accountName || undefined,
+          connectedAt: snapshot?.status === 'connected' ? snapshot.updatedAt.toISOString() : undefined,
+          lastTestAt: now,
+          lastTestStatus: 'fail',
         };
       }
       return {
@@ -1161,6 +1175,10 @@ export class IntegrationsService {
         configured: true,
         connected: true,
         message: `Connected (${body.login || 'user'})`,
+        accountName: body.login || snapshot?.accountName || undefined,
+        connectedAt: snapshot?.status === 'connected' ? snapshot.updatedAt.toISOString() : now,
+        lastTestAt: now,
+        lastTestStatus: 'pass',
       };
     } catch (error) {
       return {
@@ -1168,20 +1186,30 @@ export class IntegrationsService {
         configured: true,
         connected: false,
         message: error instanceof Error ? error.message : String(error),
+        accountName: snapshot?.accountName || undefined,
+        connectedAt: snapshot?.status === 'connected' ? snapshot.updatedAt.toISOString() : undefined,
+        lastTestAt: now,
+        lastTestStatus: 'fail',
       };
     }
   }
 
   private async testGoogleDrive(workspaceId: string): Promise<IntegrationStatus> {
+    const snapshot = await this.getConnectionSnapshot('google_drive', workspaceId);
     const token =
       (await this.getTokenFromDb('google_drive', workspaceId)) ||
       this.config.get<string>('GOOGLE_DRIVE_ACCESS_TOKEN', '').trim();
+    const now = new Date().toISOString();
     if (!token) {
       return {
         name: 'google_drive',
         configured: false,
         connected: false,
         message: 'Not connected. Use OAuth Connect or set GOOGLE_DRIVE_ACCESS_TOKEN',
+        accountName: snapshot?.accountName || undefined,
+        connectedAt: snapshot?.status === 'connected' ? snapshot.updatedAt.toISOString() : undefined,
+        lastTestAt: now,
+        lastTestStatus: 'not_configured',
       };
     }
 
@@ -1201,6 +1229,10 @@ export class IntegrationsService {
           configured: true,
           connected: false,
           message: body.error?.message || `Google Drive auth failed (${res.status})`,
+          accountName: snapshot?.accountName || undefined,
+          connectedAt: snapshot?.status === 'connected' ? snapshot.updatedAt.toISOString() : undefined,
+          lastTestAt: now,
+          lastTestStatus: 'fail',
         };
       }
       const user = body.user?.emailAddress || body.user?.displayName || 'drive-user';
@@ -1209,6 +1241,10 @@ export class IntegrationsService {
         configured: true,
         connected: true,
         message: `Connected (${user})`,
+        accountName: user || snapshot?.accountName || undefined,
+        connectedAt: snapshot?.status === 'connected' ? snapshot.updatedAt.toISOString() : now,
+        lastTestAt: now,
+        lastTestStatus: 'pass',
       };
     } catch (error) {
       return {
@@ -1216,8 +1252,28 @@ export class IntegrationsService {
         configured: true,
         connected: false,
         message: error instanceof Error ? error.message : String(error),
+        accountName: snapshot?.accountName || undefined,
+        connectedAt: snapshot?.status === 'connected' ? snapshot.updatedAt.toISOString() : undefined,
+        lastTestAt: now,
+        lastTestStatus: 'fail',
       };
     }
+  }
+
+  private async getConnectionSnapshot(provider: IntegrationName, workspaceId: string) {
+    return this.prisma.integrationConnection.findUnique({
+      where: {
+        workspaceId_provider: {
+          workspaceId,
+          provider,
+        },
+      },
+      select: {
+        status: true,
+        accountName: true,
+        updatedAt: true,
+      },
+    });
   }
 
   private async testJira(workspaceId: string): Promise<IntegrationStatus> {
