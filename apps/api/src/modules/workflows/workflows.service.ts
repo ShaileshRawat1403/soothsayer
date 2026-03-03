@@ -57,7 +57,7 @@ export class WorkflowsService {
       where: { userId },
       select: { workspaceId: true },
     });
-    const workspaceIds = memberships.map((m) => m.workspaceId);
+    const workspaceIds = memberships.map((m: { workspaceId: string }) => m.workspaceId);
 
     if (workspaceIds.length === 0) {
       return { workflows: [], total: 0 };
@@ -78,7 +78,7 @@ export class WorkflowsService {
     });
 
     return {
-      workflows: workflows.map((w) => ({
+      workflows: workflows.map((w: (typeof workflows)[number]) => ({
         id: w.id,
         workspaceId: w.workspaceId,
         name: w.name,
