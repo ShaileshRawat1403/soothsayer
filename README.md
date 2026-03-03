@@ -30,6 +30,11 @@
 - Default branch: `main`
 - Latest tested setup: EC2 + PM2 + Azure OpenAI deployment (`gpt-4o` style deployment IDs)
 - Beginner guide (ELI12): `docs/SOOTHSAYER_ELI12_GUIDE.md`
+- System explained (ELI12): `docs/NON_DEV_SYSTEM_EXPLAINED.md`
+- Non-dev quickstart (10 min): `docs/NON_DEV_QUICKSTART.md`
+- Workflows explained (ELI12): `docs/NON_DEV_WORKFLOWS_EXPLAINED.md`
+- Integrations explained (ELI12): `docs/NON_DEV_INTEGRATIONS_EXPLAINED.md`
+- Non-dev troubleshooting: `docs/NON_DEV_TROUBLESHOOTING.md`
 - Non-dev setup guide: `docs/HOW_TO_DUAL_SETUP_NON_DEVS.md`
 - Practical platform comparison: `docs/MY_VERDICT_AWS_VS_AZURE.md`
 - EC2 production runbook: `docs/EC2_LIVE_DEPLOY.md`
@@ -501,6 +506,17 @@ Then in GitHub:
 3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
+
+### Fork & Experiment (Encouraged)
+
+If you are learning or exploring:
+
+1. Fork this repo.
+2. Create a sandbox branch.
+3. Try your own workflows, integrations, and prompts.
+4. Keep experiments in your fork until stable.
+
+This project is designed to be explored safely. Curiosity is welcome.
 
 ### Commit Convention
 We use [Conventional Commits](https://www.conventionalcommits.org/):
