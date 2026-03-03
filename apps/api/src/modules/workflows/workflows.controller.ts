@@ -24,6 +24,23 @@ export class WorkflowsController {
     return this.workflowsService.findOne(id, user.id);
   }
 
+  @Post()
+  async create(
+    @GetCurrentUser() user: CurrentUser,
+    @Body()
+    dto: {
+      workspaceId?: string;
+      name: string;
+      description?: string;
+      trigger?: Record<string, unknown>;
+      steps?: Array<Record<string, unknown>>;
+      status?: 'draft' | 'active' | 'paused' | 'archived';
+      templateCategory?: string;
+    },
+  ) {
+    return this.workflowsService.create(user.id, dto);
+  }
+
   @Patch(':id/status')
   async updateStatus(
     @Param('id') id: string,
@@ -31,6 +48,22 @@ export class WorkflowsController {
     @Body() dto: { status: 'draft' | 'active' | 'paused' | 'archived' },
   ) {
     return this.workflowsService.updateStatus(id, user.id, dto.status);
+  }
+
+  @Patch(':id')
+  async update(
+    @Param('id') id: string,
+    @GetCurrentUser() user: CurrentUser,
+    @Body()
+    dto: {
+      name?: string;
+      description?: string;
+      trigger?: Record<string, unknown>;
+      steps?: Array<Record<string, unknown>>;
+      status?: 'draft' | 'active' | 'paused' | 'archived';
+    },
+  ) {
+    return this.workflowsService.update(id, user.id, dto);
   }
 
   @Post(':id/run')

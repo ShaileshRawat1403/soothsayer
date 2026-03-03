@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -135,6 +135,89 @@ export class WorkflowsService {
     return this.prisma.workflow.update({
       where: { id },
       data: { status },
+    });
+  }
+
+  async create(
+    userId: string,
+    dto: {
+      workspaceId?: string;
+      name: string;
+      description?: string;
+      trigger?: Record<string, unknown>;
+      steps?: Array<Record<string, unknown>>;
+      status?: 'draft' | 'active' | 'paused' | 'archived';
+      templateCategory?: string;
+    },
+  ) {
+    const workspaceId = dto.workspaceId || (await this.resolveDefaultWorkspaceId(userId));
+    await this.ensureWorkspaceAccess(workspaceId, userId);
+
+    const name = (dto.name || '').trim();
+    if (!name) {
+      throw new BadRequestException('Workflow name is required');
+    }
+
+    const baseSlug = this.generateSlug(name);
+    const slug = await this.ensureUniqueSlug(workspaceId, baseSlug);
+
+    return this.prisma.workflow.create({
+      data: {
+        workspaceId,
+        createdById: userId,
+        name,
+        slug,
+        description: dto.description?.trim() || null,
+        status: dto.status || 'draft',
+        trigger: (dto.trigger || { type: 'manual' }) as any,
+        steps: this.normalizeSteps(dto.steps || []) as any,
+        variables: [],
+        errorHandling: {},
+        metadata: { source: 'ui-builder' },
+        isTemplate: false,
+        templateCategory: dto.templateCategory || null,
+      },
+    });
+  }
+
+  async update(
+    id: string,
+    userId: string,
+    dto: {
+      name?: string;
+      description?: string;
+      trigger?: Record<string, unknown>;
+      steps?: Array<Record<string, unknown>>;
+      status?: 'draft' | 'active' | 'paused' | 'archived';
+    },
+  ) {
+    const workflow = await this.prisma.workflow.findUnique({ where: { id } });
+    if (!workflow || workflow.deletedAt) {
+      throw new NotFoundException('Workflow not found');
+    }
+
+    await this.ensureWorkspaceAccess(workflow.workspaceId, userId);
+
+    const nextName = dto.name?.trim();
+    let nextSlug: string | undefined;
+    if (nextName && nextName !== workflow.name) {
+      const base = this.generateSlug(nextName);
+      nextSlug = await this.ensureUniqueSlug(workflow.workspaceId, base, workflow.id);
+    }
+
+    return this.prisma.workflow.update({
+      where: { id },
+      data: {
+        ...(nextName ? { name: nextName } : {}),
+        ...(nextSlug ? { slug: nextSlug } : {}),
+        ...(dto.description !== undefined ? { description: dto.description?.trim() || null } : {}),
+        ...(dto.trigger ? { trigger: dto.trigger as any } : {}),
+        ...(dto.steps ? { steps: this.normalizeSteps(dto.steps) as any } : {}),
+        ...(dto.status ? { status: dto.status } : {}),
+        ...(dto.steps || dto.trigger || dto.name || dto.description !== undefined
+          ? { version: { increment: 1 } }
+          : {}),
+      },
     });
   }
 
@@ -324,6 +407,51 @@ export class WorkflowsService {
       throw new NotFoundException('No workspace found for current user');
     }
     return membership.workspaceId;
+  }
+
+  private normalizeSteps(steps: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+    return steps.map((step, idx) => ({
+      id: String(step.id || `step-${idx + 1}`),
+      name: String(step.name || `Step ${idx + 1}`),
+      type: String(step.type || 'task'),
+      risk: String(step.risk || 'read'),
+      ...(step.task ? { task: String(step.task) } : {}),
+      ...(step.input ? { input: step.input } : {}),
+    }));
+  }
+
+  private generateSlug(value: string): string {
+    return value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '')
+      .slice(0, 64);
+  }
+
+  private async ensureUniqueSlug(
+    workspaceId: string,
+    baseSlug: string,
+    ignoreWorkflowId?: string,
+  ): Promise<string> {
+    const candidateBase = baseSlug || `workflow-${Date.now()}`;
+    let attempt = 0;
+    while (attempt < 20) {
+      const candidate = attempt === 0 ? candidateBase : `${candidateBase}-${attempt + 1}`;
+      const existing = await this.prisma.workflow.findFirst({
+        where: {
+          workspaceId,
+          slug: candidate,
+          deletedAt: null,
+          ...(ignoreWorkflowId ? { id: { not: ignoreWorkflowId } } : {}),
+        },
+        select: { id: true },
+      });
+      if (!existing) {
+        return candidate;
+      }
+      attempt += 1;
+    }
+    return `${candidateBase}-${Date.now()}`;
   }
 
   private async ensureWorkspaceAccess(workspaceId: string, userId: string) {

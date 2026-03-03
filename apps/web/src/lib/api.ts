@@ -189,6 +189,25 @@ export const apiHelpers = {
   // Workflows
   getWorkflows: () => api.get('/workflows'),
   getWorkflow: (id: string) => api.get(`/workflows/${id}`),
+  createWorkflow: (payload: {
+    workspaceId?: string;
+    name: string;
+    description?: string;
+    trigger?: Record<string, unknown>;
+    steps?: Array<Record<string, unknown>>;
+    status?: 'draft' | 'active' | 'paused' | 'archived';
+    templateCategory?: string;
+  }) => api.post('/workflows', payload),
+  updateWorkflow: (
+    id: string,
+    payload: {
+      name?: string;
+      description?: string;
+      trigger?: Record<string, unknown>;
+      steps?: Array<Record<string, unknown>>;
+      status?: 'draft' | 'active' | 'paused' | 'archived';
+    },
+  ) => api.patch(`/workflows/${id}`, payload),
   bootstrapWorkflowTemplates: (workspaceId?: string) =>
     api.post('/workflows/bootstrap/templates', workspaceId ? { workspaceId } : {}),
   

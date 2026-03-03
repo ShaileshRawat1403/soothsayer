@@ -42,7 +42,7 @@ The Soothsayer is a comprehensive enterprise AI workspace that enables teams to 
 
 - **🤖 Conversational AI Assistant** - Chat with context-aware AI personas
 - **💻 Secure Terminal Runner** - Execute commands with policy enforcement
-- **🔄 Visual Workflow Builder** - Create automated workflows with drag-and-drop
+- **🔄 Workflow Step Builder** - Create and edit automated workflows with trigger/step forms
 - **🎭 Persona Engine** - Role-based AI behavior customization
 - **📊 Analytics Dashboard** - Track usage, performance, and audit logs
 - **🛡️ Governance & Security** - RBAC, approval gates, and audit trails
@@ -231,7 +231,7 @@ For worker MCP orchestration:
 - Approval gates for high-risk operations
 
 ### Workflow Builder
-- Visual node-based editor
+- Form-based step editor (create/update workflows in-app)
 - Trigger types: Manual, Scheduled, Webhook
 - Templates: Bug Triage, Release Checklist, Incident Response
 - Execution history and analytics
