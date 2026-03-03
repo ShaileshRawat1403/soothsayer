@@ -87,9 +87,11 @@ async function bootstrap() {
 
   // WebSocket adapter for horizontal scaling
   const wsRedisEnabled = configService.get<boolean>('WS_REDIS_ENABLED', false);
+  const wsRedisForceInDev = configService.get<boolean>('WS_REDIS_FORCE_IN_DEV', false);
   // Safety default: do not run Redis adapter outside production.
   // This avoids noisy reconnect loops and startup/runtime instability in EC2 dev/testing.
-  const shouldUseRedisAdapter = nodeEnv === 'production' && wsRedisEnabled;
+  const shouldUseRedisAdapter =
+    wsRedisEnabled && (nodeEnv === 'production' || wsRedisForceInDev);
 
   if (shouldUseRedisAdapter) {
     const redisIoAdapter = new RedisIoAdapter(app);
@@ -102,7 +104,7 @@ async function bootstrap() {
     }
   } else {
     logger.log(
-      `WebSocket Redis adapter disabled (NODE_ENV=${nodeEnv}, WS_REDIS_ENABLED=${wsRedisEnabled})`,
+      `WebSocket Redis adapter disabled (NODE_ENV=${nodeEnv}, WS_REDIS_ENABLED=${wsRedisEnabled}, WS_REDIS_FORCE_IN_DEV=${wsRedisForceInDev})`,
     );
   }
 
@@ -131,6 +133,7 @@ async function bootstrap() {
       .addTag('commands', 'Command execution')
       .addTag('workflows', 'Workflow management')
       .addTag('tools', 'Tool registry')
+      .addTag('mcp', 'MCP kernel bridge')
       .addTag('analytics', 'Analytics & audit')
       .build();
 

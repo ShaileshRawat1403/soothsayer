@@ -1,0 +1,85 @@
+name: Release Gates
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - feat/soothsayer-mcp-integration
+  workflow_dispatch:
+
+jobs:
+  soothsayer-static-gates:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8.12.0
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: API typecheck
+        run: pnpm --filter @soothsayer/api typecheck
+
+      - name: Web typecheck
+        run: pnpm --filter @soothsayer/web exec tsc --noEmit
+
+      - name: Verify preflight script exists
+        run: test -x scripts/release/preflight-soothsayer.sh
+
+  workspace-mcp-contract-alignment:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: workspace-mcp
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify spec and package version alignment
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+          pyproject = Path("pyproject.toml").read_text(encoding="utf-8")
+          spec = Path("docs/KERNEL_API_V1.md").read_text(encoding="utf-8")
+
+          m_ver = re.search(r'^version\s*=\s*"([^"]+)"', pyproject, re.M)
+          if not m_ver:
+              raise SystemExit("pyproject version not found")
+          pkg_version = m_ver.group(1)
+
+          m_spec = re.search(r'aligned with Python\s+([0-9]+\.[0-9]+\.[0-9]+)\s+reference', spec)
+          if not m_spec:
+              raise SystemExit("KERNEL_API_V1 alignment version not found")
+          spec_version = m_spec.group(1)
+
+          if pkg_version != spec_version:
+              raise SystemExit(
+                  f"Version mismatch: pyproject={pkg_version}, KERNEL_API_V1={spec_version}"
+              )
+          print(f"Version alignment OK: {pkg_version}")
+          PY
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Gitleaks scan
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          args: detect --source . --no-git --redact
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

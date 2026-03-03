@@ -16,6 +16,13 @@ const booleanFromEnv = z.preprocess((value) => {
   return value;
 }, z.boolean());
 
+const emptyToUndefined = (value: unknown) => {
+  if (typeof value === 'string' && value.trim() === '') {
+    return undefined;
+  }
+  return value;
+};
+
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   API_PORT: z.coerce.number().default(3000),
@@ -28,6 +35,7 @@ const envSchema = z.object({
   // Redis
   REDIS_HOST: z.string().default('localhost'),
   REDIS_PORT: z.coerce.number().default(6379),
+  REDIS_URL: z.string().optional(),
   REDIS_PASSWORD: z.string().optional(),
   REDIS_TLS: booleanFromEnv.default(false),
   WS_REDIS_ENABLED: booleanFromEnv.default(false),
@@ -60,6 +68,69 @@ const envSchema = z.object({
   BEDROCK_MAX_RETRIES: z.coerce.number().min(0).max(10).optional(),
   BEDROCK_BASE_BACKOFF_MS: z.coerce.number().positive().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
+
+  // Integrations
+  SLACK_BOT_TOKEN: z.string().optional(),
+  SLACK_TEST_CHANNEL: z.string().optional(),
+  GITHUB_TOKEN: z.string().optional(),
+  GOOGLE_DRIVE_ACCESS_TOKEN: z.string().optional(),
+  JIRA_BASE_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  JIRA_EMAIL: z.preprocess(emptyToUndefined, z.string().email().optional()),
+  JIRA_API_TOKEN: z.string().optional(),
+  JIRA_CLIENT_ID: z.string().optional(),
+  JIRA_CLIENT_SECRET: z.string().optional(),
+  JIRA_REDIRECT_URI: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  LINEAR_API_TOKEN: z.string().optional(),
+  NOTION_API_TOKEN: z.string().optional(),
+  DISCORD_BOT_TOKEN: z.string().optional(),
+  INTEGRATIONS_ENCRYPTION_KEY: z.string().optional(),
+  API_PUBLIC_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  GITHUB_CLIENT_ID: z.string().optional(),
+  GITHUB_CLIENT_SECRET: z.string().optional(),
+  GITHUB_REDIRECT_URI: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  SLACK_CLIENT_ID: z.string().optional(),
+  SLACK_CLIENT_SECRET: z.string().optional(),
+  SLACK_REDIRECT_URI: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_REDIRECT_URI: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  NOTION_CLIENT_ID: z.string().optional(),
+  NOTION_CLIENT_SECRET: z.string().optional(),
+  NOTION_REDIRECT_URI: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  LINEAR_CLIENT_ID: z.string().optional(),
+  LINEAR_CLIENT_SECRET: z.string().optional(),
+  LINEAR_REDIRECT_URI: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  DISCORD_CLIENT_ID: z.string().optional(),
+  DISCORD_CLIENT_SECRET: z.string().optional(),
+  DISCORD_REDIRECT_URI: z.preprocess(emptyToUndefined, z.string().url().optional()),
+
+  // MCP Integration
+  MCP_ENABLED: booleanFromEnv.default(false),
+  MCP_SERVER_BIN: z.string().default('workspace-mcp'),
+  MCP_SERVER_ARGS: z.string().optional(),
+  MCP_ALLOWED_TOOLS: z.string().optional(),
+  MCP_WORKDIR: z.string().optional(),
+  MCP_WORKSPACE_ROOT: z.string().optional(),
+  MCP_PROFILE: z.enum(['dev', 'ci', 'read_only']).default('dev'),
+  MCP_POLICY_PATH: z.string().optional(),
+  MCP_TIMEOUT_MS: z.coerce.number().positive().default(15000),
+  MCP_MAX_CONCURRENT_CALLS: z.coerce.number().int().positive().default(2),
+  MCP_MAX_QUEUE_SIZE: z.coerce.number().int().min(0).default(25),
+  MCP_MAX_QUEUE_WAIT_MS: z.coerce.number().int().positive().default(5000),
+  MCP_WORKER_QUEUE: z.string().default('mcp-tool-execution'),
+  MCP_WORKER_JOB_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
+  MCP_WORKER_RETRIES: z.coerce.number().int().min(0).max(5).default(1),
+  MCP_ASYNC_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(500),
+  MCP_ASYNC_POLL_TIMEOUT_MS: z.coerce.number().int().positive().default(30000),
+  CHAT_MCP_PREFLIGHT_ENABLED: booleanFromEnv.default(false),
+  CHAT_MCP_TOOL_CALL_ENABLED: booleanFromEnv.default(false),
+  CHAT_MCP_TOOL_CALL_ASYNC_ENABLED: booleanFromEnv.default(true),
+  PERSONA_RECOMMENDER_MODE: z.enum(['keyword', 'hybrid', 'semantic']).default('hybrid'),
+  PERSONA_EMBEDDING_MODEL: z.string().default('text-embedding-3-small'),
+  PERSONA_EMBEDDING_TIMEOUT_MS: z.coerce.number().int().positive().default(1500),
+  PERSONA_EMBEDDING_CACHE_TTL_MS: z.coerce.number().int().positive().default(600000),
+  PERSONA_RECOMMENDATION_TOP_K: z.coerce.number().int().positive().default(5),
+  PERSONA_SEMANTIC_MIN_SCORE: z.coerce.number().min(0).max(1).default(0.2),
   
   // Storage
   STORAGE_TYPE: z.enum(['local', 's3']).default('local'),

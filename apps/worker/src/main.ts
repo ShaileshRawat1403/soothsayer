@@ -1,6 +1,7 @@
 import { Worker, Queue } from 'bullmq';
 import Redis from 'ioredis';
 import pino from 'pino';
+import { spawn } from 'child_process';
 
 const logger = pino({
   level: process.env.LOG_LEVEL || 'info',
@@ -24,7 +25,185 @@ const QUEUES = {
   NOTIFICATIONS: 'notifications',
   ANALYTICS: 'analytics',
   SCHEDULED_TASKS: 'scheduled-tasks',
+  MCP_TOOL_EXECUTION: process.env.MCP_WORKER_QUEUE || 'mcp-tool-execution',
 } as const;
+
+type JsonRpcRequest = {
+  jsonrpc: '2.0';
+  id?: number;
+  method: string;
+  params?: Record<string, unknown>;
+};
+
+type JsonRpcResponse = {
+  jsonrpc: '2.0';
+  id?: number;
+  result?: any;
+  error?: {
+    code: number;
+    message: string;
+    data?: unknown;
+  };
+};
+
+const parseArgs = (raw: string): string[] => {
+  const trimmed = raw.trim();
+  if (!trimmed) return [];
+  const tokens = trimmed.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
+  return tokens.map((token) => token.replace(/^['"]|['"]$/g, ''));
+};
+
+const runMcpToolCall = async (name: string, args: Record<string, unknown>, timeoutMs: number): Promise<any> => {
+  const bin = process.env.MCP_SERVER_BIN || 'workspace-mcp';
+  const workspaceRoot = process.env.MCP_WORKSPACE_ROOT || process.cwd();
+  const profile = process.env.MCP_PROFILE || 'dev';
+  const policyPath = process.env.MCP_POLICY_PATH;
+  const cwd = process.env.MCP_WORKDIR || process.cwd();
+
+  const argsFromEnv = parseArgs(process.env.MCP_SERVER_ARGS || '');
+  const fullArgs = [...argsFromEnv];
+  if (!argsFromEnv.includes('--workspace-root')) {
+    fullArgs.push('--workspace-root', workspaceRoot);
+  }
+  if (!argsFromEnv.includes('--profile')) {
+    fullArgs.push('--profile', profile);
+  }
+  if (policyPath && !argsFromEnv.includes('--policy-path')) {
+    fullArgs.push('--policy-path', policyPath);
+  }
+
+  const initRequest: JsonRpcRequest = {
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'initialize',
+    params: {
+      protocolVersion: '2025-06-18',
+      capabilities: {},
+      clientInfo: { name: 'soothsayer-worker', version: '1.0.0' },
+    },
+  };
+
+  const initNotification: JsonRpcRequest = {
+    jsonrpc: '2.0',
+    method: 'notifications/initialized',
+    params: {},
+  };
+
+  const toolCallRequest: JsonRpcRequest = {
+    jsonrpc: '2.0',
+    id: 2,
+    method: 'tools/call',
+    params: {
+      name,
+      arguments: args,
+    },
+  };
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(bin, fullArgs, {
+      cwd,
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: process.env,
+    });
+
+    let buffer = '';
+    let stderr = '';
+    let settled = false;
+    let initialized = false;
+
+    const finishError = (error: string) => {
+      if (settled) return;
+      settled = true;
+      child.kill('SIGTERM');
+      reject(new Error(error));
+    };
+
+    const finishOk = (value: any) => {
+      if (settled) return;
+      settled = true;
+      child.kill('SIGTERM');
+      resolve(value);
+    };
+
+    const timer = setTimeout(() => {
+      finishError(`MCP call timed out after ${timeoutMs}ms`);
+    }, timeoutMs);
+
+    child.on('error', (error) => {
+      clearTimeout(timer);
+      finishError(`Failed to start MCP process: ${error.message}`);
+    });
+
+    child.stderr.on('data', (chunk: Buffer) => {
+      stderr += chunk.toString('utf8');
+    });
+
+    child.stdout.on('data', (chunk: Buffer) => {
+      buffer += chunk.toString('utf8');
+      let newlineIndex = buffer.indexOf('\n');
+
+      while (newlineIndex >= 0) {
+        const line = buffer.slice(0, newlineIndex).trim();
+        buffer = buffer.slice(newlineIndex + 1);
+
+        if (line) {
+          let payload: JsonRpcResponse;
+          try {
+            payload = JSON.parse(line) as JsonRpcResponse;
+          } catch {
+            newlineIndex = buffer.indexOf('\n');
+            continue;
+          }
+
+          if (payload.error) {
+            clearTimeout(timer);
+            finishError(`MCP error: ${payload.error.message || 'unknown error'}`);
+            return;
+          }
+
+          if (!initialized && payload.id === 1 && payload.result) {
+            initialized = true;
+            child.stdin?.write(`${JSON.stringify(initNotification)}\n`);
+            child.stdin?.write(`${JSON.stringify(toolCallRequest)}\n`);
+            newlineIndex = buffer.indexOf('\n');
+            continue;
+          }
+
+          if (initialized && payload.id === 2) {
+            clearTimeout(timer);
+            const structured = payload.result?.structuredContent;
+            const content = payload.result?.content;
+            if (structured) {
+              finishOk(structured);
+              return;
+            }
+            if (Array.isArray(content) && content[0]?.text) {
+              try {
+                finishOk(JSON.parse(content[0].text));
+              } catch {
+                finishOk({ raw: content[0].text });
+              }
+              return;
+            }
+            finishOk(payload.result);
+            return;
+          }
+        }
+
+        newlineIndex = buffer.indexOf('\n');
+      }
+    });
+
+    child.on('close', (code) => {
+      clearTimeout(timer);
+      if (!settled && code !== 0) {
+        finishError(`MCP process exited with code ${code}. stderr: ${stderr.trim() || '<empty>'}`);
+      }
+    });
+
+    child.stdin?.write(`${JSON.stringify(initRequest)}\n`);
+  });
+};
 
 // Command Execution Worker
 const commandWorker = new Worker(
@@ -202,6 +381,31 @@ const scheduledWorker = new Worker(
   { connection }
 );
 
+const mcpToolWorker = new Worker(
+  QUEUES.MCP_TOOL_EXECUTION,
+  async (job) => {
+    const { name, args, timeoutMs } = job.data as {
+      name: string;
+      args: Record<string, unknown>;
+      timeoutMs?: number;
+    };
+    logger.info({ jobId: job.id, tool: name }, 'Processing MCP tool execution job');
+    await job.updateProgress(10);
+    const result = await runMcpToolCall(
+      name,
+      args || {},
+      timeoutMs || Number(process.env.MCP_WORKER_JOB_TIMEOUT_MS || 30000),
+    );
+    await job.updateProgress(100);
+    return {
+      success: true,
+      tool: name,
+      result,
+    };
+  },
+  { connection, concurrency: Number(process.env.MCP_WORKER_CONCURRENCY || 2) }
+);
+
 // Event handlers
 const workers = [
   commandWorker,
@@ -210,6 +414,7 @@ const workers = [
   notificationWorker,
   analyticsWorker,
   scheduledWorker,
+  mcpToolWorker,
 ];
 
 workers.forEach((worker) => {

@@ -47,4 +47,17 @@ export class CommandsController {
   ) {
     return this.commandsService.execute(id, user.id, dto.workspaceId, dto);
   }
+
+  @Post('execute-terminal')
+  @ApiOperation({ summary: 'Execute an ad-hoc terminal command (dev-safe mode)' })
+  async executeTerminal(
+    @GetCurrentUser() user: CurrentUser,
+    @Body() dto: {
+      workspaceId: string;
+      command: string;
+      cwd?: string;
+    },
+  ) {
+    return this.commandsService.executeTerminal(user.id, dto.workspaceId, dto.command, dto.cwd);
+  }
 }

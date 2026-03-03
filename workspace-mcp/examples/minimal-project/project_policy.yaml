@@ -1,0 +1,8 @@
+version: 1
+profiles:
+  dev:
+    # Overlay example only.
+    # Kernel policy is packaged inside workspace-mcp.
+    # This overlay shows how project policy can extend behavior without changing the kernel.
+    allow_tasks:
+      test: ["pytest", "-q"]

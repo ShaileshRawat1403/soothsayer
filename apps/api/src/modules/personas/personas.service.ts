@@ -3,7 +3,9 @@ import {
   NotFoundException,
   ForbiddenException,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 
 interface PersonaConfig {
@@ -43,7 +45,20 @@ interface UpdatePersonaDto {
 
 @Injectable()
 export class PersonasService {
-  constructor(private prisma: PrismaService) {}
+  private readonly logger = new Logger(PersonasService.name);
+  private readonly personaEmbeddingCache = new Map<
+    string,
+    { vector: number[]; expiresAt: number }
+  >();
+  private readonly queryEmbeddingCache = new Map<
+    string,
+    { vector: number[]; expiresAt: number }
+  >();
+
+  constructor(
+    private prisma: PrismaService,
+    private readonly configService: ConfigService,
+  ) {}
 
   async findAll(options: {
     workspaceId?: string;
@@ -400,6 +415,54 @@ export class PersonasService {
   }
 
   async getAutoPersonaRecommendation(input: string, workspaceId?: string) {
+    const mode = this.configService
+      .get<string>('PERSONA_RECOMMENDER_MODE', 'hybrid')
+      .toLowerCase();
+
+    const candidates = await this.prisma.persona.findMany({
+      where: {
+        isActive: true,
+        deletedAt: null,
+        OR: [{ isBuiltIn: true }, { workspaceId }],
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        category: true,
+        description: true,
+        config: true,
+        totalUsages: true,
+        updatedAt: true,
+      },
+      orderBy: [{ totalUsages: 'desc' }],
+      take: 30,
+    });
+
+    let semanticAttempted = false;
+    if (mode === 'semantic' || mode === 'hybrid') {
+      semanticAttempted = true;
+      try {
+        const semantic = await this.getSemanticRecommendation(input, candidates);
+        if (semantic) {
+          return semantic;
+        }
+      } catch (error) {
+        this.logger.warn(
+          `Semantic persona recommendation failed, falling back to keyword mode: ${String(error)}`,
+        );
+      }
+    }
+
+    return this.getKeywordRecommendation(input, workspaceId, candidates, semanticAttempted);
+  }
+
+  private getKeywordRecommendation(
+    input: string,
+    workspaceId?: string,
+    candidates?: any[],
+    fallbackUsed = false,
+  ) {
     // Simple keyword-based classification
     const inputLower = input.toLowerCase();
 
@@ -481,17 +544,7 @@ export class PersonasService {
     const matchedCategory = matches.length > 0 ? matches[0].category : 'developer';
     const matchedIntents = matches.flatMap((m) => m.intents);
 
-    // Get personas for the category
-    const personas = await this.prisma.persona.findMany({
-      where: {
-        category: matchedCategory,
-        isActive: true,
-        deletedAt: null,
-        OR: [{ isBuiltIn: true }, { workspaceId }],
-      },
-      orderBy: { totalUsages: 'desc' },
-      take: 5,
-    });
+    const personas = (candidates || []).filter((p: any) => p.category === matchedCategory).slice(0, 5);
 
     // Calculate confidence and create recommendations
     const recommendations = personas.map((p: any, index: number) => ({
@@ -525,7 +578,217 @@ export class PersonasService {
         riskLevel,
         suggestedTier: riskLevel === 'high' ? 2 : 1,
       },
+      recommender: {
+        mode: 'keyword',
+        fallbackUsed,
+      },
     };
+  }
+
+  private async getSemanticRecommendation(input: string, candidates: any[]) {
+    if (!candidates.length) {
+      return null;
+    }
+
+    const embeddingModel = this.configService.get<string>(
+      'PERSONA_EMBEDDING_MODEL',
+      'text-embedding-3-small',
+    );
+
+    const queryEmbedding = await this.getQueryEmbedding(input, embeddingModel);
+    if (!queryEmbedding) {
+      return null;
+    }
+
+    const scored: Array<{
+      persona: any;
+      similarity: number;
+      confidence: number;
+    }> = [];
+
+    for (const persona of candidates) {
+      const personaEmbedding = await this.getPersonaEmbedding(persona, embeddingModel);
+      if (!personaEmbedding) {
+        continue;
+      }
+
+      const similarity = this.cosineSimilarity(queryEmbedding, personaEmbedding);
+      const confidence = Number(((similarity + 1) / 2).toFixed(4));
+      scored.push({ persona, similarity, confidence });
+    }
+
+    if (!scored.length) {
+      return null;
+    }
+
+    scored.sort((a, b) => {
+      if (b.similarity !== a.similarity) return b.similarity - a.similarity;
+      return (b.persona.totalUsages || 0) - (a.persona.totalUsages || 0);
+    });
+
+    const topK = this.configService.get<number>('PERSONA_RECOMMENDATION_TOP_K', 5);
+    const minScore = this.configService.get<number>('PERSONA_SEMANTIC_MIN_SCORE', 0.2);
+    const top = scored
+      .filter((item) => item.confidence >= minScore)
+      .slice(0, topK);
+
+    if (!top.length) {
+      return null;
+    }
+
+    const selected = top[0];
+    const domain = selected.persona.category || 'developer';
+    const normalizedInput = input.toLowerCase();
+    const riskLevel = normalizedInput.includes('production') || normalizedInput.includes('critical')
+      ? 'high'
+      : normalizedInput.includes('test') || normalizedInput.includes('development')
+        ? 'low'
+        : 'medium';
+    const complexity = normalizedInput.includes('complex') || normalizedInput.includes('difficult')
+      ? 'complex'
+      : normalizedInput.includes('simple') || normalizedInput.includes('quick')
+        ? 'simple'
+        : 'moderate';
+
+    return {
+      recommendations: top.map((item) => ({
+        personaId: item.persona.id,
+        persona: item.persona,
+        confidence: item.confidence,
+        reasoning: `Semantic similarity (${item.similarity.toFixed(3)})`,
+        matchedIntents: [],
+      })),
+      selectedPersonaId: selected.persona.id,
+      taskClassification: {
+        domain,
+        intents: [],
+        complexity,
+        riskLevel,
+        suggestedTier: riskLevel === 'high' ? 2 : 1,
+      },
+      recommender: {
+        mode: 'semantic',
+        fallbackUsed: false,
+      },
+    };
+  }
+
+  private buildPersonaEmbeddingText(persona: any): string {
+    const config = (persona.config || {}) as Partial<PersonaConfig>;
+    const expertise = Array.isArray(config.expertiseTags) ? config.expertiseTags.join(', ') : '';
+    const constraints = Array.isArray(config.constraints) ? config.constraints.join(', ') : '';
+    return [
+      `name: ${persona.name || ''}`,
+      `slug: ${persona.slug || ''}`,
+      `category: ${persona.category || ''}`,
+      `description: ${persona.description || ''}`,
+      `expertise: ${expertise}`,
+      `constraints: ${constraints}`,
+    ].join('\n');
+  }
+
+  private async getPersonaEmbedding(persona: any, model: string): Promise<number[] | null> {
+    const cacheTtl = this.configService.get<number>('PERSONA_EMBEDDING_CACHE_TTL_MS', 600000);
+    const key = `${persona.id}:${persona.updatedAt ? new Date(persona.updatedAt).toISOString() : 'na'}`;
+    const now = Date.now();
+
+    const cached = this.personaEmbeddingCache.get(key);
+    if (cached && cached.expiresAt > now) {
+      return cached.vector;
+    }
+
+    const text = this.buildPersonaEmbeddingText(persona);
+    const embedding = await this.fetchEmbedding(text, model);
+    if (!embedding) {
+      return null;
+    }
+
+    this.personaEmbeddingCache.set(key, { vector: embedding, expiresAt: now + cacheTtl });
+    return embedding;
+  }
+
+  private async getQueryEmbedding(input: string, model: string): Promise<number[] | null> {
+    const cacheTtl = this.configService.get<number>('PERSONA_EMBEDDING_CACHE_TTL_MS', 600000);
+    const key = input.trim().toLowerCase();
+    const now = Date.now();
+
+    const cached = this.queryEmbeddingCache.get(key);
+    if (cached && cached.expiresAt > now) {
+      return cached.vector;
+    }
+
+    const embedding = await this.fetchEmbedding(input, model);
+    if (!embedding) {
+      return null;
+    }
+
+    this.queryEmbeddingCache.set(key, { vector: embedding, expiresAt: now + cacheTtl });
+    return embedding;
+  }
+
+  private async fetchEmbedding(text: string, model: string): Promise<number[] | null> {
+    const baseUrl = this.configService.get<string>('OPENAI_BASE_URL');
+    const apiKey = this.configService.get<string>('OPENAI_API_KEY');
+    if (!baseUrl || !apiKey) {
+      return null;
+    }
+
+    const timeoutMs = this.configService.get<number>('PERSONA_EMBEDDING_TIMEOUT_MS', 1500);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(`${baseUrl.replace(/\/$/, '')}/embeddings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          input: text,
+        }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        this.logger.warn(`Embedding request failed (${response.status})`);
+        return null;
+      }
+
+      const payload = (await response.json()) as {
+        data?: Array<{ embedding?: number[] }>;
+      };
+      const vector = payload?.data?.[0]?.embedding;
+      if (!Array.isArray(vector) || !vector.length) {
+        return null;
+      }
+
+      return vector;
+    } catch (error) {
+      this.logger.warn(`Embedding request error: ${String(error)}`);
+      return null;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  private cosineSimilarity(a: number[], b: number[]): number {
+    if (!a.length || !b.length || a.length !== b.length) {
+      return -1;
+    }
+    let dot = 0;
+    let aNorm = 0;
+    let bNorm = 0;
+    for (let i = 0; i < a.length; i += 1) {
+      dot += a[i] * b[i];
+      aNorm += a[i] * a[i];
+      bNorm += b[i] * b[i];
+    }
+    if (aNorm === 0 || bNorm === 0) {
+      return -1;
+    }
+    return dot / (Math.sqrt(aNorm) * Math.sqrt(bNorm));
   }
 
   async recordUsage(personaId: string, success: boolean, completionTimeMs: number) {

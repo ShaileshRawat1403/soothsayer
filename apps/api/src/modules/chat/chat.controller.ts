@@ -100,6 +100,8 @@ export class ChatController {
       systemPrompt?: string;
       fileContext?: string;
       fileName?: string;
+      mcpToolName?: string;
+      mcpToolArgs?: Record<string, unknown>;
     },
   ) {
     return this.chatService.sendMessage(id, user.id, dto.content, {
@@ -110,6 +112,8 @@ export class ChatController {
       systemPrompt: dto.systemPrompt,
       fileContext: dto.fileContext,
       fileName: dto.fileName,
+      mcpToolName: dto.mcpToolName,
+      mcpToolArgs: dto.mcpToolArgs,
     });
   }
 

@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
+import { apiHelpers } from '@/lib/api';
+import { useWorkspaceStore } from '@/stores/workspace.store';
 import {
   Play,
   Square,
@@ -32,6 +34,7 @@ const commandTemplates = [
 ];
 
 export function TerminalPage() {
+  const { currentWorkspace, setCurrentWorkspace } = useWorkspaceStore();
   const [input, setInput] = useState('');
   const [executions, setExecutions] = useState<CommandExecution[]>([]);
   const [isRunning, setIsRunning] = useState(false);
@@ -46,61 +49,91 @@ export function TerminalPage() {
     outputRef.current?.scrollTo(0, outputRef.current.scrollHeight);
   }, [executions]);
 
+  const ensureWorkspaceId = async () => {
+    if (currentWorkspace?.id) {
+      return currentWorkspace.id;
+    }
+    const workspacesResponse = await apiHelpers.getWorkspaces();
+    const workspaces = Array.isArray(workspacesResponse.data)
+      ? workspacesResponse.data
+      : [];
+    const first = workspaces[0]?.workspace || workspaces[0];
+    if (!first?.id) {
+      throw new Error('No workspace found. Create a workspace first.');
+    }
+    setCurrentWorkspace({
+      id: first.id,
+      name: first.name,
+      slug: first.slug,
+      description: first.description,
+      settings: first.settings,
+    });
+    return first.id as string;
+  };
+
   const executeCommand = async () => {
     if (!input.trim() || isRunning) return;
 
+    const command = input.trim();
     const execution: CommandExecution = {
       id: `exec-${Date.now()}`,
-      command: input.trim(),
+      command,
       output: '',
       status: 'running',
       startedAt: new Date().toISOString(),
-      riskLevel: input.includes('rm') || input.includes('sudo') ? 'high' : 'low',
+      riskLevel: command.includes('rm') || command.includes('sudo') ? 'high' : 'low',
     };
 
     setExecutions((prev) => [...prev, execution]);
     setInput('');
     setIsRunning(true);
 
-    // Simulate command execution with streaming output
-    const outputLines = [
-      `$ ${execution.command}`,
-      '',
-      'Executing command...',
-      '',
-      'This is a simulated output.',
-      'In the full implementation, this would:',
-      '- Stream real command output via WebSocket',
-      '- Enforce policy checks before execution',
-      '- Support approval gates for risky commands',
-      '- Provide cancel/retry functionality',
-      '',
-      'Command completed successfully.',
-    ];
+    try {
+      const workspaceId = await ensureWorkspaceId();
+      const response = await apiHelpers.executeTerminalCommand({
+        workspaceId,
+        command,
+        cwd: '.',
+      });
 
-    let currentOutput = '';
-    for (let i = 0; i < outputLines.length; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      currentOutput += outputLines[i] + '\n';
+      const result = response.data as unknown as {
+        status?: string;
+        output?: string;
+        errorOutput?: string;
+        exitCode?: number;
+      };
+
+      const mergedOutput = [result.output, result.errorOutput].filter(Boolean).join('\n');
       setExecutions((prev) =>
         prev.map((e) =>
-          e.id === execution.id ? { ...e, output: currentOutput } : e
+          e.id === execution.id
+            ? {
+                ...e,
+                output: mergedOutput || '(no output)',
+                status: result.status === 'completed' ? 'completed' : 'failed',
+                exitCode: typeof result.exitCode === 'number' ? result.exitCode : 1,
+                completedAt: new Date().toISOString(),
+              }
+            : e
         )
       );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Command execution failed';
+      setExecutions((prev) =>
+        prev.map((e) =>
+          e.id === execution.id
+            ? {
+                ...e,
+                output: message,
+                status: 'failed',
+                exitCode: 1,
+                completedAt: new Date().toISOString(),
+              }
+            : e
+        )
+      );
+      toast.error(message);
     }
-
-    setExecutions((prev) =>
-      prev.map((e) =>
-        e.id === execution.id
-          ? {
-              ...e,
-              status: 'completed',
-              exitCode: 0,
-              completedAt: new Date().toISOString(),
-            }
-          : e
-      )
-    );
     setIsRunning(false);
   };
 

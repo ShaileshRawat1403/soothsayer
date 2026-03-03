@@ -161,6 +161,8 @@ export function ChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const modelMenuRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const isSendingRef = useRef(false);
+  const loadRequestIdRef = useRef(0);
   const { currentPersona, setCurrentPersona } = usePersonaStore();
   const { currentWorkspace, setCurrentWorkspace } = useWorkspaceStore();
   const { activeProvider, activeModel, providers, setActiveModel } = useAIProviderStore();
@@ -209,6 +211,7 @@ export function ChatPage() {
 
   useEffect(() => {
     async function loadConversation() {
+      const requestId = ++loadRequestIdRef.current;
       if (!activeConversationId) {
         setMessages([]);
         return;
@@ -217,9 +220,27 @@ export function ChatPage() {
       setIsBootstrapping(true);
       try {
         const response = await apiHelpers.getConversation(activeConversationId);
+        if (requestId !== loadRequestIdRef.current) {
+          return;
+        }
         const conversation = response.data as any;
         const loadedMessages: Message[] = (conversation.messages || []).map(mapApiMessageToUi);
-        setMessages(loadedMessages);
+        setMessages((prev) => {
+          const optimisticPending = prev.filter(
+            (m) => m.id.startsWith('temp-user-') || m.id.startsWith('temp-assistant-'),
+          );
+          const merged = [...loadedMessages];
+          optimisticPending.forEach((m) => {
+            if (!merged.some((existing) => existing.id === m.id)) {
+              merged.push(m);
+            }
+          });
+
+          if (merged.length === 0 && optimisticPending.length > 0) {
+            return prev;
+          }
+          return merged;
+        });
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to load conversation';
         toast.error(errorMessage);
@@ -360,7 +381,8 @@ export function ChatPage() {
 
   const handleSend = async () => {
     const text = input.trim();
-    if (!text || isLoading || isBootstrapping) return;
+    if (!text || isLoading || isBootstrapping || isSendingRef.current) return;
+    isSendingRef.current = true;
 
     const optimisticUserMessage: Message = {
       id: `temp-user-${Date.now()}`,
@@ -406,10 +428,38 @@ export function ChatPage() {
         signal: abortController.signal,
       });
       const payload = sendResponse.data as any;
+      const userMessage = payload?.userMessage;
       const assistantMessage = payload?.assistantMessage;
 
-      if (assistantMessage) {
-        setMessages((prev) => [...prev, mapApiMessageToUi(assistantMessage)]);
+      if (userMessage || assistantMessage) {
+        setMessages((prev) => {
+          const withoutTemp = prev.filter((m) => m.id !== optimisticUserMessage.id);
+          const next = [...withoutTemp];
+
+          if (userMessage) {
+            const mappedUser = mapApiMessageToUi(userMessage);
+            const existingUserIdx = next.findIndex((m) => m.id === mappedUser.id);
+            if (existingUserIdx >= 0) {
+              next[existingUserIdx] = mappedUser;
+            } else {
+              next.push(mappedUser);
+            }
+          } else if (!withoutTemp.some((m) => m.id === optimisticUserMessage.id)) {
+            next.push(optimisticUserMessage);
+          }
+
+          if (assistantMessage) {
+            const mappedAssistant = mapApiMessageToUi(assistantMessage);
+            const existingAssistantIdx = next.findIndex((m) => m.id === mappedAssistant.id);
+            if (existingAssistantIdx >= 0) {
+              next[existingAssistantIdx] = mappedAssistant;
+            } else {
+              next.push(mappedAssistant);
+            }
+          }
+
+          return next;
+        });
       } else {
         setMessages((prev) => [
           ...prev,
@@ -436,15 +486,27 @@ export function ChatPage() {
         ]);
       } else {
         toast.error(errorMessage);
-        setMessages((prev) => prev.filter((m) => m.id !== optimisticUserMessage.id));
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `temp-assistant-error-${Date.now()}`,
+            role: 'assistant',
+            content: `Request failed: ${errorMessage}`,
+            createdAt: new Date().toISOString(),
+          },
+        ]);
       }
     } finally {
       abortControllerRef.current = null;
       setIsLoading(false);
+      isSendingRef.current = false;
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Prevent duplicate sends while IME composition is in progress.
+    const nativeEvent = e.nativeEvent as KeyboardEvent & { isComposing?: boolean };
+    if (nativeEvent.isComposing) return;
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();

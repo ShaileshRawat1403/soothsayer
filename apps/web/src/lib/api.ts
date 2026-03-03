@@ -183,14 +183,79 @@ export const apiHelpers = {
   getCommands: (workspaceId: string) => api.get('/commands', { params: { workspaceId } }),
   executeCommand: (commandId: string, data: { workspaceId: string; projectId?: string; parameters: Record<string, unknown> }) =>
     api.post(`/commands/${commandId}/execute`, data),
+  executeTerminalCommand: (data: { workspaceId: string; command: string; cwd?: string }) =>
+    api.post('/commands/execute-terminal', data),
   
   // Workflows
   getWorkflows: () => api.get('/workflows'),
   getWorkflow: (id: string) => api.get(`/workflows/${id}`),
+  createWorkflow: (payload: {
+    workspaceId?: string;
+    name: string;
+    description?: string;
+    trigger?: Record<string, unknown>;
+    steps?: Array<Record<string, unknown>>;
+    status?: 'draft' | 'active' | 'paused' | 'archived';
+    templateCategory?: string;
+  }) => api.post('/workflows', payload),
+  updateWorkflow: (
+    id: string,
+    payload: {
+      name?: string;
+      description?: string;
+      trigger?: Record<string, unknown>;
+      steps?: Array<Record<string, unknown>>;
+      status?: 'draft' | 'active' | 'paused' | 'archived';
+    },
+  ) => api.patch(`/workflows/${id}`, payload),
+  bootstrapWorkflowTemplates: (workspaceId?: string) =>
+    api.post('/workflows/bootstrap/templates', workspaceId ? { workspaceId } : {}),
   
   // Tools
   getTools: () => api.get('/tools'),
   getTool: (id: string) => api.get(`/tools/${id}`),
+
+  // MCP
+  getMcpHealth: () => api.get('/mcp/health'),
+  callMcpTool: (name: string, args: Record<string, unknown> = {}) =>
+    api.post('/mcp/tools/call', { name, arguments: args }),
+  callMcpToolAsync: (name: string, args: Record<string, unknown> = {}) =>
+    api.post('/mcp/tools/call-async', { name, arguments: args }),
+  getMcpJobStatus: (jobId: string) => api.get(`/mcp/jobs/${jobId}`),
+
+  // Integrations
+  getIntegrationStatus: (workspaceId?: string) =>
+    api.get('/integrations/status', {
+      params: workspaceId ? { workspaceId } : undefined,
+    }),
+  getOAuthReadiness: () => api.get('/integrations/oauth-readiness'),
+  testIntegration: (
+    name: 'slack' | 'github' | 'google_drive' | 'jira' | 'linear' | 'notion' | 'discord',
+    workspaceId?: string,
+  ) => api.post(`/integrations/${name}/test`, workspaceId ? { workspaceId } : {}),
+  getIntegrationConnectUrl: (
+    name: 'github' | 'slack' | 'google_drive' | 'jira' | 'notion' | 'linear' | 'discord',
+    workspaceId?: string,
+  ) =>
+    api.get(`/integrations/${name}/connect`, {
+      params: workspaceId ? { workspaceId } : undefined,
+    }),
+  disconnectIntegration: (
+    name: 'github' | 'slack' | 'google_drive' | 'jira' | 'notion' | 'linear' | 'discord',
+    workspaceId?: string,
+  ) =>
+    api.delete(`/integrations/${name}`, {
+      params: workspaceId ? { workspaceId } : undefined,
+    }),
+  setIntegrationManualToken: (
+    name: 'github' | 'slack' | 'google_drive' | 'jira' | 'notion' | 'linear' | 'discord',
+    payload: {
+      workspaceId?: string;
+      accessToken: string;
+      accountName?: string;
+      cloudId?: string;
+    },
+  ) => api.post(`/integrations/${name}/manual`, payload),
   
   // Analytics
   getAnalytics: () => api.get('/analytics'),

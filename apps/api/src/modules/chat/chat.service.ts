@@ -11,6 +11,7 @@ import {
   ConverseCommand,
 } from '@aws-sdk/client-bedrock-runtime';
 import { PrismaService } from '../../prisma/prisma.service';
+import { McpService } from '../mcp/mcp.service';
 
 type ChatCompletionMessage = {
   role: 'system' | 'user' | 'assistant';
@@ -24,6 +25,7 @@ export class ChatService {
   constructor(
     private prisma: PrismaService,
     private configService: ConfigService,
+    private mcpService: McpService,
   ) {}
 
   async createConversation(
@@ -150,6 +152,8 @@ export class ChatService {
       systemPrompt?: string;
       fileContext?: string;
       fileName?: string;
+      mcpToolName?: string;
+      mcpToolArgs?: Record<string, unknown>;
     } = {},
   ) {
     const conversation = await this.findConversation(conversationId, userId);
@@ -182,9 +186,66 @@ export class ChatService {
     let assistantReply = '';
     let providerUsed = options.provider ?? 'unknown';
     let modelUsed = options.model ?? 'unknown';
+    let mcpPreflight: Record<string, unknown> | null = null;
+    let mcpToolResult: Record<string, unknown> | null = null;
+
+    if (
+      this.configService.get<boolean>('MCP_ENABLED', false) &&
+      this.configService.get<boolean>('CHAT_MCP_PREFLIGHT_ENABLED', false)
+    ) {
+      try {
+        const [kernelVersion, selfCheck] = await Promise.all([
+          this.mcpService.kernelVersion(),
+          this.mcpService.selfCheck(),
+        ]);
+        mcpPreflight = {
+          ok: true,
+          kernelVersion: kernelVersion?.data?.kernel_version,
+          contractVersion: kernelVersion?.data?.contract_version,
+          selfCheckStatus: selfCheck?.data?.status,
+        };
+      } catch (error) {
+        this.logger.warn(`MCP preflight failed, continuing chat without MCP context: ${String(error)}`);
+        mcpPreflight = {
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    }
+
+    if (
+      this.configService.get<boolean>('MCP_ENABLED', false) &&
+      this.configService.get<boolean>('CHAT_MCP_TOOL_CALL_ENABLED', false) &&
+      options.mcpToolName
+    ) {
+      try {
+        const toolName = options.mcpToolName.trim();
+        const preferAsync = this.configService.get<boolean>('CHAT_MCP_TOOL_CALL_ASYNC_ENABLED', true);
+        const result = await this.mcpService.callAllowedToolSmart(toolName, options.mcpToolArgs || {}, {
+          preferAsync,
+        });
+        mcpToolResult = {
+          ok: true,
+          name: toolName,
+          mode: preferAsync ? 'async' : 'sync',
+          result,
+        };
+      } catch (error) {
+        this.logger.warn(`MCP tool call failed, continuing chat without MCP tool result: ${String(error)}`);
+        mcpToolResult = {
+          ok: false,
+          name: options.mcpToolName,
+          mode: this.configService.get<boolean>('CHAT_MCP_TOOL_CALL_ASYNC_ENABLED', true) ? 'async' : 'sync',
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    }
 
     try {
-      const completion = await this.generateAssistantReply(conversation, content, options);
+      const completion = await this.generateAssistantReply(conversation, content, {
+        ...options,
+        mcpToolResult,
+      });
       assistantReply = completion.content;
       providerUsed = completion.provider;
       modelUsed = completion.model;
@@ -199,6 +260,14 @@ export class ChatService {
       );
     }
 
+    const assistantMetadata: Record<string, unknown> = {
+      provider: providerUsed,
+      model: modelUsed,
+      personaId: conversation.personaId,
+      ...(mcpPreflight ? { mcp: mcpPreflight } : {}),
+      ...(mcpToolResult ? { mcpTool: mcpToolResult } : {}),
+    };
+
     const assistantMessage = await this.prisma.message.create({
       data: {
         conversationId,
@@ -206,11 +275,7 @@ export class ChatService {
         role: 'assistant',
         content: assistantReply,
         contentType: 'markdown',
-        metadata: {
-          provider: providerUsed,
-          model: modelUsed,
-          personaId: conversation.personaId,
-        },
+        metadata: assistantMetadata as any,
       },
     });
 
@@ -326,6 +391,7 @@ export class ChatService {
       systemPrompt?: string;
       fileContext?: string;
       fileName?: string;
+      mcpToolResult?: Record<string, unknown> | null;
     },
   ): Promise<{ content: string; provider: string; model: string }> {
     const provider = (options.provider || 'openai').toLowerCase();
@@ -411,20 +477,31 @@ export class ChatService {
 
   private buildAugmentedUserInput(
     latestUserInput: string,
-    options: { fileContext?: string; fileName?: string },
+    options: {
+      fileContext?: string;
+      fileName?: string;
+      mcpToolResult?: Record<string, unknown> | null;
+    },
   ): string {
+    const sections = [latestUserInput];
     const fileContext = (options.fileContext || '').trim();
-    if (!fileContext) {
-      return latestUserInput;
+
+    if (fileContext) {
+      const contextName = (options.fileName || 'attachment').trim();
+      const boundedContext = fileContext.slice(0, 12000);
+      sections.push(
+        `[Attached file context: ${contextName}]`,
+        boundedContext,
+        '[End of attached file context]',
+      );
     }
 
-    const contextName = (options.fileName || 'attachment').trim();
-    const boundedContext = fileContext.slice(0, 12000);
-    return `${latestUserInput}
+    if (options.mcpToolResult) {
+      const serialized = JSON.stringify(options.mcpToolResult, null, 2).slice(0, 6000);
+      sections.push('[MCP tool context]', serialized, '[End of MCP tool context]');
+    }
 
-[Attached file context: ${contextName}]
-${boundedContext}
-[End of attached file context]`;
+    return sections.join('\n\n');
   }
 
   private getDefaultModel(provider: string): string {

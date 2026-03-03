@@ -1,7 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth.store';
 import { useAIProviderStore, AIProvider } from '@/stores/ai-provider.store';
 import { useTheme } from '@/components/common/ThemeProvider';
+import { useWorkspaceStore } from '@/stores/workspace.store';
+import { apiHelpers } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import {
   User,
@@ -32,6 +35,16 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+type IntegrationKey =
+  | 'github'
+  | 'slack'
+  | 'google_drive'
+  | 'notion'
+  | 'linear'
+  | 'discord'
+  | 'jira'
+  ;
+
 const tabs = [
   { id: 'ai-providers', label: 'AI Providers', icon: Cpu, badge: 'New' },
   { id: 'profile', label: 'Profile', icon: User },
@@ -43,10 +56,25 @@ const tabs = [
 ];
 
 export function SettingsPage() {
+  const location = useLocation();
   const { user, updateUser } = useAuthStore();
+  const { currentWorkspace } = useWorkspaceStore();
   const { theme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState('ai-providers');
   const [showApiKey, setShowApiKey] = useState<Record<string, boolean>>({});
+  const [integrationStatus, setIntegrationStatus] = useState<
+    Record<string, { configured: boolean; connected: boolean; message: string }>
+  >({});
+  const [oauthReadiness, setOauthReadiness] = useState<Record<string, { ready: boolean; missing: string[] }>>({});
+  const [testingIntegration, setTestingIntegration] = useState<string | null>(null);
+  const [manualTokenByIntegration, setManualTokenByIntegration] = useState<Record<string, string>>({});
+  const [manualAccountByIntegration, setManualAccountByIntegration] = useState<Record<string, string>>({});
+  const [manualCloudIdByIntegration, setManualCloudIdByIntegration] = useState<Record<string, string>>({});
+  const [savingManualFor, setSavingManualFor] = useState<string | null>(null);
+  const oauthIntegrations = useMemo(
+    () => new Set<IntegrationKey>(['github', 'slack', 'google_drive', 'jira', 'notion', 'linear', 'discord']),
+    [],
+  );
   
   const {
     providers,
@@ -78,6 +106,154 @@ export function SettingsPage() {
     approvalRequests: true,
     securityAlerts: true,
   });
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const integration = params.get('integration');
+    const connected = params.get('connected');
+    const error = params.get('error');
+    if (!integration || connected === null) return;
+
+    if (connected === '1') {
+      toast.success(`${integration} connected`);
+      setActiveTab('integrations');
+    } else {
+      toast.error(error ? decodeURIComponent(error) : `${integration} connection failed`);
+      setActiveTab('integrations');
+    }
+  }, [location.search]);
+
+  useEffect(() => {
+    if (activeTab !== 'integrations') return;
+    let mounted = true;
+
+    const load = async () => {
+      try {
+        const [statusResponse, readinessResponse] = await Promise.all([
+          apiHelpers.getIntegrationStatus(currentWorkspace?.id),
+          apiHelpers.getOAuthReadiness(),
+        ]);
+        const list = (statusResponse.data || []) as Array<{
+          name: string;
+          configured: boolean;
+          connected: boolean;
+          message: string;
+        }>;
+        if (!mounted) return;
+        const next: Record<string, { configured: boolean; connected: boolean; message: string }> = {};
+        for (const row of list) {
+          next[row.name] = {
+            configured: Boolean(row.configured),
+            connected: Boolean(row.connected),
+            message: String(row.message || ''),
+          };
+        }
+        setIntegrationStatus(next);
+
+        const readinessList = (readinessResponse.data || []) as Array<{
+          name: string;
+          ready: boolean;
+          missing: string[];
+        }>;
+        const readinessMap: Record<string, { ready: boolean; missing: string[] }> = {};
+        for (const row of readinessList) {
+          readinessMap[row.name] = {
+            ready: Boolean(row.ready),
+            missing: Array.isArray(row.missing) ? row.missing.map(String) : [],
+          };
+        }
+        setOauthReadiness(readinessMap);
+      } catch (error) {
+        if (!mounted) return;
+        const msg = error instanceof Error ? error.message : 'Failed to fetch integration status';
+        toast.error(msg);
+      }
+    };
+
+    load();
+    return () => {
+      mounted = false;
+    };
+  }, [activeTab, currentWorkspace?.id]);
+
+  const testIntegration = async (name: IntegrationKey) => {
+    setTestingIntegration(name);
+    try {
+      const response = await apiHelpers.testIntegration(name, currentWorkspace?.id);
+      const row = response.data as { configured: boolean; connected: boolean; message: string };
+      setIntegrationStatus((prev) => ({
+        ...prev,
+        [name]: {
+          configured: Boolean(row.configured),
+          connected: Boolean(row.connected),
+          message: String(row.message || ''),
+        },
+      }));
+      if (row.connected) {
+        toast.success(`${name} connected`);
+      } else {
+        toast.error(`${name}: ${row.message || 'not connected'}`);
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Integration test failed';
+      toast.error(msg);
+    } finally {
+      setTestingIntegration(null);
+    }
+  };
+
+  const connectOAuthIntegration = async (
+    name: 'github' | 'slack' | 'google_drive' | 'jira' | 'notion' | 'linear' | 'discord',
+  ) => {
+    try {
+      const response = await apiHelpers.getIntegrationConnectUrl(name, currentWorkspace?.id);
+      const payload = response.data as { authUrl?: string };
+      if (!payload?.authUrl) {
+        throw new Error('Missing OAuth URL');
+      }
+      window.location.href = payload.authUrl;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to start OAuth flow';
+      toast.error(msg);
+    }
+  };
+
+  const disconnectOAuthIntegration = async (
+    name: 'github' | 'slack' | 'google_drive' | 'jira' | 'notion' | 'linear' | 'discord',
+  ) => {
+    try {
+      await apiHelpers.disconnectIntegration(name, currentWorkspace?.id);
+      await testIntegration(name);
+      toast.success(`${name} disconnected`);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to disconnect integration';
+      toast.error(msg);
+    }
+  };
+
+  const saveManualToken = async (name: IntegrationKey) => {
+    const accessToken = (manualTokenByIntegration[name] || '').trim();
+    if (!accessToken) {
+      toast.error('Access token is required');
+      return;
+    }
+    setSavingManualFor(name);
+    try {
+      await apiHelpers.setIntegrationManualToken(name, {
+        workspaceId: currentWorkspace?.id,
+        accessToken,
+        accountName: (manualAccountByIntegration[name] || '').trim() || undefined,
+        cloudId: name === 'jira' ? (manualCloudIdByIntegration[name] || '').trim() || undefined : undefined,
+      });
+      await testIntegration(name);
+      toast.success(`${name} manual token saved`);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to save manual token';
+      toast.error(msg);
+    } finally {
+      setSavingManualFor(null);
+    }
+  };
 
   const handleSaveProfile = () => {
     updateUser({ name: profileForm.name });
@@ -659,31 +835,148 @@ export function SettingsPage() {
               <h3 className="mb-6 text-2xl font-bold">Integrations</h3>
               <div className="space-y-4">
                 {[
-                  { name: 'GitHub', icon: '🐙', description: 'Connect repositories and sync code' },
-                  { name: 'Slack', icon: '💬', description: 'Get notifications in Slack' },
-                  { name: 'Jira', icon: '📋', description: 'Sync issues and projects' },
-                  { name: 'Linear', icon: '📐', description: 'Connect your Linear workspace' },
-                  { name: 'Notion', icon: '📝', description: 'Sync with Notion pages' },
-                  { name: 'Discord', icon: '🎮', description: 'Bot integration for Discord' },
-                ].map((integration) => (
-                  <div
-                    key={integration.name}
-                    className="flex items-center justify-between rounded-xl border border-border p-4 transition-colors hover:bg-accent/50"
+                  { key: 'github', name: 'GitHub', icon: '🐙', description: 'Connect repositories and sync code' },
+                  { key: 'slack', name: 'Slack', icon: '💬', description: 'Get notifications in Slack' },
+                  { key: 'jira', name: 'Jira', icon: '📋', description: 'Sync issues and projects' },
+                  { key: 'linear', name: 'Linear', icon: '📐', description: 'Connect your Linear workspace' },
+                  { key: 'notion', name: 'Notion', icon: '📝', description: 'Sync with Notion pages' },
+                  { key: 'discord', name: 'Discord', icon: '🎮', description: 'Bot integration for Discord' },
+                  { key: 'google_drive', name: 'Google Drive', icon: '📁', description: 'Access files from Google Drive' },
+                ].map((integration) => {
+                  const oauthState = oauthReadiness[integration.key];
+                  const oauthReady = oauthState?.ready ?? false;
+                  const missingKeys = oauthState?.missing || [];
+                  const showOAuthUnavailable =
+                    oauthIntegrations.has(integration.key as IntegrationKey) && !oauthReady;
+                  return <div
+                    key={integration.key}
+                    className="rounded-xl border border-border p-4 transition-colors hover:bg-accent/50"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary text-2xl">
-                        {integration.icon}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary text-2xl">
+                          {integration.icon}
+                        </div>
+                        <div>
+                          <h4 className="font-semibold">{integration.name}</h4>
+                          <p className="text-sm text-muted-foreground">{integration.description}</p>
+                          <p
+                            className={cn(
+                              'mt-1 text-xs',
+                              integrationStatus[integration.key]?.connected
+                                ? 'text-green-600'
+                                : integrationStatus[integration.key]?.configured
+                                  ? 'text-amber-600'
+                                  : 'text-muted-foreground',
+                            )}
+                          >
+                            {integrationStatus[integration.key]?.message || 'Not configured'}
+                          </p>
+                          {showOAuthUnavailable && (
+                            <p className="mt-1 text-xs text-amber-600">
+                              OAuth unavailable: missing {missingKeys.join(', ')}
+                            </p>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="font-semibold">{integration.name}</h4>
-                        <p className="text-sm text-muted-foreground">{integration.description}</p>
+                      <div className="flex gap-2">
+                        {oauthIntegrations.has(integration.key as IntegrationKey) && (
+                          integrationStatus[integration.key]?.connected ? (
+                            <button
+                              onClick={() =>
+                                disconnectOAuthIntegration(
+                                  integration.key as
+                                    | 'github'
+                                    | 'slack'
+                                    | 'google_drive'
+                                    | 'jira'
+                                    | 'notion'
+                                    | 'linear'
+                                    | 'discord',
+                                )
+                              }
+                              className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium hover:bg-accent transition-colors"
+                            >
+                              Disconnect
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() =>
+                                connectOAuthIntegration(
+                                  integration.key as
+                                    | 'github'
+                                    | 'slack'
+                                    | 'google_drive'
+                                    | 'jira'
+                                    | 'notion'
+                                    | 'linear'
+                                    | 'discord',
+                                )
+                              }
+                              disabled={!oauthReady}
+                              title={!oauthReady ? `Missing: ${missingKeys.join(', ')}` : 'Connect via OAuth'}
+                              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
+                            >
+                              Connect OAuth
+                            </button>
+                          )
+                        )}
+                        <button
+                          onClick={() => testIntegration(integration.key as IntegrationKey)}
+                          disabled={testingIntegration === integration.key}
+                          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+                        >
+                          {testingIntegration === integration.key ? 'Testing...' : 'Test'}
+                        </button>
                       </div>
                     </div>
-                    <button className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
-                      Connect
-                    </button>
-                  </div>
-                ))}
+                    <div className="mt-3 w-full border-t border-border pt-3">
+                      <p className="mb-2 text-xs text-muted-foreground">
+                        Manual token mode (alternative to OAuth)
+                      </p>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        <input
+                          type="password"
+                          placeholder="Access token / PAT"
+                          value={manualTokenByIntegration[integration.key] || ''}
+                          onChange={(e) =>
+                            setManualTokenByIntegration((prev) => ({ ...prev, [integration.key]: e.target.value }))
+                          }
+                          className="h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Account name (optional)"
+                          value={manualAccountByIntegration[integration.key] || ''}
+                          onChange={(e) =>
+                            setManualAccountByIntegration((prev) => ({ ...prev, [integration.key]: e.target.value }))
+                          }
+                          className="h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                        />
+                        <div className="flex gap-2">
+                          {integration.key === 'jira' && (
+                            <input
+                              type="text"
+                              placeholder="Jira cloudId (optional)"
+                              value={manualCloudIdByIntegration[integration.key] || ''}
+                              onChange={(e) =>
+                                setManualCloudIdByIntegration((prev) => ({ ...prev, [integration.key]: e.target.value }))
+                              }
+                              className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                            />
+                          )}
+                          <button
+                            onClick={() => saveManualToken(integration.key as IntegrationKey)}
+                            disabled={savingManualFor === integration.key}
+                            className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium hover:bg-accent transition-colors disabled:opacity-50"
+                          >
+                            {savingManualFor === integration.key ? 'Saving...' : 'Save Token'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>;
+                })}
               </div>
             </div>
           )}

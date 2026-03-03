@@ -29,10 +29,12 @@
 
 - Default branch: `main`
 - Latest tested setup: EC2 + PM2 + Azure OpenAI deployment (`gpt-4o` style deployment IDs)
+- Beginner guide (ELI12): `docs/SOOTHSAYER_ELI12_GUIDE.md`
 - Non-dev setup guide: `docs/HOW_TO_DUAL_SETUP_NON_DEVS.md`
 - Practical platform comparison: `docs/MY_VERDICT_AWS_VS_AZURE.md`
 - EC2 production runbook: `docs/EC2_LIVE_DEPLOY.md`
 - Release playbook: `docs/RELEASE_GUIDE.md`
+- Release gates checklist: `docs/RELEASE_GATE_CHECKLIST.md`
 
 ## Overview
 
@@ -40,7 +42,7 @@ The Soothsayer is a comprehensive enterprise AI workspace that enables teams to 
 
 - **🤖 Conversational AI Assistant** - Chat with context-aware AI personas
 - **💻 Secure Terminal Runner** - Execute commands with policy enforcement
-- **🔄 Visual Workflow Builder** - Create automated workflows with drag-and-drop
+- **🔄 Workflow Step Builder** - Create and edit automated workflows with trigger/step forms
 - **🎭 Persona Engine** - Role-based AI behavior customization
 - **📊 Analytics Dashboard** - Track usage, performance, and audit logs
 - **🛡️ Governance & Security** - RBAC, approval gates, and audit trails
@@ -187,6 +189,35 @@ soothsayer/
 
 ## Core Features
 
+### MCP Kernel Integration (workspace-mcp)
+- Soothsayer API can bridge to a standalone MCP kernel (`workspace-mcp`) via stdio.
+- Bridge endpoints:
+  - `GET /api/mcp/health` (calls `kernel_version` + `self_check`)
+  - `POST /api/mcp/tools/call` (allowlisted MCP tools only)
+  - `POST /api/mcp/tools/call-async` (queue MCP tool call in worker)
+  - `GET /api/mcp/jobs/:jobId` (poll queued MCP tool status/result)
+- Chat can optionally enrich prompts with MCP context (feature-flagged).
+
+Default behavior is safe-off:
+- `MCP_ENABLED=false`
+- `CHAT_MCP_PREFLIGHT_ENABLED=false`
+- `CHAT_MCP_TOOL_CALL_ENABLED=false`
+
+When enabled, recommended allowlist:
+- `MCP_ALLOWED_TOOLS=kernel_version,self_check,workspace_info,repo_search,read_file`
+
+For overload protection in API->MCP bridge:
+- `MCP_MAX_CONCURRENT_CALLS=2`
+- `MCP_MAX_QUEUE_SIZE=25`
+- `MCP_MAX_QUEUE_WAIT_MS=5000`
+
+For worker MCP orchestration:
+- `MCP_WORKER_QUEUE=mcp-tool-execution`
+- `MCP_WORKER_JOB_TIMEOUT_MS=30000`
+- `MCP_WORKER_RETRIES=1`
+- `MCP_ASYNC_POLL_INTERVAL_MS=500`
+- `MCP_ASYNC_POLL_TIMEOUT_MS=30000`
+
 ### Persona Engine
 - 30+ professional personas (Engineering, Business, Security, etc.)
 - Runtime persona switching affects AI behavior
@@ -200,7 +231,7 @@ soothsayer/
 - Approval gates for high-risk operations
 
 ### Workflow Builder
-- Visual node-based editor
+- Form-based step editor (create/update workflows in-app)
 - Trigger types: Manual, Scheduled, Webhook
 - Templates: Bug Triage, Release Checklist, Incident Response
 - Execution history and analytics
@@ -224,7 +255,9 @@ GET    /api/workspaces          # List workspaces
 POST   /api/chat/conversations  # Create conversation
 POST   /api/commands/execute    # Execute command
 POST   /api/workflows/:id/run   # Run workflow
+POST   /api/workflows/bootstrap/templates # Seed starter workflow templates
 GET    /api/personas            # List personas
+GET    /api/integrations/oauth-readiness # OAuth env readiness per provider
 ```
 
 ## Environment Variables
@@ -236,6 +269,7 @@ DATABASE_URL=postgresql://user:password@localhost:5432/soothsayer
 # Redis
 REDIS_HOST=localhost
 REDIS_PORT=6379
+REDIS_URL=
 REDIS_PASSWORD=
 REDIS_TLS=false
 WS_REDIS_ENABLED=false
@@ -258,6 +292,34 @@ VITE_API_TIMEOUT_MS=300000
 VITE_CHAT_TIMEOUT_MS=600000
 AWS_REGION=us-east-1
 BEDROCK_MODEL_ID=amazon.nova-pro-v1:0
+PERSONA_RECOMMENDER_MODE=hybrid
+PERSONA_EMBEDDING_MODEL=text-embedding-3-small
+PERSONA_EMBEDDING_TIMEOUT_MS=1500
+PERSONA_EMBEDDING_CACHE_TTL_MS=600000
+PERSONA_RECOMMENDATION_TOP_K=5
+PERSONA_SEMANTIC_MIN_SCORE=0.2
+
+# MCP bridge (Soothsayer API -> workspace-mcp)
+MCP_ENABLED=false
+MCP_SERVER_BIN=workspace-mcp
+MCP_SERVER_ARGS=
+MCP_ALLOWED_TOOLS=kernel_version,self_check,workspace_info,repo_search,read_file
+MCP_WORKDIR=
+MCP_WORKSPACE_ROOT=
+MCP_PROFILE=dev
+MCP_POLICY_PATH=
+MCP_TIMEOUT_MS=15000
+MCP_MAX_CONCURRENT_CALLS=2
+MCP_MAX_QUEUE_SIZE=25
+MCP_MAX_QUEUE_WAIT_MS=5000
+MCP_WORKER_QUEUE=mcp-tool-execution
+MCP_WORKER_JOB_TIMEOUT_MS=30000
+MCP_WORKER_RETRIES=1
+MCP_ASYNC_POLL_INTERVAL_MS=500
+MCP_ASYNC_POLL_TIMEOUT_MS=30000
+CHAT_MCP_PREFLIGHT_ENABLED=false
+CHAT_MCP_TOOL_CALL_ENABLED=false
+CHAT_MCP_TOOL_CALL_ASYNC_ENABLED=true
 
 # Server
 API_PORT=3000
@@ -282,6 +344,38 @@ WS_REDIS_ENABLED=false
 WS_REDIS_FORCE_IN_DEV=false
 ADMIN_SEED_EMAIL=admin@soothsayer.local
 ADMIN_SEED_PASSWORD=password123
+```
+
+### MCP Bridge Smoke Check (Local/EC2)
+
+1. Start Soothsayer API and web.
+2. Start `workspace-mcp` process (or configure `MCP_SERVER_BIN` to its installed path).
+3. Enable MCP in Soothsayer API env:
+
+```env
+MCP_ENABLED=true
+CHAT_MCP_PREFLIGHT_ENABLED=true
+CHAT_MCP_TOOL_CALL_ENABLED=true
+CHAT_MCP_TOOL_CALL_ASYNC_ENABLED=true
+```
+
+4. Verify health and allowlisted tool calls:
+
+```bash
+curl -sS http://localhost:3000/api/mcp/health -H "Authorization: Bearer <token>"
+curl -sS -X POST http://localhost:3000/api/mcp/tools/call \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"kernel_version","arguments":{}}'
+
+# Async (worker queue) MCP call
+curl -sS -X POST http://localhost:3000/api/mcp/tools/call-async \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"repo_search","arguments":{"pattern":"TODO","dir_path":"."}}'
+
+# Poll queued job status
+curl -sS http://localhost:3000/api/mcp/jobs/<jobId> -H "Authorization: Bearer <token>"
 ```
 
 Provider behavior:

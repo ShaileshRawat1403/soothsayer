@@ -9,11 +9,17 @@ This guide is for shipping a clean GitHub release with deployable artifacts.
 | Area | Check | Command |
 |---|---|---|
 | Git | Working tree clean | `git status --short` |
+| Static gates | Typecheck all packages | `pnpm typecheck` |
 | Build | Web build passes | `pnpm --filter @soothsayer/web build` |
 | Build | API build passes | `pnpm --filter @soothsayer/api build` |
 | Runtime | API health returns 200 | `curl -sS http://localhost:3000/api/health` |
 | Runtime | Web reachable | `curl -I http://localhost:5173` |
+| Runtime | App preflight smoke | `./scripts/release/preflight-soothsayer.sh` |
 | Docs | Runbooks updated | Review `docs/EC2_LIVE_DEPLOY.md` |
+
+For full operational release gates, use:
+
+- `docs/RELEASE_GATE_CHECKLIST.md`
 
 ## Build Artifacts
 
