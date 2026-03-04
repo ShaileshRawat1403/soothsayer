@@ -33,6 +33,15 @@ describe('CommandsService executeTerminal hardening', () => {
     );
   });
 
+  it('rejects unknown allowlisted command id or name', async () => {
+    const { service, prisma } = makeService();
+    prisma.command.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.executeTerminal('user-1', 'workspace-1', 'missing-command-id-or-name', '.')
+    ).rejects.toThrow('Only allowlisted command templates can be executed');
+  });
+
   it('rejects cwd outside workspace root', async () => {
     const { service, prisma } = makeService();
     prisma.command.findFirst.mockResolvedValue({
@@ -70,5 +79,35 @@ describe('CommandsService executeTerminal hardening', () => {
     expect(result.status).toBe('completed');
     expect(result.commandName).toBe('list-files');
     expect(result.cwd).toBe(process.cwd());
+  });
+
+  it('executes seeded preflight allowlisted command by name', async () => {
+    const { service, prisma } = makeService();
+    prisma.command.findFirst.mockResolvedValue({
+      id: 'cmd-preflight',
+      name: 'Preflight Health Check',
+      template: 'echo PRECHECK_OK',
+      timeout: 10000,
+    });
+
+    jest.spyOn(service as any, 'runCommandWithGuards').mockResolvedValue({
+      stdout: 'PRECHECK_OK\n',
+      stderr: '',
+      exitCode: 0,
+      durationMs: 8,
+      timedOut: false,
+      truncated: false,
+    });
+
+    const result = await service.executeTerminal(
+      'user-1',
+      'workspace-1',
+      'Preflight Health Check',
+      '.'
+    );
+
+    expect(result.status).toBe('completed');
+    expect(result.commandId).toBe('cmd-preflight');
+    expect(result.commandName).toBe('Preflight Health Check');
   });
 });
