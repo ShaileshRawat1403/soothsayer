@@ -1,7 +1,7 @@
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '@/stores/auth.store';
 
-const SOCKET_URL = import.meta.env.VITE_WS_URL || '';
+const SOCKET_URL = import.meta.env.VITE_WS_URL || '/ws';
 
 let socket: Socket | null = null;
 
@@ -48,11 +48,11 @@ export const disconnectSocket = (): void => {
 export const socketEvents = {
   // Chat streaming
   subscribeToChat: (conversationId: string) => {
-    socket?.emit('chat:subscribe', { conversationId });
+    socket?.emit('chat:join', { conversationId });
   },
 
   unsubscribeFromChat: (conversationId: string) => {
-    socket?.emit('chat:unsubscribe', { conversationId });
+    socket?.emit('chat:leave', { conversationId });
   },
 
   onTokenStream: (callback: (data: { token: string; messageId: string }) => void) => {
@@ -61,8 +61,8 @@ export const socketEvents = {
   },
 
   onMessageComplete: (callback: (data: { messageId: string; content: string }) => void) => {
-    socket?.on('chat:complete', callback);
-    return () => socket?.off('chat:complete', callback);
+    socket?.on('chat:message:complete', callback);
+    return () => socket?.off('chat:message:complete', callback);
   },
 
   // Command execution
@@ -74,9 +74,20 @@ export const socketEvents = {
     socket?.emit('command:unsubscribe', { executionId });
   },
 
-  onCommandOutput: (callback: (data: { executionId: string; output: string; stream: 'stdout' | 'stderr' }) => void) => {
-    socket?.on('command:output', callback);
-    return () => socket?.off('command:output', callback);
+  onCommandOutput: (
+    callback: (data: { executionId: string; output: string; stream: 'stdout' | 'stderr' }) => void
+  ) => {
+    const stdoutHandler = (payload: { executionId: string; content: string }) =>
+      callback({ executionId: payload.executionId, output: payload.content, stream: 'stdout' });
+    const stderrHandler = (payload: { executionId: string; content: string }) =>
+      callback({ executionId: payload.executionId, output: payload.content, stream: 'stderr' });
+
+    socket?.on('command:stdout', stdoutHandler);
+    socket?.on('command:stderr', stderrHandler);
+    return () => {
+      socket?.off('command:stdout', stdoutHandler);
+      socket?.off('command:stderr', stderrHandler);
+    };
   },
 
   onCommandComplete: (callback: (data: { executionId: string; exitCode: number }) => void) => {
@@ -89,20 +100,24 @@ export const socketEvents = {
     socket?.emit('workflow:subscribe', { runId });
   },
 
-  onWorkflowProgress: (callback: (data: { runId: string; stepId: string; status: string; progress: number }) => void) => {
+  onWorkflowProgress: (
+    callback: (data: { runId: string; stepId: string; status: string; progress: number }) => void
+  ) => {
     socket?.on('workflow:progress', callback);
     return () => socket?.off('workflow:progress', callback);
   },
 
-  onWorkflowComplete: (callback: (data: { runId: string; status: string; result?: unknown }) => void) => {
+  onWorkflowComplete: (
+    callback: (data: { runId: string; status: string; result?: unknown }) => void
+  ) => {
     socket?.on('workflow:complete', callback);
     return () => socket?.off('workflow:complete', callback);
   },
 
   // Approval requests
   onApprovalRequest: (callback: (data: { id: string; action: string; risk: string }) => void) => {
-    socket?.on('approval:request', callback);
-    return () => socket?.off('approval:request', callback);
+    socket?.on('approval:new', callback);
+    return () => socket?.off('approval:new', callback);
   },
 
   approveRequest: (requestId: string) => {
