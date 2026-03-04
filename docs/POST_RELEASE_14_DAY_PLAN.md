@@ -1,5 +1,7 @@
 # Post-Release 14-Day Plan
 
+> Maintainers/Internal: this is an operational follow-up plan, not an end-user guide.
+
 Owner: Soothsayer core team  
 Scope: Soothsayer app post-release hardening + workspace-mcp parity confidence  
 Window: 14 days after release tag `v1.0.1`

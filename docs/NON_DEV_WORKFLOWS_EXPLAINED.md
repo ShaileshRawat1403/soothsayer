@@ -55,6 +55,16 @@ You can:
 
 If step 2 fails, you stop and fix before release.
 
+## Workflow diagram (simple)
+
+```mermaid
+flowchart LR
+  A[Trigger: Manual/Scheduled/Webhook] --> B[Step 1: Read]
+  B --> C[Step 2: Analyze]
+  C --> D[Step 3: Execute/Notify]
+  D --> E[Run Status + History]
+```
+
 ## Good workflow habits
 
 - Keep steps small and clear.
@@ -72,4 +82,3 @@ If a workflow run fails:
 4. re-run
 
 Don’t edit five things at once. Change one thing, retry, confirm.
-

@@ -22,6 +22,16 @@ If this is your first time using Soothsayer, think of it like a smart company of
 5. If allowed, work runs immediately or gets queued for the Worker.
 6. Results are saved and shown back in the UI.
 
+```mermaid
+flowchart LR
+  U[User Action] --> API[API Validates]
+  API --> K[Policy + MCP Check]
+  K -->|Allowed| W[Worker or Direct Execution]
+  K -->|Blocked| X[Safe Block Response]
+  W --> DB[(Database + Audit)]
+  DB --> UI[UI Result]
+```
+
 ## Why this matters
 
 You get automation without chaos:
@@ -53,4 +63,3 @@ If a normal app is a calculator, Soothsayer is an operations assistant:
 - It can plan,
 - act with rules,
 - and report what it did.
-

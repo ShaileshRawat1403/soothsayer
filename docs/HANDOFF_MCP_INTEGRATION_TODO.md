@@ -1,8 +1,11 @@
 # Handoff: Soothsayer MCP Integration (Resume Notes)
 
+> Maintainers/Internal: this document is for engineering handoff and ongoing implementation notes.
+
 Branch: `feat/soothsayer-mcp-integration`
 
 ## Completed
+
 - API MCP bridge added:
   - `GET /api/mcp/health`
   - `POST /api/mcp/tools/call` (allowlisted)
@@ -19,11 +22,13 @@ Branch: `feat/soothsayer-mcp-integration`
   - executed small soak run (`5/5` chat requests succeeded with MCP preflight + tool context).
 
 ## Current Constraints / Known Gaps
+
 - Full app-wide regression not yet complete (workflows, analytics, terminal UI deep checks).
 - Redis-enabled validation pass is blocked on this machine (`redis-server` unavailable and Docker daemon unavailable).
 - Ollama model mismatch can still break chat if `llama3.2:1b` is selected; local test uses `llama3:latest`.
 
 ## Next Actions (in order)
+
 1. Run full regression matrix across modules (manual + API checks).
 2. Execute Redis two-pass validation:
    - Pass A: `WS_REDIS_ENABLED=false`
@@ -34,6 +39,7 @@ Branch: `feat/soothsayer-mcp-integration`
 5. Open/convert PR from draft to ready only after above passes.
 
 ## Useful Commands
+
 ```bash
 # Branch status
 git status
@@ -54,6 +60,7 @@ npx -y pnpm@8.12.0 --filter @soothsayer/web typecheck
 ```
 
 ## MCP Flags for test runs
+
 ```env
 MCP_ENABLED=true
 MCP_SERVER_BIN=/Users/ananyalayek/soothsayer/workspace-mcp/.venv/bin/workspace-mcp

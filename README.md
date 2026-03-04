@@ -29,17 +29,19 @@
 
 - Default branch: `main`
 - Latest tested setup: EC2 + PM2 + Azure OpenAI deployment (`gpt-4o` style deployment IDs)
-- Beginner guide (ELI12): `docs/SOOTHSAYER_ELI12_GUIDE.md`
-- System explained (ELI12): `docs/NON_DEV_SYSTEM_EXPLAINED.md`
-- Non-dev quickstart (10 min): `docs/NON_DEV_QUICKSTART.md`
-- Workflows explained (ELI12): `docs/NON_DEV_WORKFLOWS_EXPLAINED.md`
-- Integrations explained (ELI12): `docs/NON_DEV_INTEGRATIONS_EXPLAINED.md`
-- Non-dev troubleshooting: `docs/NON_DEV_TROUBLESHOOTING.md`
-- Non-dev setup guide: `docs/HOW_TO_DUAL_SETUP_NON_DEVS.md`
-- Practical platform comparison: `docs/MY_VERDICT_AWS_VS_AZURE.md`
-- EC2 production runbook: `docs/EC2_LIVE_DEPLOY.md`
-- Release playbook: `docs/RELEASE_GUIDE.md`
-- Release gates checklist: `docs/RELEASE_GATE_CHECKLIST.md`
+- Docs hub: [docs/README.md](docs/README.md)
+- Start here (non-dev): [docs/START_HERE_NON_DEV.md](docs/START_HERE_NON_DEV.md)
+- Beginner guide (ELI12): [docs/SOOTHSAYER_ELI12_GUIDE.md](docs/SOOTHSAYER_ELI12_GUIDE.md)
+- System explained (ELI12): [docs/NON_DEV_SYSTEM_EXPLAINED.md](docs/NON_DEV_SYSTEM_EXPLAINED.md)
+- Non-dev quickstart (10 min): [docs/NON_DEV_QUICKSTART.md](docs/NON_DEV_QUICKSTART.md)
+- Workflows explained (ELI12): [docs/NON_DEV_WORKFLOWS_EXPLAINED.md](docs/NON_DEV_WORKFLOWS_EXPLAINED.md)
+- Integrations explained (ELI12): [docs/NON_DEV_INTEGRATIONS_EXPLAINED.md](docs/NON_DEV_INTEGRATIONS_EXPLAINED.md)
+- Non-dev troubleshooting: [docs/NON_DEV_TROUBLESHOOTING.md](docs/NON_DEV_TROUBLESHOOTING.md)
+- Non-dev setup guide: [docs/HOW_TO_DUAL_SETUP_NON_DEVS.md](docs/HOW_TO_DUAL_SETUP_NON_DEVS.md)
+- Practical platform comparison: [docs/MY_VERDICT_AWS_VS_AZURE.md](docs/MY_VERDICT_AWS_VS_AZURE.md)
+- EC2 production runbook: [docs/EC2_LIVE_DEPLOY.md](docs/EC2_LIVE_DEPLOY.md)
+- Release playbook: [docs/RELEASE_GUIDE.md](docs/RELEASE_GUIDE.md)
+- Release gates checklist: [docs/RELEASE_GATE_CHECKLIST.md](docs/RELEASE_GATE_CHECKLIST.md)
 
 ## Overview
 
@@ -84,18 +86,21 @@ The Soothsayer is a comprehensive enterprise AI workspace that enables teams to 
 ## Tech Stack
 
 ### Frontend
+
 - **React 18** + TypeScript + Vite
 - **Tailwind CSS** + Radix UI + Custom Design System
 - **Zustand** (State) + TanStack Query (Data Fetching)
 - **Monaco Editor** + ECharts/Recharts
 
 ### Backend
+
 - **NestJS** + TypeScript
 - **Prisma ORM** + PostgreSQL
 - **BullMQ** + Redis (Queues & Caching)
 - **Socket.IO** (Real-time)
 
 ### Infrastructure
+
 - **pnpm Workspaces** + Turborepo (Monorepo)
 - **Docker** + Docker Compose
 - **GitHub Actions** (CI/CD)
@@ -103,6 +108,7 @@ The Soothsayer is a comprehensive enterprise AI workspace that enables teams to 
 ## Quick Start
 
 ### Prerequisites
+
 - Node.js 18+
 - pnpm 8+
 - Docker & Docker Compose
@@ -110,6 +116,7 @@ The Soothsayer is a comprehensive enterprise AI workspace that enables teams to 
 ### Development Setup
 
 1. **Clone and install dependencies**
+
 ```bash
 git clone https://github.com/ShaileshRawat1403/soothsayer.git
 cd soothsayer
@@ -117,28 +124,33 @@ pnpm install
 ```
 
 2. **Start infrastructure services**
+
 ```bash
 docker-compose -f docker-compose.dev.yml up -d
 ```
 
 3. **Setup environment**
+
 ```bash
 cp .env.example .env
 # Edit .env with your configuration
 ```
 
 4. **Initialize database**
+
 ```bash
 pnpm db:migrate
 pnpm db:seed
 ```
 
 5. **Start development servers**
+
 ```bash
 pnpm dev
 ```
 
 Access the application:
+
 - **Web App**: http://localhost:5173
 - **API**: http://localhost:3000
 - **API Docs**: http://localhost:3000/api/docs
@@ -195,6 +207,7 @@ soothsayer/
 ## Core Features
 
 ### MCP Kernel Integration (workspace-mcp)
+
 - Soothsayer API can bridge to a standalone MCP kernel (`workspace-mcp`) via stdio.
 - Bridge endpoints:
   - `GET /api/mcp/health` (calls `kernel_version` + `self_check`)
@@ -204,19 +217,23 @@ soothsayer/
 - Chat can optionally enrich prompts with MCP context (feature-flagged).
 
 Default behavior is safe-off:
+
 - `MCP_ENABLED=false`
 - `CHAT_MCP_PREFLIGHT_ENABLED=false`
 - `CHAT_MCP_TOOL_CALL_ENABLED=false`
 
 When enabled, recommended allowlist:
+
 - `MCP_ALLOWED_TOOLS=kernel_version,self_check,workspace_info,repo_search,read_file`
 
 For overload protection in API->MCP bridge:
+
 - `MCP_MAX_CONCURRENT_CALLS=2`
 - `MCP_MAX_QUEUE_SIZE=25`
 - `MCP_MAX_QUEUE_WAIT_MS=5000`
 
 For worker MCP orchestration:
+
 - `MCP_WORKER_QUEUE=mcp-tool-execution`
 - `MCP_WORKER_JOB_TIMEOUT_MS=30000`
 - `MCP_WORKER_RETRIES=1`
@@ -224,24 +241,28 @@ For worker MCP orchestration:
 - `MCP_ASYNC_POLL_TIMEOUT_MS=30000`
 
 ### Persona Engine
+
 - 30+ professional personas (Engineering, Business, Security, etc.)
 - Runtime persona switching affects AI behavior
 - Custom persona creation with JSON import/export
 - Auto-recommendation based on context
 
 ### Command Runner
+
 - Secure command execution with policy enforcement
 - 4-tier operation model (Explain → Plan → Supervised → Advanced)
 - Real-time streaming output via WebSocket
 - Approval gates for high-risk operations
 
 ### Workflow Builder
+
 - Form-based step editor (create/update workflows in-app)
 - Trigger types: Manual, Scheduled, Webhook
 - Templates: Bug Triage, Release Checklist, Incident Response
 - Execution history and analytics
 
 ### Governance
+
 - Role-based access control (RBAC)
 - Immutable audit logs
 - Policy simulator for testing rules
@@ -384,6 +405,7 @@ curl -sS http://localhost:3000/api/mcp/jobs/<jobId> -H "Authorization: Bearer <t
 ```
 
 Provider behavior:
+
 - API returns explicit inference errors if provider/model fails.
 - Bedrock can fail due account setup or quota (`ResourceNotFoundException`, `ThrottlingException`).
 - Ollama model IDs must match exact local tags (`llama3.2:1b`, `phi3:mini`, etc.).
@@ -391,6 +413,7 @@ Provider behavior:
 - If chat shows timeout toast but response appears after refresh, increase and align API/web timeouts (`AI_REQUEST_TIMEOUT_MS`, `VITE_API_TIMEOUT_MS`, `VITE_CHAT_TIMEOUT_MS`) and restart PM2 with `--update-env`.
 
 See:
+
 - `docs/EC2_STABILIZATION_RUNBOOK.md`
 - `docs/EC2_LIVE_DEPLOY.md` (production-mode EC2 deploy with build + PM2)
 - `docs/HOW_TO_EC2_PITFALLS.md`
@@ -492,6 +515,7 @@ git push origin v1.0.0
 ```
 
 Then in GitHub:
+
 1. Open `Releases` -> `Draft a new release`
 2. Choose tag `v1.0.0`
 3. Attach:
@@ -519,7 +543,9 @@ If you are learning or exploring:
 This project is designed to be explored safely. Curiosity is welcome.
 
 ### Commit Convention
+
 We use [Conventional Commits](https://www.conventionalcommits.org/):
+
 - `feat:` New features
 - `fix:` Bug fixes
 - `docs:` Documentation
