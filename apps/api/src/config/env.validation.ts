@@ -45,6 +45,7 @@ const envSchema = z.object({
   JWT_SECRET: z.string().min(32),
   JWT_ACCESS_EXPIRATION: z.string().default('15m'),
   JWT_REFRESH_EXPIRATION: z.string().default('7d'),
+  PASSWORD_RESET_TOKEN_EXPIRATION: z.string().default('1h'),
   AUTH_BYPASS: booleanFromEnv.default(false),
   AUTH_BYPASS_EMAIL: z.string().email().default('admin@soothsayer.local'),
   AUTH_BYPASS_NAME: z.string().default('Admin User'),

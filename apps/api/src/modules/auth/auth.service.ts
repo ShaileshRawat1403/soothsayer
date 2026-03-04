@@ -8,6 +8,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import { createHash, randomBytes } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -314,20 +315,63 @@ export class AuthService {
       return;
     }
 
-    // Generate password reset token (in real app, send via email)
-    const resetToken = uuidv4();
+    const resetToken = randomBytes(32).toString('hex');
+    const resetTokenHash = this.hashToken(resetToken);
 
-    // Store token (in real app, would use a dedicated table or cache)
-    this.logger.log(`Password reset requested for: ${dto.email} (Token: ${resetToken})`);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetTokenHash: resetTokenHash,
+        passwordResetExpiresAt: this.getPasswordResetExpiry(),
+        passwordResetUsedAt: null,
+      },
+    });
 
-    // TODO: Send email with reset link
+    this.logger.log(`Password reset requested for: ${dto.email}`);
+    this.logger.debug('Password reset token generated and stored as hash.');
   }
 
   async resetPassword(dto: ResetPasswordDto): Promise<void> {
-    // TODO: Validate reset token and update password
+    const resetTokenHash = this.hashToken(dto.token);
+    const user = await this.prisma.user.findUnique({
+      where: { passwordResetTokenHash: resetTokenHash },
+      select: {
+        id: true,
+        passwordResetExpiresAt: true,
+        passwordResetUsedAt: true,
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Invalid or expired reset token');
+    }
+
+    if (!user.passwordResetExpiresAt || user.passwordResetExpiresAt < new Date()) {
+      throw new BadRequestException('Invalid or expired reset token');
+    }
+
+    if (user.passwordResetUsedAt) {
+      throw new BadRequestException('Reset token has already been used');
+    }
+
     const passwordHash = await bcrypt.hash(dto.password, this.saltRounds);
 
-    this.logger.log(`Password reset completed for token: ${dto.token}`);
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          passwordHash,
+          passwordResetUsedAt: new Date(),
+          passwordResetTokenHash: null,
+          passwordResetExpiresAt: null,
+        },
+      }),
+      this.prisma.session.deleteMany({
+        where: { userId: user.id },
+      }),
+    ]);
+
+    this.logger.log('Password reset completed successfully');
   }
 
   private async generateTokens(payload: TokenPayload): Promise<AuthTokens> {
@@ -359,6 +403,15 @@ export class AuthService {
         expiresAt: this.getRefreshTokenExpiry(),
       },
     });
+  }
+
+  private getPasswordResetExpiry(): Date {
+    const expiration = this.configService.get<string>('PASSWORD_RESET_TOKEN_EXPIRATION', '1h');
+    return new Date(Date.now() + this.parseExpiration(expiration));
+  }
+
+  private hashToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
   }
 
   private getRefreshTokenExpiry(): Date {
