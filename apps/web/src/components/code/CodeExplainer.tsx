@@ -96,52 +96,68 @@ const getBuiltInExplanations = (code: string, language: string): CodeExplanation
 
   lines.forEach((line, index) => {
     const trimmedLine = line.trim();
-    
+
     // JavaScript/TypeScript patterns
     if (language === 'javascript' || language === 'typescript') {
-      if (trimmedLine.startsWith('const ') || trimmedLine.startsWith('let ') || trimmedLine.startsWith('var ')) {
+      if (
+        trimmedLine.startsWith('const ') ||
+        trimmedLine.startsWith('let ') ||
+        trimmedLine.startsWith('var ')
+      ) {
         const varType = trimmedLine.split(' ')[0];
         explanations.push({
           line: index + 1,
           code: trimmedLine,
-          explanation: varType === 'const' 
-            ? 'Declares a constant that cannot be reassigned. Use for values that shouldn\'t change.'
-            : varType === 'let'
-            ? 'Declares a block-scoped variable that can be reassigned.'
-            : 'Declares a function-scoped variable. Prefer const/let in modern JS.',
+          explanation:
+            varType === 'const'
+              ? "Declares a constant that cannot be reassigned. Use for values that shouldn't change."
+              : varType === 'let'
+                ? 'Declares a block-scoped variable that can be reassigned.'
+                : 'Declares a function-scoped variable. Prefer const/let in modern JS.',
           type: varType === 'var' ? 'warning' : 'syntax',
         });
       }
-      
+
       if (trimmedLine.includes('async ') || trimmedLine.includes('await ')) {
         explanations.push({
           line: index + 1,
           code: trimmedLine,
-          explanation: 'Async/await syntax for handling Promises. Makes asynchronous code look synchronous and easier to read.',
+          explanation:
+            'Async/await syntax for handling Promises. Makes asynchronous code look synchronous and easier to read.',
           type: 'syntax',
           references: ['MDN: async function', 'JavaScript.info: Async/await'],
         });
       }
-      
-      if (trimmedLine.includes('.map(') || trimmedLine.includes('.filter(') || trimmedLine.includes('.reduce(')) {
+
+      if (
+        trimmedLine.includes('.map(') ||
+        trimmedLine.includes('.filter(') ||
+        trimmedLine.includes('.reduce(')
+      ) {
         explanations.push({
           line: index + 1,
           code: trimmedLine,
-          explanation: 'Array method that creates a new array. Functional programming pattern - immutable and chainable.',
+          explanation:
+            'Array method that creates a new array. Functional programming pattern - immutable and chainable.',
           type: 'best-practice',
         });
       }
-      
-      if (trimmedLine.includes('useEffect') || trimmedLine.includes('useState') || trimmedLine.includes('useCallback')) {
+
+      if (
+        trimmedLine.includes('useEffect') ||
+        trimmedLine.includes('useState') ||
+        trimmedLine.includes('useCallback')
+      ) {
         explanations.push({
           line: index + 1,
           code: trimmedLine,
-          explanation: 'React Hook for managing component state or side effects. Hooks must be called at the top level.',
+          explanation:
+            'React Hook for managing component state or side effects. Hooks must be called at the top level.',
           type: 'syntax',
           references: ['React Docs: Hooks'],
         });
       }
-      
+
       if (trimmedLine.includes('try {') || trimmedLine.includes('catch (')) {
         explanations.push({
           line: index + 1,
@@ -150,67 +166,73 @@ const getBuiltInExplanations = (code: string, language: string): CodeExplanation
           type: 'best-practice',
         });
       }
-      
+
       if (trimmedLine.includes('// TODO') || trimmedLine.includes('// FIXME')) {
         explanations.push({
           line: index + 1,
           code: trimmedLine,
-          explanation: 'Developer note indicating pending work or known issue that needs attention.',
+          explanation:
+            'Developer note indicating pending work or known issue that needs attention.',
           type: 'warning',
         });
       }
     }
-    
+
     // Python patterns
     if (language === 'python') {
       if (trimmedLine.startsWith('def ') || trimmedLine.startsWith('async def ')) {
         explanations.push({
           line: index + 1,
           code: trimmedLine,
-          explanation: 'Function definition. async def creates a coroutine for asynchronous execution.',
+          explanation:
+            'Function definition. async def creates a coroutine for asynchronous execution.',
           type: 'syntax',
         });
       }
-      
+
       if (trimmedLine.startsWith('class ')) {
         explanations.push({
           line: index + 1,
           code: trimmedLine,
-          explanation: 'Class definition for object-oriented programming. Blueprint for creating objects.',
+          explanation:
+            'Class definition for object-oriented programming. Blueprint for creating objects.',
           type: 'syntax',
         });
       }
-      
+
       if (trimmedLine.includes('with ')) {
         explanations.push({
           line: index + 1,
           code: trimmedLine,
-          explanation: 'Context manager ensuring proper resource cleanup (files, connections, locks).',
+          explanation:
+            'Context manager ensuring proper resource cleanup (files, connections, locks).',
           type: 'best-practice',
         });
       }
-      
+
       if (trimmedLine.startsWith('@')) {
         explanations.push({
           line: index + 1,
           code: trimmedLine,
-          explanation: 'Decorator pattern - modifies or extends function/class behavior without changing its code.',
+          explanation:
+            'Decorator pattern - modifies or extends function/class behavior without changing its code.',
           type: 'syntax',
         });
       }
     }
-    
+
     // SQL patterns
     if (language === 'sql') {
       if (trimmedLine.toUpperCase().startsWith('SELECT')) {
         explanations.push({
           line: index + 1,
           code: trimmedLine,
-          explanation: 'Query to retrieve data from database tables. Use specific columns instead of * for performance.',
+          explanation:
+            'Query to retrieve data from database tables. Use specific columns instead of * for performance.',
           type: 'tip',
         });
       }
-      
+
       if (trimmedLine.toUpperCase().includes('JOIN')) {
         explanations.push({
           line: index + 1,
@@ -220,7 +242,7 @@ const getBuiltInExplanations = (code: string, language: string): CodeExplanation
         });
       }
     }
-    
+
     // Bash patterns
     if (language === 'bash') {
       if (trimmedLine.startsWith('#!/')) {
@@ -231,7 +253,7 @@ const getBuiltInExplanations = (code: string, language: string): CodeExplanation
           type: 'syntax',
         });
       }
-      
+
       if (trimmedLine.includes('| ')) {
         explanations.push({
           line: index + 1,
@@ -259,13 +281,19 @@ export const CodeExplainer: React.FC<CodeExplainerProps> = ({
   const language = languageMap[rawLanguage] || rawLanguage;
   const [copied, setCopied] = useState(false);
   const [selectedText, setSelectedText] = useState<string | null>(null);
-  const [selectionExplanation, setSelectionExplanation] = useState<SelectionExplanation | null>(null);
+  const [selectionExplanation, setSelectionExplanation] = useState<SelectionExplanation | null>(
+    null
+  );
   const [showExplanations, setShowExplanations] = useState(false);
   const [explanations, setExplanations] = useState<CodeExplanation[]>([]);
   const [expandedLines, setExpandedLines] = useState<Set<number>>(new Set());
   const [tooltipPosition, setTooltipPosition] = useState({ x: 0, y: 0 });
   const codeRef = useRef<HTMLPreElement>(null);
-  const { activeProvider, getActiveModel, sendMessage } = useAIProviderStore();
+  const { activeProvider, activeModel, providers } = useAIProviderStore();
+  const activeModelName =
+    providers
+      .find((provider) => provider.id === activeProvider)
+      ?.models.find((model) => model.id === activeModel)?.name || activeModel;
 
   // Get built-in explanations
   useEffect(() => {
@@ -298,7 +326,7 @@ export const CodeExplainer: React.FC<CodeExplainerProps> = ({
     if (selection && selection.toString().trim().length > 0) {
       const selectedStr = selection.toString().trim();
       setSelectedText(selectedStr);
-      
+
       // Calculate position for tooltip
       const range = selection.getRangeAt(0);
       const rect = range.getBoundingClientRect();
@@ -326,12 +354,15 @@ export const CodeExplainer: React.FC<CodeExplainerProps> = ({
     let endLine = 1;
     let charCount = 0;
     const selectionStart = code.indexOf(selectedText);
-    
+
     for (let i = 0; i < lines.length; i++) {
       if (charCount <= selectionStart && selectionStart < charCount + lines[i].length + 1) {
         startLine = i + 1;
       }
-      if (charCount <= selectionStart + selectedText.length && selectionStart + selectedText.length <= charCount + lines[i].length + 1) {
+      if (
+        charCount <= selectionStart + selectedText.length &&
+        selectionStart + selectedText.length <= charCount + lines[i].length + 1
+      ) {
         endLine = i + 1;
         break;
       }
@@ -346,51 +377,18 @@ export const CodeExplainer: React.FC<CodeExplainerProps> = ({
       loading: true,
     });
 
-    // Check if AI provider is configured
-    if (activeProvider) {
-      try {
-        const prompt = `Explain this ${language} code snippet concisely (2-3 sentences max):
-
-\`\`\`${language}
-${selectedText}
-\`\`\`
-
-Also suggest any improvements if applicable.`;
-
-        const response = await sendMessage(prompt);
-        
-        setSelectionExplanation({
-          selection: selectedText,
-          startLine,
-          endLine,
-          explanation: response,
-          loading: false,
-        });
-      } catch (error) {
-        // Fallback to built-in explanation
-        setSelectionExplanation({
-          selection: selectedText,
-          startLine,
-          endLine,
-          explanation: generateFallbackExplanation(selectedText, language),
-          loading: false,
-        });
-      }
-    } else {
-      // No AI provider - use fallback
-      setSelectionExplanation({
-        selection: selectedText,
-        startLine,
-        endLine,
-        explanation: generateFallbackExplanation(selectedText, language),
-        loading: false,
-      });
-    }
+    setSelectionExplanation({
+      selection: selectedText,
+      startLine,
+      endLine,
+      explanation: generateFallbackExplanation(selectedText, language),
+      loading: false,
+    });
   };
 
   const generateFallbackExplanation = (selection: string, lang: string): string => {
     const trimmed = selection.trim();
-    
+
     // Common patterns
     if (trimmed.includes('=>')) {
       return 'Arrow function expression - a concise syntax for writing function expressions with lexical `this` binding.';
@@ -413,7 +411,7 @@ Also suggest any improvements if applicable.`;
     if (trimmed.includes('??')) {
       return 'Nullish coalescing - returns right operand when left is null/undefined.';
     }
-    
+
     return `This ${lang} code snippet performs a specific operation. Select an AI provider in settings for detailed explanations.`;
   };
 
@@ -428,10 +426,13 @@ Also suggest any improvements if applicable.`;
   };
 
   const lines = code.split('\n');
-  const explanationsByLine = explanations.reduce((acc, exp) => {
-    acc[exp.line] = exp;
-    return acc;
-  }, {} as Record<number, CodeExplanation>);
+  const explanationsByLine = explanations.reduce(
+    (acc, exp) => {
+      acc[exp.line] = exp;
+      return acc;
+    },
+    {} as Record<number, CodeExplanation>
+  );
 
   const bgColor = theme === 'dark' ? 'bg-gray-900' : 'bg-gray-100';
   const textColor = theme === 'dark' ? 'text-gray-100' : 'text-gray-900';
@@ -440,36 +441,40 @@ Also suggest any improvements if applicable.`;
   return (
     <div className={`rounded-xl overflow-hidden ${bgColor} ${borderColor} border shadow-lg`}>
       {/* Header */}
-      <div className={`flex items-center justify-between px-4 py-2 ${theme === 'dark' ? 'bg-gray-800/50' : 'bg-gray-200'} border-b ${borderColor}`}>
+      <div
+        className={`flex items-center justify-between px-4 py-2 ${theme === 'dark' ? 'bg-gray-800/50' : 'bg-gray-200'} border-b ${borderColor}`}
+      >
         <div className="flex items-center gap-3">
           <div className="flex gap-1.5">
             <div className="w-3 h-3 rounded-full bg-red-500" />
             <div className="w-3 h-3 rounded-full bg-yellow-500" />
             <div className="w-3 h-3 rounded-full bg-green-500" />
           </div>
-          {title && (
-            <span className={`text-sm font-medium ${textColor}`}>{title}</span>
-          )}
-          <span className={`text-xs px-2 py-0.5 rounded-full ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-300 text-gray-700'}`}>
+          {title && <span className={`text-sm font-medium ${textColor}`}>{title}</span>}
+          <span
+            className={`text-xs px-2 py-0.5 rounded-full ${theme === 'dark' ? 'bg-gray-700 text-gray-300' : 'bg-gray-300 text-gray-700'}`}
+          >
             {language}
           </span>
         </div>
-        
+
         <div className="flex items-center gap-2">
           {enableAIExplanations && (
             <button
               onClick={() => setShowExplanations(!showExplanations)}
               className={`p-1.5 rounded-lg transition-all ${
-                showExplanations 
-                  ? 'bg-blue-500/20 text-blue-400' 
-                  : theme === 'dark' ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-300 text-gray-600'
+                showExplanations
+                  ? 'bg-blue-500/20 text-blue-400'
+                  : theme === 'dark'
+                    ? 'hover:bg-gray-700 text-gray-400'
+                    : 'hover:bg-gray-300 text-gray-600'
               }`}
               title="Toggle explanations"
             >
               <BookOpen className="w-4 h-4" />
             </button>
           )}
-          
+
           {onExecute && (
             <button
               onClick={() => onExecute(code)}
@@ -479,17 +484,13 @@ Also suggest any improvements if applicable.`;
               <Play className="w-4 h-4" />
             </button>
           )}
-          
+
           <button
             onClick={handleCopy}
             className={`p-1.5 rounded-lg transition-all ${theme === 'dark' ? 'hover:bg-gray-700 text-gray-400' : 'hover:bg-gray-300 text-gray-600'}`}
             title="Copy code"
           >
-            {copied ? (
-              <Check className="w-4 h-4 text-green-400" />
-            ) : (
-              <Copy className="w-4 h-4" />
-            )}
+            {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
           </button>
         </div>
       </div>
@@ -510,18 +511,24 @@ Also suggest any improvements if applicable.`;
               <div key={lineNumber} className="group">
                 <div className="flex items-start">
                   {showLineNumbers && (
-                    <span 
+                    <span
                       className={`select-none w-10 pr-4 text-right flex-shrink-0 cursor-pointer transition-colors ${
-                        hasExplanation 
-                          ? 'text-blue-400 hover:text-blue-300' 
-                          : theme === 'dark' ? 'text-gray-600' : 'text-gray-400'
+                        hasExplanation
+                          ? 'text-blue-400 hover:text-blue-300'
+                          : theme === 'dark'
+                            ? 'text-gray-600'
+                            : 'text-gray-400'
                       }`}
                       onClick={() => hasExplanation && toggleLineExplanation(lineNumber)}
                       title={hasExplanation ? 'Click for explanation' : undefined}
                     >
                       {hasExplanation && (
                         <span className="inline-block mr-1">
-                          {isExpanded ? <ChevronDown className="w-3 h-3 inline" /> : <ChevronRight className="w-3 h-3 inline" />}
+                          {isExpanded ? (
+                            <ChevronDown className="w-3 h-3 inline" />
+                          ) : (
+                            <ChevronRight className="w-3 h-3 inline" />
+                          )}
                         </span>
                       )}
                       {lineNumber}
@@ -530,7 +537,11 @@ Also suggest any improvements if applicable.`;
                   <code
                     className="flex-1"
                     dangerouslySetInnerHTML={{
-                      __html: Prism.highlight(line || ' ', Prism.languages[language] || Prism.languages.plaintext, language),
+                      __html: Prism.highlight(
+                        line || ' ',
+                        Prism.languages[language] || Prism.languages.plaintext,
+                        language
+                      ),
                     }}
                   />
                   {hasExplanation && showExplanations && !isExpanded && (
@@ -539,7 +550,7 @@ Also suggest any improvements if applicable.`;
                     </span>
                   )}
                 </div>
-                
+
                 {/* Inline Explanation */}
                 <AnimatePresence>
                   {hasExplanation && isExpanded && (
@@ -552,7 +563,9 @@ Also suggest any improvements if applicable.`;
                       <div className="flex items-start gap-2">
                         {typeIcons[hasExplanation.type]}
                         <div className="flex-1">
-                          <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                          <p
+                            className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}
+                          >
                             {hasExplanation.explanation}
                           </p>
                           {hasExplanation.references && (
@@ -638,7 +651,8 @@ Also suggest any improvements if applicable.`;
                 <div className="flex items-center gap-2">
                   <MessageSquare className="w-4 h-4 text-blue-400" />
                   <span className={`text-sm font-medium ${textColor}`}>
-                    Explanation (Lines {selectionExplanation.startLine}-{selectionExplanation.endLine})
+                    Explanation (Lines {selectionExplanation.startLine}-
+                    {selectionExplanation.endLine})
                   </span>
                 </div>
                 <button
@@ -648,7 +662,7 @@ Also suggest any improvements if applicable.`;
                   <X className="w-4 h-4 text-gray-400" />
                 </button>
               </div>
-              
+
               {selectionExplanation.loading ? (
                 <div className="flex items-center gap-2 text-gray-400">
                   <RefreshCw className="w-4 h-4 animate-spin" />
@@ -656,26 +670,33 @@ Also suggest any improvements if applicable.`;
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <pre className={`p-3 rounded-lg text-sm font-mono ${theme === 'dark' ? 'bg-gray-900/50' : 'bg-gray-100'} overflow-x-auto`}>
+                  <pre
+                    className={`p-3 rounded-lg text-sm font-mono ${theme === 'dark' ? 'bg-gray-900/50' : 'bg-gray-100'} overflow-x-auto`}
+                  >
                     <code>{selectionExplanation.selection}</code>
                   </pre>
-                  <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} leading-relaxed whitespace-pre-wrap`}>
+                  <p
+                    className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'} leading-relaxed whitespace-pre-wrap`}
+                  >
                     {selectionExplanation.explanation}
                   </p>
-                  
-                  {selectionExplanation.suggestions && selectionExplanation.suggestions.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-gray-700">
-                      <h4 className="text-xs font-semibold text-gray-400 uppercase mb-2">Suggestions</h4>
-                      <ul className="space-y-1">
-                        {selectionExplanation.suggestions.map((suggestion, i) => (
-                          <li key={i} className="flex items-start gap-2 text-sm text-gray-300">
-                            <Zap className="w-3.5 h-3.5 text-yellow-400 mt-0.5 flex-shrink-0" />
-                            {suggestion}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
+
+                  {selectionExplanation.suggestions &&
+                    selectionExplanation.suggestions.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-gray-700">
+                        <h4 className="text-xs font-semibold text-gray-400 uppercase mb-2">
+                          Suggestions
+                        </h4>
+                        <ul className="space-y-1">
+                          {selectionExplanation.suggestions.map((suggestion, i) => (
+                            <li key={i} className="flex items-start gap-2 text-sm text-gray-300">
+                              <Zap className="w-3.5 h-3.5 text-yellow-400 mt-0.5 flex-shrink-0" />
+                              {suggestion}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                 </div>
               )}
             </div>
@@ -684,7 +705,9 @@ Also suggest any improvements if applicable.`;
       </AnimatePresence>
 
       {/* Footer with stats */}
-      <div className={`flex items-center justify-between px-4 py-2 text-xs ${theme === 'dark' ? 'bg-gray-800/30 text-gray-500' : 'bg-gray-200/50 text-gray-600'} border-t ${borderColor}`}>
+      <div
+        className={`flex items-center justify-between px-4 py-2 text-xs ${theme === 'dark' ? 'bg-gray-800/30 text-gray-500' : 'bg-gray-200/50 text-gray-600'} border-t ${borderColor}`}
+      >
         <span>{lines.length} lines</span>
         <div className="flex items-center gap-4">
           {explanations.length > 0 && (
@@ -696,7 +719,7 @@ Also suggest any improvements if applicable.`;
           {activeProvider && (
             <span className="flex items-center gap-1">
               <Sparkles className="w-3 h-3 text-blue-400" />
-              AI: {getActiveModel()?.name || activeProvider}
+              AI: {activeModelName || activeProvider}
             </span>
           )}
         </div>
