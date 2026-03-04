@@ -170,8 +170,7 @@ export function logRequest(
 ): void {
   const level: LogLevel = statusCode >= 500 ? 'error' : statusCode >= 400 ? 'warn' : 'info';
   const message = `${method} ${path} ${statusCode} ${durationMs}ms`;
-  
-  getDefaultLogger()[level](message, {
+  const payload: LogContext = {
     ...context,
     http: {
       method,
@@ -179,5 +178,18 @@ export function logRequest(
       statusCode,
       durationMs,
     },
-  });
+  };
+
+  const loggerInstance = getDefaultLogger();
+  if (level === 'error') {
+    loggerInstance.error(message, undefined, payload);
+    return;
+  }
+
+  if (level === 'warn') {
+    loggerInstance.warn(message, payload);
+    return;
+  }
+
+  loggerInstance.info(message, payload);
 }

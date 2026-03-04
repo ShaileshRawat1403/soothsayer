@@ -125,8 +125,12 @@ export function parseDuration(duration: string): number {
   const match = duration.match(/^(\d+)([smhd])$/);
   if (!match) throw new Error(`Invalid duration format: ${duration}`);
 
-  const value = parseInt(match[1], 10);
+  const valueText = match[1];
   const unit = match[2];
+  if (!valueText || !unit) {
+    throw new Error(`Invalid duration format: ${duration}`);
+  }
+  const value = parseInt(valueText, 10);
 
   switch (unit) {
     case 's':
@@ -151,7 +155,7 @@ export function maskString(text: string, visibleChars = 4, maskChar = '*'): stri
 // Mask email
 export function maskEmail(email: string): string {
   const [local, domain] = email.split('@');
-  if (!domain) return maskString(email);
+  if (!local || !domain) return maskString(email);
   const maskedLocal = local.length > 2 
     ? local[0] + '*'.repeat(local.length - 2) + local[local.length - 1]
     : '*'.repeat(local.length);

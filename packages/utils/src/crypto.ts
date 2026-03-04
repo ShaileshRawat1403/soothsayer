@@ -7,7 +7,8 @@ export function generateRandomString(length: number): string {
   const array = new Uint8Array(length);
   crypto.getRandomValues(array);
   for (let i = 0; i < length; i++) {
-    result += chars[array[i] % chars.length];
+    const value = array[i] ?? 0;
+    result += chars[value % chars.length];
   }
   return result;
 }
@@ -96,7 +97,8 @@ export function generateShortId(length = 8): string {
   const array = new Uint8Array(length);
   crypto.getRandomValues(array);
   for (let i = 0; i < length; i++) {
-    result += chars[array[i] % chars.length];
+    const value = array[i] ?? 0;
+    result += chars[value % chars.length];
   }
   return result;
 }
