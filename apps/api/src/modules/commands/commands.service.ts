@@ -1,19 +1,30 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { spawn } from 'child_process';
+import { promises as fs } from 'fs';
+import * as path from 'path';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class CommandsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private configService: ConfigService
+  ) {}
 
-  async findAll(workspaceId: string, options: { category?: string; search?: string; page?: number; limit?: number } = {}) {
+  async findAll(
+    workspaceId: string,
+    options: { category?: string; search?: string; page?: number; limit?: number } = {}
+  ) {
     const { category, search } = options;
-    const page = Number.isFinite(options.page as number) && (options.page as number) > 0
-      ? Math.floor(options.page as number)
-      : 1;
-    const limit = Number.isFinite(options.limit as number) && (options.limit as number) > 0
-      ? Math.floor(options.limit as number)
-      : 20;
+    const page =
+      Number.isFinite(options.page as number) && (options.page as number) > 0
+        ? Math.floor(options.page as number)
+        : 1;
+    const limit =
+      Number.isFinite(options.limit as number) && (options.limit as number) > 0
+        ? Math.floor(options.limit as number)
+        : 20;
 
     const where: Record<string, unknown> = { workspaceId, deletedAt: null };
     if (category) where.category = category;
@@ -38,14 +49,19 @@ export class CommandsService {
     return command;
   }
 
-  async execute(commandId: string, userId: string, workspaceId: string, options: {
-    projectId?: string;
-    parameters: Record<string, unknown>;
-    tier?: number;
-    personaId?: string;
-    conversationId?: string;
-    dryRun?: boolean;
-  }) {
+  async execute(
+    commandId: string,
+    userId: string,
+    workspaceId: string,
+    options: {
+      projectId?: string;
+      parameters: Record<string, unknown>;
+      tier?: number;
+      personaId?: string;
+      conversationId?: string;
+      dryRun?: boolean;
+    }
+  ) {
     const command = await this.findOne(commandId);
 
     // TODO: Evaluate policies
@@ -91,7 +107,7 @@ export class CommandsService {
     const result = await this.runCommandWithGuards(
       resolvedCommand,
       command.timeout || 30000,
-      process.cwd(),
+      process.cwd()
     );
 
     const finalStatus = result.exitCode === 0 ? 'completed' : 'failed';
@@ -121,17 +137,41 @@ export class CommandsService {
   async executeTerminal(userId: string, workspaceId: string, command: string, cwd?: string) {
     await this.ensureWorkspaceAccess(workspaceId, userId);
 
-    const trimmed = (command || '').trim();
-    if (!trimmed) {
-      throw new ForbiddenException('Command is required');
-    }
-    if (trimmed.length > 500) {
-      throw new ForbiddenException('Command is too long');
+    const commandRef = (command || '').trim();
+    if (!commandRef) {
+      throw new ForbiddenException('Command reference is required');
     }
 
-    const result = await this.runCommandWithGuards(trimmed, 30000, cwd || process.cwd());
+    const commandDef = await this.prisma.command.findFirst({
+      where: {
+        workspaceId,
+        deletedAt: null,
+        OR: [{ id: commandRef }, { name: commandRef }],
+      },
+    });
+
+    if (!commandDef) {
+      throw new ForbiddenException('Only allowlisted command templates can be executed');
+    }
+
+    if (/\{\{[^}]+\}\}/.test(commandDef.template)) {
+      throw new ForbiddenException(
+        'Command template requires parameters and cannot be run from terminal route'
+      );
+    }
+
+    const safeCwd = await this.resolveSafeWorkingDirectory(workspaceId, cwd);
+    const result = await this.runCommandWithGuards(
+      commandDef.template,
+      commandDef.timeout || 30000,
+      safeCwd
+    );
+
     return {
-      command: trimmed,
+      commandId: commandDef.id,
+      commandName: commandDef.name,
+      command: commandDef.template,
+      cwd: safeCwd,
       status: result.exitCode === 0 ? 'completed' : 'failed',
       output: result.stdout,
       errorOutput: result.stderr,
@@ -140,6 +180,53 @@ export class CommandsService {
       timedOut: result.timedOut,
       truncated: result.truncated,
     };
+  }
+
+  private async resolveSafeWorkingDirectory(
+    workspaceId: string,
+    requestedCwd?: string
+  ): Promise<string> {
+    const workspace = await this.prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { settings: true },
+    });
+
+    const configuredRoot =
+      this.extractWorkspaceRootFromSettings(workspace?.settings) ||
+      this.configService.get<string>('COMMANDS_WORKSPACE_ROOT') ||
+      process.cwd();
+    const workspaceRoot = path.resolve(configuredRoot);
+
+    const resolvedCwd = requestedCwd
+      ? path.resolve(
+          path.isAbsolute(requestedCwd) ? requestedCwd : path.join(workspaceRoot, requestedCwd)
+        )
+      : workspaceRoot;
+
+    if (!this.isPathInside(workspaceRoot, resolvedCwd)) {
+      throw new ForbiddenException('Working directory is outside workspace root');
+    }
+
+    const stats = await fs.stat(resolvedCwd).catch(() => null);
+    if (!stats || !stats.isDirectory()) {
+      throw new ForbiddenException('Working directory does not exist or is not a directory');
+    }
+
+    return resolvedCwd;
+  }
+
+  private extractWorkspaceRootFromSettings(settings: unknown): string | undefined {
+    if (!settings || typeof settings !== 'object') {
+      return undefined;
+    }
+
+    const maybeRoot = (settings as Record<string, unknown>).rootPath;
+    return typeof maybeRoot === 'string' && maybeRoot.trim() ? maybeRoot.trim() : undefined;
+  }
+
+  private isPathInside(rootPath: string, targetPath: string): boolean {
+    const relative = path.relative(rootPath, targetPath);
+    return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
   }
 
   private async ensureWorkspaceAccess(workspaceId: string, userId: string) {
@@ -175,7 +262,7 @@ export class CommandsService {
   private runCommandWithGuards(
     command: string,
     timeoutMs: number,
-    cwd: string,
+    cwd: string
   ): Promise<{
     stdout: string;
     stderr: string;
