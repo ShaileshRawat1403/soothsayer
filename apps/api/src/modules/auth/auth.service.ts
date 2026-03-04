@@ -255,8 +255,11 @@ export class AuthService {
   }
 
   async refreshToken(dto: RefreshTokenDto): Promise<AuthTokens> {
-    const session = await this.prisma.session.findUnique({
-      where: { refreshToken: dto.refreshToken },
+    const refreshTokenHash = this.hashToken(dto.refreshToken);
+    const session = await this.prisma.session.findFirst({
+      where: {
+        OR: [{ refreshTokenHash }, { refreshToken: dto.refreshToken }],
+      },
       include: { user: true },
     });
 
@@ -280,7 +283,8 @@ export class AuthService {
     await this.prisma.session.update({
       where: { id: session.id },
       data: {
-        refreshToken: tokens.refreshToken,
+        refreshToken: null,
+        refreshTokenHash: this.hashToken(tokens.refreshToken),
         expiresAt: this.getRefreshTokenExpiry(),
         lastActiveAt: new Date(),
       },
@@ -291,9 +295,13 @@ export class AuthService {
 
   async logout(userId: string, refreshToken?: string): Promise<void> {
     if (refreshToken) {
+      const refreshTokenHash = this.hashToken(refreshToken);
       // Invalidate specific session
       await this.prisma.session.deleteMany({
-        where: { userId, refreshToken },
+        where: {
+          userId,
+          OR: [{ refreshTokenHash }, { refreshToken }],
+        },
       });
     } else {
       // Invalidate all sessions
@@ -397,7 +405,8 @@ export class AuthService {
     await this.prisma.session.create({
       data: {
         userId,
-        refreshToken,
+        refreshToken: null,
+        refreshTokenHash: this.hashToken(refreshToken),
         userAgent,
         ipAddress,
         expiresAt: this.getRefreshTokenExpiry(),

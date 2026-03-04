@@ -68,7 +68,8 @@ model User {
 model Session {
   id           String   @id @default(cuid())
   userId       String
-  refreshToken String   @unique
+  refreshToken String?  @unique
+  refreshTokenHash String? @unique
   userAgent    String?
   ipAddress    String?
   expiresAt    DateTime
