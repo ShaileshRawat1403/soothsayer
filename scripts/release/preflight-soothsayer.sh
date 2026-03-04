@@ -6,6 +6,7 @@ LOGIN_EMAIL="${LOGIN_EMAIL:-admin@soothsayer.local}"
 LOGIN_PASSWORD="${LOGIN_PASSWORD:-password123}"
 CHAT_PROVIDER="${CHAT_PROVIDER:-openai}"
 CHAT_MODEL="${CHAT_MODEL:-gpt-4o}"
+PREFLIGHT_COMMAND_NAME="${PREFLIGHT_COMMAND_NAME:-Preflight Health Check}"
 
 echo "[preflight] API base: ${API_BASE_URL}"
 
@@ -45,9 +46,15 @@ curl -fsS -X POST "${API_BASE_URL}/api/chat/conversations/${C_ID}/messages" -H "
   -d "{\"content\":\"preflight chat\",\"provider\":\"${CHAT_PROVIDER}\",\"model\":\"${CHAT_MODEL}\"}" >/dev/null
 
 echo "[preflight] terminal execution"
+CMD_JSON="$(curl -fsS "${API_BASE_URL}/api/commands?workspaceId=${WS_ID}" -H "$AUTH")"
+CMD_ID="$(printf '%s' "$CMD_JSON" | PREFLIGHT_COMMAND_NAME="$PREFLIGHT_COMMAND_NAME" python3 -c 'import os,sys,json;d=json.load(sys.stdin);name=os.environ.get("PREFLIGHT_COMMAND_NAME","Preflight Health Check");cmd=next((c for c in d["data"]["commands"] if c.get("name")==name),None);print(cmd["id"] if cmd else "")')"
+if [ -z "$CMD_ID" ]; then
+  echo "[preflight] missing allowlisted command: ${PREFLIGHT_COMMAND_NAME}" >&2
+  exit 1
+fi
 curl -fsS -X POST "${API_BASE_URL}/api/commands/execute-terminal" -H "$AUTH" \
   -H 'Content-Type: application/json' \
-  -d "{\"workspaceId\":\"${WS_ID}\",\"command\":\"echo PRECHECK_OK\"}" >/dev/null
+  -d "{\"workspaceId\":\"${WS_ID}\",\"command\":\"${CMD_ID}\"}" >/dev/null
 
 echo "[preflight] workflow run"
 W_JSON="$(curl -fsS "${API_BASE_URL}/api/workflows" -H "$AUTH")"
@@ -64,4 +71,3 @@ echo "[preflight] integrations status"
 curl -fsS "${API_BASE_URL}/api/integrations/status?workspaceId=${WS_ID}" -H "$AUTH" >/dev/null
 
 echo "[preflight] SUCCESS"
-
