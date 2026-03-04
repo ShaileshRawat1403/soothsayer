@@ -28,9 +28,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Workspace typecheck (informational)
+      - name: Workspace typecheck
         run: pnpm -r typecheck
-        continue-on-error: true
 
       - name: API lint
         run: >-
