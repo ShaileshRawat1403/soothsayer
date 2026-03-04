@@ -47,11 +47,14 @@ export interface FunctionDefinition {
   description: string;
   parameters: {
     type: 'object';
-    properties: Record<string, {
-      type: string;
-      description: string;
-      enum?: string[];
-    }>;
+    properties: Record<
+      string,
+      {
+        type: string;
+        description: string;
+        enum?: string[];
+      }
+    >;
     required?: string[];
   };
 }
@@ -74,22 +77,25 @@ export abstract class ModelAdapter {
 // OpenAI Adapter
 export class OpenAIAdapter extends ModelAdapter {
   async chat(request: ChatCompletionRequest): Promise<ChatCompletionResponse> {
-    const response = await fetch(`${this.config.baseUrl || 'https://api.openai.com/v1'}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.config.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: request.config.model || this.config.model,
-        messages: request.messages,
-        max_tokens: request.config.maxTokens || this.config.maxTokens,
-        temperature: request.config.temperature ?? this.config.temperature,
-        top_p: request.config.topP ?? this.config.topP,
-        functions: request.functions,
-        stream: false,
-      }),
-    });
+    const response = await fetch(
+      `${this.config.baseUrl || 'https://api.openai.com/v1'}/chat/completions`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.config.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: request.config.model || this.config.model,
+          messages: request.messages,
+          max_tokens: request.config.maxTokens || this.config.maxTokens,
+          temperature: request.config.temperature ?? this.config.temperature,
+          top_p: request.config.topP ?? this.config.topP,
+          functions: request.functions,
+          stream: false,
+        }),
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`OpenAI API error: ${response.statusText}`);
@@ -120,21 +126,24 @@ export class OpenAIAdapter extends ModelAdapter {
     request: ChatCompletionRequest,
     onToken: (token: string) => void
   ): Promise<ChatCompletionResponse> {
-    const response = await fetch(`${this.config.baseUrl || 'https://api.openai.com/v1'}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${this.config.apiKey}`,
-      },
-      body: JSON.stringify({
-        model: request.config.model || this.config.model,
-        messages: request.messages,
-        max_tokens: request.config.maxTokens || this.config.maxTokens,
-        temperature: request.config.temperature ?? this.config.temperature,
-        top_p: request.config.topP ?? this.config.topP,
-        stream: true,
-      }),
-    });
+    const response = await fetch(
+      `${this.config.baseUrl || 'https://api.openai.com/v1'}/chat/completions`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.config.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: request.config.model || this.config.model,
+          messages: request.messages,
+          max_tokens: request.config.maxTokens || this.config.maxTokens,
+          temperature: request.config.temperature ?? this.config.temperature,
+          top_p: request.config.topP ?? this.config.topP,
+          stream: true,
+        }),
+      }
+    );
 
     if (!response.ok) {
       throw new Error(`OpenAI API error: ${response.statusText}`);
@@ -155,7 +164,7 @@ export class OpenAIAdapter extends ModelAdapter {
       if (done) break;
 
       const chunk = decoder.decode(value);
-      const lines = chunk.split('\n').filter((line) => line.startsWith('data: '));
+      const lines = chunk.split('\n').filter((line: string) => line.startsWith('data: '));
 
       for (const line of lines) {
         const data = line.slice(6);
@@ -165,12 +174,12 @@ export class OpenAIAdapter extends ModelAdapter {
           const parsed = JSON.parse(data);
           responseId = parsed.id;
           const delta = parsed.choices[0]?.delta;
-          
+
           if (delta?.content) {
             fullContent += delta.content;
             onToken(delta.content);
           }
-          
+
           if (parsed.choices[0]?.finish_reason) {
             finishReason = parsed.choices[0].finish_reason;
           }

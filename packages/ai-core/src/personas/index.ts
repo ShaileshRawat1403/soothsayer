@@ -5,14 +5,7 @@ export const PersonaConfigSchema = z.object({
   id: z.string(),
   name: z.string(),
   slug: z.string(),
-  category: z.enum([
-    'Engineering',
-    'Business',
-    'Data',
-    'Security',
-    'Operations',
-    'Meta',
-  ]),
+  category: z.enum(['Engineering', 'Business', 'Data', 'Security', 'Operations', 'Meta']),
   description: z.string(),
   icon: z.string(),
   color: z.string(),
@@ -85,20 +78,20 @@ export class PersonaEngine {
 
   recommendPersona(context: string): { persona: PersonaConfig; confidence: number } | null {
     const contextLower = context.toLowerCase();
-    
+
     // Simple keyword-based recommendation
     const recommendations: Array<{ persona: PersonaConfig; score: number }> = [];
-    
+
     this.personas.forEach((persona) => {
       let score = 0;
-      
+
       // Check capabilities match
       persona.capabilities.forEach((cap) => {
         if (contextLower.includes(cap.toLowerCase())) {
           score += 10;
         }
       });
-      
+
       // Check category-specific keywords
       if (persona.category === 'Engineering') {
         const engineeringKeywords = ['code', 'bug', 'api', 'database', 'deploy', 'test', 'debug'];
@@ -106,37 +99,40 @@ export class PersonaEngine {
           if (contextLower.includes(kw)) score += 5;
         });
       }
-      
+
       if (persona.category === 'Business') {
         const businessKeywords = ['product', 'roadmap', 'stakeholder', 'requirement', 'strategy'];
         businessKeywords.forEach((kw) => {
           if (contextLower.includes(kw)) score += 5;
         });
       }
-      
+
       if (persona.category === 'Security') {
         const securityKeywords = ['security', 'vulnerability', 'audit', 'compliance', 'pii'];
         securityKeywords.forEach((kw) => {
           if (contextLower.includes(kw)) score += 5;
         });
       }
-      
+
       if (score > 0) {
         recommendations.push({ persona, score });
       }
     });
-    
+
     if (recommendations.length === 0) {
       // Return Auto persona as default
       const autoPersona = this.personas.get('auto');
       return autoPersona ? { persona: autoPersona, confidence: 0.5 } : null;
     }
-    
+
     // Sort by score and return highest
     recommendations.sort((a, b) => b.score - a.score);
     const best = recommendations[0];
+    if (!best) {
+      return null;
+    }
     const maxPossibleScore = 50; // Arbitrary max for normalization
-    
+
     return {
       persona: best.persona,
       confidence: Math.min(best.score / maxPossibleScore, 1),
@@ -182,7 +178,8 @@ export const DEFAULT_PERSONAS: PersonaConfig[] = [
     description: 'Automatically selects the best persona based on context',
     icon: '🎯',
     color: 'from-indigo-500 to-purple-500',
-    systemPrompt: 'You are an intelligent AI assistant that adapts your communication style and expertise based on the context of each conversation.',
+    systemPrompt:
+      'You are an intelligent AI assistant that adapts your communication style and expertise based on the context of each conversation.',
     modelConfig: {
       temperature: 0.7,
       maxTokens: 4096,
@@ -222,8 +219,16 @@ Approach problems methodically, consider edge cases, and prioritize maintainabil
       presencePenalty: 0,
     },
     capabilities: ['System Design', 'Code Review', 'Architecture', 'Mentoring', 'Performance'],
-    preferredTools: ['code_generator', 'refactor_assistant', 'performance_profiler', 'test_generator'],
-    restrictions: ['No direct production changes without review', 'Document all architectural decisions'],
+    preferredTools: [
+      'code_generator',
+      'refactor_assistant',
+      'performance_profiler',
+      'test_generator',
+    ],
+    restrictions: [
+      'No direct production changes without review',
+      'Document all architectural decisions',
+    ],
     responseStyle: { tone: 'technical', verbosity: 'detailed', formatting: ['markdown', 'code'] },
     riskTolerance: 'low',
     approvalRequired: false,
@@ -285,9 +290,19 @@ Always prioritize security best practices and assume a defensive mindset.`,
       frequencyPenalty: 0,
       presencePenalty: 0,
     },
-    capabilities: ['Security Audit', 'Vulnerability Analysis', 'Compliance', 'Hardening', 'Incident Response'],
+    capabilities: [
+      'Security Audit',
+      'Vulnerability Analysis',
+      'Compliance',
+      'Hardening',
+      'Incident Response',
+    ],
     preferredTools: ['policy_checker', 'pii_redaction', 'security_checklist', 'audit_generator'],
-    restrictions: ['Never expose credentials or secrets', 'Always redact PII', 'Flag high-risk operations'],
+    restrictions: [
+      'Never expose credentials or secrets',
+      'Always redact PII',
+      'Flag high-risk operations',
+    ],
     responseStyle: { tone: 'formal', verbosity: 'detailed', formatting: ['markdown', 'lists'] },
     riskTolerance: 'low',
     approvalRequired: true,
@@ -318,9 +333,18 @@ Focus on user value, business impact, and clear communication.`,
       presencePenalty: 0,
     },
     capabilities: ['Strategy', 'Roadmapping', 'User Research', 'Prioritization', 'Communication'],
-    preferredTools: ['prd_generator', 'roadmap_planner', 'requirements_synthesizer', 'meeting_notes'],
+    preferredTools: [
+      'prd_generator',
+      'roadmap_planner',
+      'requirements_synthesizer',
+      'meeting_notes',
+    ],
     restrictions: [],
-    responseStyle: { tone: 'friendly', verbosity: 'balanced', formatting: ['markdown', 'lists', 'tables'] },
+    responseStyle: {
+      tone: 'friendly',
+      verbosity: 'balanced',
+      formatting: ['markdown', 'lists', 'tables'],
+    },
     riskTolerance: 'medium',
     approvalRequired: false,
     version: 1,
