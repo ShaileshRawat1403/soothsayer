@@ -244,7 +244,8 @@ export class CommandsService {
     }
   }
 
-  private isDangerousCommand(command: string): boolean {
+  // Secondary defense-in-depth only. Primary enforcement is allowlisted command resolution.
+  private failsSecondaryCommandSafetyCheck(command: string): boolean {
     const blockedPatterns = [
       /(^|\s)sudo(\s|$)/i,
       /rm\s+-rf\s+\//i,
@@ -271,7 +272,7 @@ export class CommandsService {
     timedOut: boolean;
     truncated: boolean;
   }> {
-    if (this.isDangerousCommand(command)) {
+    if (this.failsSecondaryCommandSafetyCheck(command)) {
       throw new ForbiddenException('Command blocked by security policy');
     }
 
