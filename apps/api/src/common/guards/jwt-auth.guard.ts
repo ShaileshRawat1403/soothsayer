@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  ExecutionContext,
-  UnauthorizedException,
-} from '@nestjs/common';
+import { Injectable, ExecutionContext, UnauthorizedException, Logger } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Reflector } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
@@ -10,9 +6,11 @@ import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
+  private readonly logger = new Logger(JwtAuthGuard.name);
+
   constructor(
     private reflector: Reflector,
-    private configService: ConfigService,
+    private configService: ConfigService
   ) {
     super();
   }
@@ -30,6 +28,12 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
 
     const authBypass = this.configService.get<boolean>('AUTH_BYPASS', false);
     if (authBypass) {
+      const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
+      if (nodeEnv === 'production') {
+        throw new UnauthorizedException('AUTH_BYPASS is not allowed in production');
+      }
+
+      this.logger.warn('AUTH_BYPASS is enabled. JWT validation is skipped for non-public routes.');
       const request = context.switchToHttp().getRequest();
       request.user = {
         id: 'dev-admin',
@@ -47,7 +51,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     user: TUser,
     info: Error | null,
     _context: ExecutionContext,
-    _status?: unknown,
+    _status?: unknown
   ): TUser {
     if (err || !user) {
       if (info?.name === 'TokenExpiredError') {

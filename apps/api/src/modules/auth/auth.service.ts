@@ -41,7 +41,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
-    private usersService: UsersService,
+    private usersService: UsersService
   ) {}
 
   async validateUser(email: string, password: string): Promise<TokenPayload | null> {
@@ -65,16 +65,31 @@ export class AuthService {
     };
   }
 
-  async login(dto: LoginDto, userAgent?: string, ipAddress?: string): Promise<AuthTokens & { user: TokenPayload }> {
+  async login(
+    dto: LoginDto,
+    userAgent?: string,
+    ipAddress?: string
+  ): Promise<AuthTokens & { user: TokenPayload }> {
     const authBypass = this.configService.get<boolean>('AUTH_BYPASS', false);
     if (authBypass) {
-      const fallbackEmail = this.configService.get<string>('AUTH_BYPASS_EMAIL', 'admin@soothsayer.local');
+      const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
+      if (nodeEnv === 'production') {
+        throw new UnauthorizedException('AUTH_BYPASS is not allowed in production');
+      }
+
+      this.logger.warn('AUTH_BYPASS is enabled in non-production. Password checks are skipped.');
+      const fallbackEmail = this.configService.get<string>(
+        'AUTH_BYPASS_EMAIL',
+        'admin@soothsayer.local'
+      );
       const email = (dto.email || fallbackEmail).toLowerCase();
       let user = await this.prisma.user.findUnique({ where: { email } });
 
       if (!user) {
         const generatedPassword = `Bypass${uuidv4()}Aa1!`;
-        const generatedName = dto.email ? dto.email.split('@')[0] : this.configService.get<string>('AUTH_BYPASS_NAME', 'Admin User');
+        const generatedName = dto.email
+          ? dto.email.split('@')[0]
+          : this.configService.get<string>('AUTH_BYPASS_NAME', 'Admin User');
         const provisioned = await this.register({
           email,
           password: generatedPassword,
@@ -301,24 +316,24 @@ export class AuthService {
 
     // Generate password reset token (in real app, send via email)
     const resetToken = uuidv4();
-    
+
     // Store token (in real app, would use a dedicated table or cache)
     this.logger.log(`Password reset requested for: ${dto.email} (Token: ${resetToken})`);
-    
+
     // TODO: Send email with reset link
   }
 
   async resetPassword(dto: ResetPasswordDto): Promise<void> {
     // TODO: Validate reset token and update password
     const passwordHash = await bcrypt.hash(dto.password, this.saltRounds);
-    
+
     this.logger.log(`Password reset completed for token: ${dto.token}`);
   }
 
   private async generateTokens(payload: TokenPayload): Promise<AuthTokens> {
     const accessToken = this.jwtService.sign(payload);
     const refreshToken = uuidv4();
-    
+
     const accessExpiration = this.configService.get<string>('JWT_ACCESS_EXPIRATION', '15m');
     const expiresAt = Date.now() + this.parseExpiration(accessExpiration);
 
@@ -333,7 +348,7 @@ export class AuthService {
     userId: string,
     refreshToken: string,
     userAgent?: string,
-    ipAddress?: string,
+    ipAddress?: string
   ): Promise<void> {
     await this.prisma.session.create({
       data: {
