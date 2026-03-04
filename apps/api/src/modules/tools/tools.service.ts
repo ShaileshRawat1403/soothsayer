@@ -1,6 +1,19 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
+type ToolRow = {
+  id: string;
+  status: string;
+  [key: string]: unknown;
+};
+
+type ToolConfigRow = {
+  toolId: string;
+  enabled: boolean;
+  customConfig: unknown;
+  overrides: unknown;
+};
+
 @Injectable()
 export class ToolsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -10,16 +23,16 @@ export class ToolsService {
       await this.ensureWorkspaceAccess(workspaceId, userId);
     }
 
-    const tools = await this.prisma.tool.findMany({
+    const tools = (await this.prisma.tool.findMany({
       where: { status: { not: 'disabled' } },
       orderBy: [{ category: 'asc' }, { name: 'asc' }],
-    });
+    })) as ToolRow[];
 
     if (!workspaceId) {
       return { tools };
     }
 
-    const configs = await this.prisma.toolConfiguration.findMany({
+    const configs = (await this.prisma.toolConfiguration.findMany({
       where: { workspaceId },
       select: {
         toolId: true,
@@ -27,11 +40,13 @@ export class ToolsService {
         customConfig: true,
         overrides: true,
       },
-    });
+    })) as ToolConfigRow[];
 
-    const configByToolId = new Map(configs.map((config) => [config.toolId, config]));
+    const configByToolId = new Map(
+      configs.map((config: ToolConfigRow) => [config.toolId, config] as const)
+    );
     return {
-      tools: tools.map((tool) => ({
+      tools: tools.map((tool: ToolRow) => ({
         ...tool,
         workspaceConfig: configByToolId.get(tool.id) || null,
       })),
