@@ -17,9 +17,11 @@ const developerPersonas = [
     name: 'Staff Software Engineer',
     slug: 'staff-software-engineer',
     category: 'developer',
-    description: 'Senior technical leader focused on architecture, mentoring, and complex problem-solving',
+    description:
+      'Senior technical leader focused on architecture, mentoring, and complex problem-solving',
     config: {
-      mission: 'Provide expert-level software engineering guidance with focus on scalability, maintainability, and best practices',
+      mission:
+        'Provide expert-level software engineering guidance with focus on scalability, maintainability, and best practices',
       communicationStyle: 'technical',
       verbosityLevel: 'detailed',
       decisionStyle: 'balanced',
@@ -31,9 +33,18 @@ const developerPersonas = [
         { toolId: 'refactor-assistant', priority: 'primary' },
         { toolId: 'performance-profiler', priority: 'secondary' },
       ],
-      constraints: ['Follow SOLID principles', 'Consider backward compatibility', 'Document architectural decisions'],
-      approvalDefaults: { requireApprovalForTier: 3, autoApproveCategories: ['code-analysis'], alwaysApproveCategories: [] },
-      systemPromptTemplate: 'You are a Staff Software Engineer with deep expertise in software architecture and engineering excellence.',
+      constraints: [
+        'Follow SOLID principles',
+        'Consider backward compatibility',
+        'Document architectural decisions',
+      ],
+      approvalDefaults: {
+        requireApprovalForTier: 3,
+        autoApproveCategories: ['code-analysis'],
+        alwaysApproveCategories: [],
+      },
+      systemPromptTemplate:
+        'You are a Staff Software Engineer with deep expertise in software architecture and engineering excellence.',
     },
   },
   {
@@ -42,7 +53,8 @@ const developerPersonas = [
     category: 'developer',
     description: 'Specialist in server-side development, APIs, and data management',
     config: {
-      mission: 'Design and implement robust backend systems with focus on API design, data modeling, and performance',
+      mission:
+        'Design and implement robust backend systems with focus on API design, data modeling, and performance',
       communicationStyle: 'technical',
       verbosityLevel: 'standard',
       decisionStyle: 'balanced',
@@ -54,9 +66,18 @@ const developerPersonas = [
         { toolId: 'sql-assistant', priority: 'primary' },
         { toolId: 'code-generator', priority: 'secondary' },
       ],
-      constraints: ['RESTful API best practices', 'Security-first approach', 'Document all endpoints'],
-      approvalDefaults: { requireApprovalForTier: 2, autoApproveCategories: ['api-validation'], alwaysApproveCategories: [] },
-      systemPromptTemplate: 'You are a Backend API Engineer specializing in building scalable and secure server-side systems.',
+      constraints: [
+        'RESTful API best practices',
+        'Security-first approach',
+        'Document all endpoints',
+      ],
+      approvalDefaults: {
+        requireApprovalForTier: 2,
+        autoApproveCategories: ['api-validation'],
+        alwaysApproveCategories: [],
+      },
+      systemPromptTemplate:
+        'You are a Backend API Engineer specializing in building scalable and secure server-side systems.',
     },
   },
   {
@@ -65,7 +86,8 @@ const developerPersonas = [
     category: 'developer',
     description: 'Expert in user interfaces, React, and modern frontend technologies',
     config: {
-      mission: 'Create exceptional user experiences with modern frontend technologies and accessibility standards',
+      mission:
+        'Create exceptional user experiences with modern frontend technologies and accessibility standards',
       communicationStyle: 'friendly',
       verbosityLevel: 'standard',
       decisionStyle: 'balanced',
@@ -76,9 +98,18 @@ const developerPersonas = [
         { toolId: 'code-generator', priority: 'primary' },
         { toolId: 'refactor-assistant', priority: 'secondary' },
       ],
-      constraints: ['WCAG accessibility compliance', 'Mobile-first responsive design', 'Component reusability'],
-      approvalDefaults: { requireApprovalForTier: 2, autoApproveCategories: ['ui-components'], alwaysApproveCategories: [] },
-      systemPromptTemplate: 'You are a Frontend UI Engineer passionate about creating beautiful, accessible, and performant user interfaces.',
+      constraints: [
+        'WCAG accessibility compliance',
+        'Mobile-first responsive design',
+        'Component reusability',
+      ],
+      approvalDefaults: {
+        requireApprovalForTier: 2,
+        autoApproveCategories: ['ui-components'],
+        alwaysApproveCategories: [],
+      },
+      systemPromptTemplate:
+        'You are a Frontend UI Engineer passionate about creating beautiful, accessible, and performant user interfaces.',
     },
   },
   {
@@ -87,7 +118,8 @@ const developerPersonas = [
     category: 'developer',
     description: 'Infrastructure, deployment, and reliability specialist',
     config: {
-      mission: 'Ensure system reliability, automate deployments, and maintain infrastructure excellence',
+      mission:
+        'Ensure system reliability, automate deployments, and maintain infrastructure excellence',
       communicationStyle: 'technical',
       verbosityLevel: 'detailed',
       decisionStyle: 'cautious',
@@ -99,9 +131,18 @@ const developerPersonas = [
         { toolId: 'performance-profiler', priority: 'primary' },
         { toolId: 'security-checklist', priority: 'secondary' },
       ],
-      constraints: ['Zero-downtime deployments', 'Infrastructure as code', 'Comprehensive monitoring'],
-      approvalDefaults: { requireApprovalForTier: 2, autoApproveCategories: ['monitoring'], alwaysApproveCategories: ['production-deploy'] },
-      systemPromptTemplate: 'You are a DevOps/SRE Engineer focused on reliability, automation, and infrastructure excellence.',
+      constraints: [
+        'Zero-downtime deployments',
+        'Infrastructure as code',
+        'Comprehensive monitoring',
+      ],
+      approvalDefaults: {
+        requireApprovalForTier: 2,
+        autoApproveCategories: ['monitoring'],
+        alwaysApproveCategories: ['production-deploy'],
+      },
+      systemPromptTemplate:
+        'You are a DevOps/SRE Engineer focused on reliability, automation, and infrastructure excellence.',
     },
   },
   {
@@ -121,9 +162,18 @@ const developerPersonas = [
         { toolId: 'test-generator', priority: 'primary' },
         { toolId: 'code-generator', priority: 'secondary' },
       ],
-      constraints: ['Test coverage requirements', 'Edge case identification', 'Regression prevention'],
-      approvalDefaults: { requireApprovalForTier: 3, autoApproveCategories: ['test-generation'], alwaysApproveCategories: [] },
-      systemPromptTemplate: 'You are a QA Automation Engineer dedicated to ensuring software quality through rigorous testing.',
+      constraints: [
+        'Test coverage requirements',
+        'Edge case identification',
+        'Regression prevention',
+      ],
+      approvalDefaults: {
+        requireApprovalForTier: 3,
+        autoApproveCategories: ['test-generation'],
+        alwaysApproveCategories: [],
+      },
+      systemPromptTemplate:
+        'You are a QA Automation Engineer dedicated to ensuring software quality through rigorous testing.',
     },
   },
   {
@@ -138,15 +188,26 @@ const developerPersonas = [
       decisionStyle: 'cautious',
       riskTolerance: 'very-low',
       outputFormat: 'structured',
-      expertiseTags: ['security', 'compliance', 'penetration-testing', 'encryption', 'authentication'],
+      expertiseTags: [
+        'security',
+        'compliance',
+        'penetration-testing',
+        'encryption',
+        'authentication',
+      ],
       toolPreferences: [
         { toolId: 'security-checklist', priority: 'primary' },
         { toolId: 'pii-scanner', priority: 'primary' },
         { toolId: 'dependency-scanner', priority: 'secondary' },
       ],
       constraints: ['Security-first approach', 'Compliance requirements', 'Defense in depth'],
-      approvalDefaults: { requireApprovalForTier: 1, autoApproveCategories: [], alwaysApproveCategories: ['security-changes'] },
-      systemPromptTemplate: 'You are a Security Engineer focused on protecting systems and data from threats and vulnerabilities.',
+      approvalDefaults: {
+        requireApprovalForTier: 1,
+        autoApproveCategories: [],
+        alwaysApproveCategories: ['security-changes'],
+      },
+      systemPromptTemplate:
+        'You are a Security Engineer focused on protecting systems and data from threats and vulnerabilities.',
     },
   },
   {
@@ -168,8 +229,13 @@ const developerPersonas = [
         { toolId: 'data-quality-checker', priority: 'secondary' },
       ],
       constraints: ['Data quality standards', 'Scalable architectures', 'Documentation'],
-      approvalDefaults: { requireApprovalForTier: 2, autoApproveCategories: ['data-analysis'], alwaysApproveCategories: [] },
-      systemPromptTemplate: 'You are a Data Engineer building scalable and reliable data infrastructure.',
+      approvalDefaults: {
+        requireApprovalForTier: 2,
+        autoApproveCategories: ['data-analysis'],
+        alwaysApproveCategories: [],
+      },
+      systemPromptTemplate:
+        'You are a Data Engineer building scalable and reliable data infrastructure.',
     },
   },
   {
@@ -190,8 +256,13 @@ const developerPersonas = [
         { toolId: 'csv-json-analyzer', priority: 'secondary' },
       ],
       constraints: ['Model reproducibility', 'Performance monitoring', 'Bias detection'],
-      approvalDefaults: { requireApprovalForTier: 2, autoApproveCategories: ['model-analysis'], alwaysApproveCategories: [] },
-      systemPromptTemplate: 'You are an ML Engineer focused on building and deploying machine learning systems.',
+      approvalDefaults: {
+        requireApprovalForTier: 2,
+        autoApproveCategories: ['model-analysis'],
+        alwaysApproveCategories: [],
+      },
+      systemPromptTemplate:
+        'You are an ML Engineer focused on building and deploying machine learning systems.',
     },
   },
   {
@@ -212,8 +283,13 @@ const developerPersonas = [
         { toolId: 'code-generator', priority: 'secondary' },
       ],
       constraints: ['Business alignment', 'Future scalability', 'Cost optimization'],
-      approvalDefaults: { requireApprovalForTier: 2, autoApproveCategories: ['design-review'], alwaysApproveCategories: [] },
-      systemPromptTemplate: 'You are a Solutions Architect designing technical solutions that meet business objectives.',
+      approvalDefaults: {
+        requireApprovalForTier: 2,
+        autoApproveCategories: ['design-review'],
+        alwaysApproveCategories: [],
+      },
+      systemPromptTemplate:
+        'You are a Solutions Architect designing technical solutions that meet business objectives.',
     },
   },
   {
@@ -234,8 +310,13 @@ const developerPersonas = [
         { toolId: 'dependency-scanner', priority: 'secondary' },
       ],
       constraints: ['Constructive feedback', 'Best practices focus', 'Knowledge sharing'],
-      approvalDefaults: { requireApprovalForTier: 3, autoApproveCategories: ['code-analysis'], alwaysApproveCategories: [] },
-      systemPromptTemplate: 'You are a Code Reviewer focused on improving code quality and sharing knowledge.',
+      approvalDefaults: {
+        requireApprovalForTier: 3,
+        autoApproveCategories: ['code-analysis'],
+        alwaysApproveCategories: [],
+      },
+      systemPromptTemplate:
+        'You are a Code Reviewer focused on improving code quality and sharing knowledge.',
     },
   },
 ];
@@ -247,21 +328,33 @@ const businessPersonas = [
     category: 'business',
     description: 'Product strategy, roadmap, and stakeholder management expert',
     config: {
-      mission: 'Define product vision and strategy, prioritize features, and ensure successful delivery',
+      mission:
+        'Define product vision and strategy, prioritize features, and ensure successful delivery',
       communicationStyle: 'professional',
       verbosityLevel: 'standard',
       decisionStyle: 'balanced',
       riskTolerance: 'medium',
       outputFormat: 'markdown',
-      expertiseTags: ['product-strategy', 'roadmapping', 'user-research', 'prioritization', 'stakeholder-management'],
+      expertiseTags: [
+        'product-strategy',
+        'roadmapping',
+        'user-research',
+        'prioritization',
+        'stakeholder-management',
+      ],
       toolPreferences: [
         { toolId: 'prd-generator', priority: 'primary' },
         { toolId: 'roadmap-planner', priority: 'primary' },
         { toolId: 'requirements-synthesizer', priority: 'secondary' },
       ],
       constraints: ['User-centric approach', 'Data-driven decisions', 'Clear communication'],
-      approvalDefaults: { requireApprovalForTier: 2, autoApproveCategories: ['documentation'], alwaysApproveCategories: [] },
-      systemPromptTemplate: 'You are a Product Manager focused on delivering value to users and achieving business objectives.',
+      approvalDefaults: {
+        requireApprovalForTier: 2,
+        autoApproveCategories: ['documentation'],
+        alwaysApproveCategories: [],
+      },
+      systemPromptTemplate:
+        'You are a Product Manager focused on delivering value to users and achieving business objectives.',
     },
   },
   {
@@ -276,14 +369,25 @@ const businessPersonas = [
       decisionStyle: 'balanced',
       riskTolerance: 'low',
       outputFormat: 'structured',
-      expertiseTags: ['project-planning', 'risk-management', 'resource-allocation', 'agile', 'communication'],
+      expertiseTags: [
+        'project-planning',
+        'risk-management',
+        'resource-allocation',
+        'agile',
+        'communication',
+      ],
       toolPreferences: [
         { toolId: 'meeting-notes-processor', priority: 'primary' },
         { toolId: 'sop-generator', priority: 'secondary' },
       ],
       constraints: ['Timeline adherence', 'Risk mitigation', 'Clear documentation'],
-      approvalDefaults: { requireApprovalForTier: 2, autoApproveCategories: ['planning'], alwaysApproveCategories: [] },
-      systemPromptTemplate: 'You are a Project Manager dedicated to delivering projects on time and within scope.',
+      approvalDefaults: {
+        requireApprovalForTier: 2,
+        autoApproveCategories: ['planning'],
+        alwaysApproveCategories: [],
+      },
+      systemPromptTemplate:
+        'You are a Project Manager dedicated to delivering projects on time and within scope.',
     },
   },
   {
@@ -298,14 +402,24 @@ const businessPersonas = [
       decisionStyle: 'balanced',
       riskTolerance: 'low',
       outputFormat: 'structured',
-      expertiseTags: ['requirements', 'process-analysis', 'documentation', 'stakeholder-management'],
+      expertiseTags: [
+        'requirements',
+        'process-analysis',
+        'documentation',
+        'stakeholder-management',
+      ],
       toolPreferences: [
         { toolId: 'requirements-synthesizer', priority: 'primary' },
         { toolId: 'csv-json-analyzer', priority: 'secondary' },
       ],
       constraints: ['Thorough documentation', 'Stakeholder alignment', 'Clear requirements'],
-      approvalDefaults: { requireApprovalForTier: 2, autoApproveCategories: ['analysis'], alwaysApproveCategories: [] },
-      systemPromptTemplate: 'You are a Business Analyst bridging business needs and technical implementation.',
+      approvalDefaults: {
+        requireApprovalForTier: 2,
+        autoApproveCategories: ['analysis'],
+        alwaysApproveCategories: [],
+      },
+      systemPromptTemplate:
+        'You are a Business Analyst bridging business needs and technical implementation.',
     },
   },
   {
@@ -320,14 +434,25 @@ const businessPersonas = [
       decisionStyle: 'proactive',
       riskTolerance: 'medium',
       outputFormat: 'structured',
-      expertiseTags: ['operations', 'process-improvement', 'efficiency', 'metrics', 'team-management'],
+      expertiseTags: [
+        'operations',
+        'process-improvement',
+        'efficiency',
+        'metrics',
+        'team-management',
+      ],
       toolPreferences: [
         { toolId: 'sop-generator', priority: 'primary' },
         { toolId: 'kpi-assistant', priority: 'primary' },
       ],
       constraints: ['Efficiency focus', 'Cost awareness', 'Team support'],
-      approvalDefaults: { requireApprovalForTier: 2, autoApproveCategories: ['operations'], alwaysApproveCategories: [] },
-      systemPromptTemplate: 'You are an Operations Manager focused on efficiency and smooth business operations.',
+      approvalDefaults: {
+        requireApprovalForTier: 2,
+        autoApproveCategories: ['operations'],
+        alwaysApproveCategories: [],
+      },
+      systemPromptTemplate:
+        'You are an Operations Manager focused on efficiency and smooth business operations.',
     },
   },
   {
@@ -342,14 +467,25 @@ const businessPersonas = [
       decisionStyle: 'balanced',
       riskTolerance: 'low',
       outputFormat: 'text',
-      expertiseTags: ['customer-service', 'communication', 'problem-solving', 'empathy', 'processes'],
+      expertiseTags: [
+        'customer-service',
+        'communication',
+        'problem-solving',
+        'empathy',
+        'processes',
+      ],
       toolPreferences: [
         { toolId: 'email-drafter', priority: 'primary' },
         { toolId: 'sop-generator', priority: 'secondary' },
       ],
       constraints: ['Customer-first approach', 'Empathetic communication', 'Quick resolution'],
-      approvalDefaults: { requireApprovalForTier: 2, autoApproveCategories: ['communication'], alwaysApproveCategories: [] },
-      systemPromptTemplate: 'You are a Customer Support Lead dedicated to exceptional customer experiences.',
+      approvalDefaults: {
+        requireApprovalForTier: 2,
+        autoApproveCategories: ['communication'],
+        alwaysApproveCategories: [],
+      },
+      systemPromptTemplate:
+        'You are a Customer Support Lead dedicated to exceptional customer experiences.',
     },
   },
   {
@@ -370,8 +506,13 @@ const businessPersonas = [
         { toolId: 'email-drafter', priority: 'secondary' },
       ],
       constraints: ['Revenue focus', 'Customer relationships', 'Data-driven'],
-      approvalDefaults: { requireApprovalForTier: 2, autoApproveCategories: ['sales'], alwaysApproveCategories: [] },
-      systemPromptTemplate: 'You are a Sales Strategist focused on driving revenue and building customer relationships.',
+      approvalDefaults: {
+        requireApprovalForTier: 2,
+        autoApproveCategories: ['sales'],
+        alwaysApproveCategories: [],
+      },
+      systemPromptTemplate:
+        'You are a Sales Strategist focused on driving revenue and building customer relationships.',
     },
   },
   {
@@ -392,8 +533,13 @@ const businessPersonas = [
         { toolId: 'csv-json-analyzer', priority: 'secondary' },
       ],
       constraints: ['Brand consistency', 'Data-driven', 'Creative approach'],
-      approvalDefaults: { requireApprovalForTier: 2, autoApproveCategories: ['content'], alwaysApproveCategories: [] },
-      systemPromptTemplate: 'You are a Marketing Strategist building brand awareness and driving growth.',
+      approvalDefaults: {
+        requireApprovalForTier: 2,
+        autoApproveCategories: ['content'],
+        alwaysApproveCategories: [],
+      },
+      systemPromptTemplate:
+        'You are a Marketing Strategist building brand awareness and driving growth.',
     },
   },
   {
@@ -409,12 +555,15 @@ const businessPersonas = [
       riskTolerance: 'medium',
       outputFormat: 'markdown',
       expertiseTags: ['content', 'writing', 'seo', 'storytelling', 'editorial'],
-      toolPreferences: [
-        { toolId: 'email-drafter', priority: 'primary' },
-      ],
+      toolPreferences: [{ toolId: 'email-drafter', priority: 'primary' }],
       constraints: ['Brand voice', 'Audience focus', 'Quality standards'],
-      approvalDefaults: { requireApprovalForTier: 2, autoApproveCategories: ['content'], alwaysApproveCategories: [] },
-      systemPromptTemplate: 'You are a Content Strategist creating compelling content that resonates with audiences.',
+      approvalDefaults: {
+        requireApprovalForTier: 2,
+        autoApproveCategories: ['content'],
+        alwaysApproveCategories: [],
+      },
+      systemPromptTemplate:
+        'You are a Content Strategist creating compelling content that resonates with audiences.',
     },
   },
   {
@@ -435,8 +584,13 @@ const businessPersonas = [
         { toolId: 'requirements-synthesizer', priority: 'secondary' },
       ],
       constraints: ['User-centered', 'Evidence-based', 'Ethical research'],
-      approvalDefaults: { requireApprovalForTier: 2, autoApproveCategories: ['research'], alwaysApproveCategories: [] },
-      systemPromptTemplate: 'You are a UX Researcher dedicated to understanding and advocating for users.',
+      approvalDefaults: {
+        requireApprovalForTier: 2,
+        autoApproveCategories: ['research'],
+        alwaysApproveCategories: [],
+      },
+      systemPromptTemplate:
+        'You are a UX Researcher dedicated to understanding and advocating for users.',
     },
   },
   {
@@ -458,8 +612,13 @@ const businessPersonas = [
         { toolId: 'visualization-recommender', priority: 'secondary' },
       ],
       constraints: ['Accuracy', 'Compliance', 'Clear reporting'],
-      approvalDefaults: { requireApprovalForTier: 1, autoApproveCategories: [], alwaysApproveCategories: ['financial-changes'] },
-      systemPromptTemplate: 'You are a Finance Analyst providing financial insights for informed decision-making.',
+      approvalDefaults: {
+        requireApprovalForTier: 1,
+        autoApproveCategories: [],
+        alwaysApproveCategories: ['financial-changes'],
+      },
+      systemPromptTemplate:
+        'You are a Finance Analyst providing financial insights for informed decision-making.',
     },
   },
   {
@@ -480,8 +639,13 @@ const businessPersonas = [
         { toolId: 'pii-scanner', priority: 'primary' },
       ],
       constraints: ['Legal accuracy', 'Risk aversion', 'Documentation'],
-      approvalDefaults: { requireApprovalForTier: 1, autoApproveCategories: [], alwaysApproveCategories: ['legal-changes'] },
-      systemPromptTemplate: 'You are a Legal/Compliance Analyst ensuring regulatory compliance and managing risks.',
+      approvalDefaults: {
+        requireApprovalForTier: 1,
+        autoApproveCategories: [],
+        alwaysApproveCategories: ['legal-changes'],
+      },
+      systemPromptTemplate:
+        'You are a Legal/Compliance Analyst ensuring regulatory compliance and managing risks.',
     },
   },
   {
@@ -502,8 +666,13 @@ const businessPersonas = [
         { toolId: 'sop-generator', priority: 'secondary' },
       ],
       constraints: ['Confidentiality', 'Fairness', 'Empathy'],
-      approvalDefaults: { requireApprovalForTier: 2, autoApproveCategories: ['hr-general'], alwaysApproveCategories: ['employee-data'] },
-      systemPromptTemplate: 'You are an HR/People Ops Partner supporting employees and fostering a positive culture.',
+      approvalDefaults: {
+        requireApprovalForTier: 2,
+        autoApproveCategories: ['hr-general'],
+        alwaysApproveCategories: ['employee-data'],
+      },
+      systemPromptTemplate:
+        'You are an HR/People Ops Partner supporting employees and fostering a positive culture.',
     },
   },
   {
@@ -525,8 +694,13 @@ const businessPersonas = [
         { toolId: 'forecast-summarizer', priority: 'secondary' },
       ],
       constraints: ['Strategic alignment', 'Confidentiality', 'Efficiency'],
-      approvalDefaults: { requireApprovalForTier: 2, autoApproveCategories: ['planning'], alwaysApproveCategories: [] },
-      systemPromptTemplate: 'You are an Executive Chief of Staff supporting leadership and driving strategic initiatives.',
+      approvalDefaults: {
+        requireApprovalForTier: 2,
+        autoApproveCategories: ['planning'],
+        alwaysApproveCategories: [],
+      },
+      systemPromptTemplate:
+        'You are an Executive Chief of Staff supporting leadership and driving strategic initiatives.',
     },
   },
   {
@@ -535,7 +709,7 @@ const businessPersonas = [
     category: 'business',
     description: 'Multi-disciplinary founder mindset with broad expertise',
     config: {
-      mission: 'Solve problems across domains with a founder\'s resourcefulness and urgency',
+      mission: "Solve problems across domains with a founder's resourcefulness and urgency",
       communicationStyle: 'friendly',
       verbosityLevel: 'concise',
       decisionStyle: 'aggressive',
@@ -548,8 +722,13 @@ const businessPersonas = [
         { toolId: 'code-generator', priority: 'secondary' },
       ],
       constraints: ['Speed over perfection', 'Resource efficiency', 'Customer focus'],
-      approvalDefaults: { requireApprovalForTier: 3, autoApproveCategories: ['all'], alwaysApproveCategories: [] },
-      systemPromptTemplate: 'You are a Founder/Generalist Operator with a bias for action and broad problem-solving skills.',
+      approvalDefaults: {
+        requireApprovalForTier: 3,
+        autoApproveCategories: ['all'],
+        alwaysApproveCategories: [],
+      },
+      systemPromptTemplate:
+        'You are a Founder/Generalist Operator with a bias for action and broad problem-solving skills.',
     },
   },
 ];
@@ -567,14 +746,25 @@ const specialistPersonas = [
       decisionStyle: 'aggressive',
       riskTolerance: 'high',
       outputFormat: 'structured',
-      expertiseTags: ['incident-response', 'communication', 'coordination', 'triage', 'post-mortem'],
+      expertiseTags: [
+        'incident-response',
+        'communication',
+        'coordination',
+        'triage',
+        'post-mortem',
+      ],
       toolPreferences: [
         { toolId: 'log-analyzer', priority: 'primary' },
         { toolId: 'notification-dispatcher', priority: 'primary' },
       ],
       constraints: ['Speed is critical', 'Clear communication', 'Documentation'],
-      approvalDefaults: { requireApprovalForTier: 3, autoApproveCategories: ['incident'], alwaysApproveCategories: [] },
-      systemPromptTemplate: 'You are an Incident Commander leading emergency response with calm and decisive action.',
+      approvalDefaults: {
+        requireApprovalForTier: 3,
+        autoApproveCategories: ['incident'],
+        alwaysApproveCategories: [],
+      },
+      systemPromptTemplate:
+        'You are an Incident Commander leading emergency response with calm and decisive action.',
     },
   },
   {
@@ -589,14 +779,25 @@ const specialistPersonas = [
       decisionStyle: 'cautious',
       riskTolerance: 'low',
       outputFormat: 'structured',
-      expertiseTags: ['debugging', 'root-cause-analysis', 'logging', 'profiling', 'troubleshooting'],
+      expertiseTags: [
+        'debugging',
+        'root-cause-analysis',
+        'logging',
+        'profiling',
+        'troubleshooting',
+      ],
       toolPreferences: [
         { toolId: 'log-analyzer', priority: 'primary' },
         { toolId: 'performance-profiler', priority: 'primary' },
       ],
       constraints: ['Systematic approach', 'Evidence-based', 'Document findings'],
-      approvalDefaults: { requireApprovalForTier: 2, autoApproveCategories: ['analysis'], alwaysApproveCategories: [] },
-      systemPromptTemplate: 'You are a Debug Specialist with expertise in systematic troubleshooting and root cause analysis.',
+      approvalDefaults: {
+        requireApprovalForTier: 2,
+        autoApproveCategories: ['analysis'],
+        alwaysApproveCategories: [],
+      },
+      systemPromptTemplate:
+        'You are a Debug Specialist with expertise in systematic troubleshooting and root cause analysis.',
     },
   },
   {
@@ -611,13 +812,22 @@ const specialistPersonas = [
       decisionStyle: 'balanced',
       riskTolerance: 'low',
       outputFormat: 'markdown',
-      expertiseTags: ['documentation', 'technical-writing', 'tutorials', 'api-docs', 'knowledge-base'],
-      toolPreferences: [
-        { toolId: 'sop-generator', priority: 'primary' },
+      expertiseTags: [
+        'documentation',
+        'technical-writing',
+        'tutorials',
+        'api-docs',
+        'knowledge-base',
       ],
+      toolPreferences: [{ toolId: 'sop-generator', priority: 'primary' }],
       constraints: ['Clarity', 'Accuracy', 'Maintainability'],
-      approvalDefaults: { requireApprovalForTier: 2, autoApproveCategories: ['documentation'], alwaysApproveCategories: [] },
-      systemPromptTemplate: 'You are a Documentation Specialist creating clear and comprehensive documentation.',
+      approvalDefaults: {
+        requireApprovalForTier: 2,
+        autoApproveCategories: ['documentation'],
+        alwaysApproveCategories: [],
+      },
+      systemPromptTemplate:
+        'You are a Documentation Specialist creating clear and comprehensive documentation.',
     },
   },
   {
@@ -633,11 +843,13 @@ const specialistPersonas = [
       riskTolerance: 'low',
       outputFormat: 'markdown',
       expertiseTags: ['training', 'education', 'onboarding', 'mentoring', 'workshops'],
-      toolPreferences: [
-        { toolId: 'sop-generator', priority: 'primary' },
-      ],
+      toolPreferences: [{ toolId: 'sop-generator', priority: 'primary' }],
       constraints: ['Learner-focused', 'Practical examples', 'Assessment'],
-      approvalDefaults: { requireApprovalForTier: 2, autoApproveCategories: ['training'], alwaysApproveCategories: [] },
+      approvalDefaults: {
+        requireApprovalForTier: 2,
+        autoApproveCategories: ['training'],
+        alwaysApproveCategories: [],
+      },
       systemPromptTemplate: 'You are a Training/Enablement Coach helping teams grow and succeed.',
     },
   },
@@ -653,14 +865,25 @@ const specialistPersonas = [
       decisionStyle: 'cautious',
       riskTolerance: 'low',
       outputFormat: 'structured',
-      expertiseTags: ['procurement', 'vendor-management', 'contracts', 'negotiation', 'cost-analysis'],
+      expertiseTags: [
+        'procurement',
+        'vendor-management',
+        'contracts',
+        'negotiation',
+        'cost-analysis',
+      ],
       toolPreferences: [
         { toolId: 'csv-json-analyzer', priority: 'primary' },
         { toolId: 'email-drafter', priority: 'secondary' },
       ],
       constraints: ['Cost efficiency', 'Risk assessment', 'Compliance'],
-      approvalDefaults: { requireApprovalForTier: 1, autoApproveCategories: [], alwaysApproveCategories: ['procurement'] },
-      systemPromptTemplate: 'You are a Procurement Analyst optimizing vendor relationships and procurement efficiency.',
+      approvalDefaults: {
+        requireApprovalForTier: 1,
+        autoApproveCategories: [],
+        alwaysApproveCategories: ['procurement'],
+      },
+      systemPromptTemplate:
+        'You are a Procurement Analyst optimizing vendor relationships and procurement efficiency.',
     },
   },
   {
@@ -682,8 +905,13 @@ const specialistPersonas = [
         { toolId: 'audit-package-generator', priority: 'secondary' },
       ],
       constraints: ['Risk awareness', 'Compliance focus', 'Documentation'],
-      approvalDefaults: { requireApprovalForTier: 1, autoApproveCategories: [], alwaysApproveCategories: ['risk-changes'] },
-      systemPromptTemplate: 'You are a Risk Officer dedicated to identifying and mitigating organizational risks.',
+      approvalDefaults: {
+        requireApprovalForTier: 1,
+        autoApproveCategories: [],
+        alwaysApproveCategories: ['risk-changes'],
+      },
+      systemPromptTemplate:
+        'You are a Risk Officer dedicated to identifying and mitigating organizational risks.',
     },
   },
 ];
@@ -703,8 +931,19 @@ const tools = [
     riskLevel: 'low',
     requiredTier: 1,
     timeout: 60000,
-    inputSchema: { type: 'object', properties: { language: { type: 'string' }, specification: { type: 'string' }, context: { type: 'string' } }, required: ['language', 'specification'] },
-    outputSchema: { type: 'object', properties: { code: { type: 'string' }, explanation: { type: 'string' } } },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        language: { type: 'string' },
+        specification: { type: 'string' },
+        context: { type: 'string' },
+      },
+      required: ['language', 'specification'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: { code: { type: 'string' }, explanation: { type: 'string' } },
+    },
   },
   {
     name: 'Refactor Assistant',
@@ -715,8 +954,23 @@ const tools = [
     riskLevel: 'medium',
     requiredTier: 2,
     timeout: 45000,
-    inputSchema: { type: 'object', properties: { code: { type: 'string' }, language: { type: 'string' }, goals: { type: 'array' } }, required: ['code', 'language'] },
-    outputSchema: { type: 'object', properties: { refactoredCode: { type: 'string' }, changes: { type: 'array' }, explanation: { type: 'string' } } },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        code: { type: 'string' },
+        language: { type: 'string' },
+        goals: { type: 'array' },
+      },
+      required: ['code', 'language'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        refactoredCode: { type: 'string' },
+        changes: { type: 'array' },
+        explanation: { type: 'string' },
+      },
+    },
   },
   {
     name: 'Test Generator',
@@ -727,8 +981,19 @@ const tools = [
     riskLevel: 'low',
     requiredTier: 1,
     timeout: 45000,
-    inputSchema: { type: 'object', properties: { code: { type: 'string' }, language: { type: 'string' }, framework: { type: 'string' } }, required: ['code', 'language'] },
-    outputSchema: { type: 'object', properties: { tests: { type: 'string' }, coverage: { type: 'object' } } },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        code: { type: 'string' },
+        language: { type: 'string' },
+        framework: { type: 'string' },
+      },
+      required: ['code', 'language'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: { tests: { type: 'string' }, coverage: { type: 'object' } },
+    },
   },
   {
     name: 'API Contract Validator',
@@ -739,8 +1004,19 @@ const tools = [
     riskLevel: 'none',
     requiredTier: 0,
     timeout: 30000,
-    inputSchema: { type: 'object', properties: { contract: { type: 'string' }, format: { type: 'string' } }, required: ['contract'] },
-    outputSchema: { type: 'object', properties: { valid: { type: 'boolean' }, errors: { type: 'array' }, suggestions: { type: 'array' } } },
+    inputSchema: {
+      type: 'object',
+      properties: { contract: { type: 'string' }, format: { type: 'string' } },
+      required: ['contract'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        valid: { type: 'boolean' },
+        errors: { type: 'array' },
+        suggestions: { type: 'array' },
+      },
+    },
   },
   {
     name: 'Dependency Scanner',
@@ -751,8 +1027,19 @@ const tools = [
     riskLevel: 'none',
     requiredTier: 0,
     timeout: 60000,
-    inputSchema: { type: 'object', properties: { manifest: { type: 'string' }, type: { type: 'string' } }, required: ['manifest'] },
-    outputSchema: { type: 'object', properties: { vulnerabilities: { type: 'array' }, outdated: { type: 'array' }, recommendations: { type: 'array' } } },
+    inputSchema: {
+      type: 'object',
+      properties: { manifest: { type: 'string' }, type: { type: 'string' } },
+      required: ['manifest'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        vulnerabilities: { type: 'array' },
+        outdated: { type: 'array' },
+        recommendations: { type: 'array' },
+      },
+    },
   },
   {
     name: 'Performance Profiler',
@@ -763,8 +1050,23 @@ const tools = [
     riskLevel: 'low',
     requiredTier: 1,
     timeout: 90000,
-    inputSchema: { type: 'object', properties: { code: { type: 'string' }, language: { type: 'string' }, metrics: { type: 'array' } }, required: ['code'] },
-    outputSchema: { type: 'object', properties: { profile: { type: 'object' }, bottlenecks: { type: 'array' }, recommendations: { type: 'array' } } },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        code: { type: 'string' },
+        language: { type: 'string' },
+        metrics: { type: 'array' },
+      },
+      required: ['code'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        profile: { type: 'object' },
+        bottlenecks: { type: 'array' },
+        recommendations: { type: 'array' },
+      },
+    },
   },
   {
     name: 'Log Analyzer',
@@ -775,8 +1077,23 @@ const tools = [
     riskLevel: 'none',
     requiredTier: 0,
     timeout: 60000,
-    inputSchema: { type: 'object', properties: { logs: { type: 'string' }, format: { type: 'string' }, query: { type: 'string' } }, required: ['logs'] },
-    outputSchema: { type: 'object', properties: { summary: { type: 'object' }, errors: { type: 'array' }, patterns: { type: 'array' } } },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        logs: { type: 'string' },
+        format: { type: 'string' },
+        query: { type: 'string' },
+      },
+      required: ['logs'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        summary: { type: 'object' },
+        errors: { type: 'array' },
+        patterns: { type: 'array' },
+      },
+    },
   },
   {
     name: 'Git Helper',
@@ -787,8 +1104,19 @@ const tools = [
     riskLevel: 'low',
     requiredTier: 1,
     timeout: 30000,
-    inputSchema: { type: 'object', properties: { operation: { type: 'string' }, path: { type: 'string' }, options: { type: 'object' } }, required: ['operation'] },
-    outputSchema: { type: 'object', properties: { output: { type: 'string' }, formatted: { type: 'object' } } },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        operation: { type: 'string' },
+        path: { type: 'string' },
+        options: { type: 'object' },
+      },
+      required: ['operation'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: { output: { type: 'string' }, formatted: { type: 'object' } },
+    },
   },
   // Business Tools
   {
@@ -800,8 +1128,19 @@ const tools = [
     riskLevel: 'none',
     requiredTier: 0,
     timeout: 45000,
-    inputSchema: { type: 'object', properties: { sources: { type: 'array' }, context: { type: 'string' } }, required: ['sources'] },
-    outputSchema: { type: 'object', properties: { requirements: { type: 'array' }, userStories: { type: 'array' }, acceptance: { type: 'array' } } },
+    inputSchema: {
+      type: 'object',
+      properties: { sources: { type: 'array' }, context: { type: 'string' } },
+      required: ['sources'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        requirements: { type: 'array' },
+        userStories: { type: 'array' },
+        acceptance: { type: 'array' },
+      },
+    },
   },
   {
     name: 'PRD Generator',
@@ -812,8 +1151,19 @@ const tools = [
     riskLevel: 'none',
     requiredTier: 0,
     timeout: 60000,
-    inputSchema: { type: 'object', properties: { title: { type: 'string' }, description: { type: 'string' }, requirements: { type: 'array' } }, required: ['title', 'description'] },
-    outputSchema: { type: 'object', properties: { prd: { type: 'string' }, sections: { type: 'object' } } },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string' },
+        description: { type: 'string' },
+        requirements: { type: 'array' },
+      },
+      required: ['title', 'description'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: { prd: { type: 'string' }, sections: { type: 'object' } },
+    },
   },
   {
     name: 'Roadmap Planner',
@@ -824,8 +1174,23 @@ const tools = [
     riskLevel: 'none',
     requiredTier: 0,
     timeout: 45000,
-    inputSchema: { type: 'object', properties: { goals: { type: 'array' }, timeline: { type: 'string' }, resources: { type: 'object' } }, required: ['goals'] },
-    outputSchema: { type: 'object', properties: { roadmap: { type: 'object' }, milestones: { type: 'array' }, dependencies: { type: 'array' } } },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        goals: { type: 'array' },
+        timeline: { type: 'string' },
+        resources: { type: 'object' },
+      },
+      required: ['goals'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        roadmap: { type: 'object' },
+        milestones: { type: 'array' },
+        dependencies: { type: 'array' },
+      },
+    },
   },
   {
     name: 'KPI Assistant',
@@ -836,8 +1201,23 @@ const tools = [
     riskLevel: 'none',
     requiredTier: 0,
     timeout: 30000,
-    inputSchema: { type: 'object', properties: { metrics: { type: 'array' }, period: { type: 'string' }, targets: { type: 'object' } }, required: ['metrics'] },
-    outputSchema: { type: 'object', properties: { dashboard: { type: 'object' }, insights: { type: 'array' }, recommendations: { type: 'array' } } },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        metrics: { type: 'array' },
+        period: { type: 'string' },
+        targets: { type: 'object' },
+      },
+      required: ['metrics'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        dashboard: { type: 'object' },
+        insights: { type: 'array' },
+        recommendations: { type: 'array' },
+      },
+    },
   },
   {
     name: 'Meeting Notes Processor',
@@ -848,8 +1228,19 @@ const tools = [
     riskLevel: 'none',
     requiredTier: 0,
     timeout: 30000,
-    inputSchema: { type: 'object', properties: { notes: { type: 'string' }, participants: { type: 'array' } }, required: ['notes'] },
-    outputSchema: { type: 'object', properties: { summary: { type: 'string' }, actionItems: { type: 'array' }, decisions: { type: 'array' } } },
+    inputSchema: {
+      type: 'object',
+      properties: { notes: { type: 'string' }, participants: { type: 'array' } },
+      required: ['notes'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        summary: { type: 'string' },
+        actionItems: { type: 'array' },
+        decisions: { type: 'array' },
+      },
+    },
   },
   {
     name: 'SOP Generator',
@@ -860,8 +1251,23 @@ const tools = [
     riskLevel: 'none',
     requiredTier: 0,
     timeout: 45000,
-    inputSchema: { type: 'object', properties: { process: { type: 'string' }, context: { type: 'string' }, format: { type: 'string' } }, required: ['process'] },
-    outputSchema: { type: 'object', properties: { sop: { type: 'string' }, steps: { type: 'array' }, checklist: { type: 'array' } } },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        process: { type: 'string' },
+        context: { type: 'string' },
+        format: { type: 'string' },
+      },
+      required: ['process'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        sop: { type: 'string' },
+        steps: { type: 'array' },
+        checklist: { type: 'array' },
+      },
+    },
   },
   {
     name: 'Email Drafter',
@@ -872,8 +1278,24 @@ const tools = [
     riskLevel: 'none',
     requiredTier: 0,
     timeout: 30000,
-    inputSchema: { type: 'object', properties: { purpose: { type: 'string' }, recipient: { type: 'string' }, context: { type: 'string' }, tone: { type: 'string' } }, required: ['purpose'] },
-    outputSchema: { type: 'object', properties: { subject: { type: 'string' }, body: { type: 'string' }, alternatives: { type: 'array' } } },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        purpose: { type: 'string' },
+        recipient: { type: 'string' },
+        context: { type: 'string' },
+        tone: { type: 'string' },
+      },
+      required: ['purpose'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        subject: { type: 'string' },
+        body: { type: 'string' },
+        alternatives: { type: 'array' },
+      },
+    },
   },
   {
     name: 'Forecast Summarizer',
@@ -884,8 +1306,23 @@ const tools = [
     riskLevel: 'none',
     requiredTier: 0,
     timeout: 45000,
-    inputSchema: { type: 'object', properties: { data: { type: 'object' }, period: { type: 'string' }, metrics: { type: 'array' } }, required: ['data'] },
-    outputSchema: { type: 'object', properties: { summary: { type: 'string' }, trends: { type: 'array' }, risks: { type: 'array' } } },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        data: { type: 'object' },
+        period: { type: 'string' },
+        metrics: { type: 'array' },
+      },
+      required: ['data'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        summary: { type: 'string' },
+        trends: { type: 'array' },
+        risks: { type: 'array' },
+      },
+    },
   },
   // Data Tools
   {
@@ -897,8 +1334,23 @@ const tools = [
     riskLevel: 'none',
     requiredTier: 0,
     timeout: 60000,
-    inputSchema: { type: 'object', properties: { data: { type: 'string' }, format: { type: 'string' }, query: { type: 'string' } }, required: ['data'] },
-    outputSchema: { type: 'object', properties: { schema: { type: 'object' }, stats: { type: 'object' }, insights: { type: 'array' } } },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        data: { type: 'string' },
+        format: { type: 'string' },
+        query: { type: 'string' },
+      },
+      required: ['data'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        schema: { type: 'object' },
+        stats: { type: 'object' },
+        insights: { type: 'array' },
+      },
+    },
   },
   {
     name: 'SQL Assistant',
@@ -909,8 +1361,23 @@ const tools = [
     riskLevel: 'low',
     requiredTier: 1,
     timeout: 30000,
-    inputSchema: { type: 'object', properties: { description: { type: 'string' }, schema: { type: 'object' }, dialect: { type: 'string' } }, required: ['description'] },
-    outputSchema: { type: 'object', properties: { query: { type: 'string' }, explanation: { type: 'string' }, optimizations: { type: 'array' } } },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        description: { type: 'string' },
+        schema: { type: 'object' },
+        dialect: { type: 'string' },
+      },
+      required: ['description'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        query: { type: 'string' },
+        explanation: { type: 'string' },
+        optimizations: { type: 'array' },
+      },
+    },
   },
   {
     name: 'Data Quality Checker',
@@ -921,8 +1388,19 @@ const tools = [
     riskLevel: 'none',
     requiredTier: 0,
     timeout: 60000,
-    inputSchema: { type: 'object', properties: { data: { type: 'string' }, rules: { type: 'array' } }, required: ['data'] },
-    outputSchema: { type: 'object', properties: { score: { type: 'number' }, issues: { type: 'array' }, recommendations: { type: 'array' } } },
+    inputSchema: {
+      type: 'object',
+      properties: { data: { type: 'string' }, rules: { type: 'array' } },
+      required: ['data'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        score: { type: 'number' },
+        issues: { type: 'array' },
+        recommendations: { type: 'array' },
+      },
+    },
   },
   {
     name: 'Visualization Recommender',
@@ -933,8 +1411,15 @@ const tools = [
     riskLevel: 'none',
     requiredTier: 0,
     timeout: 30000,
-    inputSchema: { type: 'object', properties: { data: { type: 'object' }, goal: { type: 'string' } }, required: ['data'] },
-    outputSchema: { type: 'object', properties: { recommendations: { type: 'array' }, chartConfig: { type: 'object' } } },
+    inputSchema: {
+      type: 'object',
+      properties: { data: { type: 'object' }, goal: { type: 'string' } },
+      required: ['data'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: { recommendations: { type: 'array' }, chartConfig: { type: 'object' } },
+    },
   },
   {
     name: 'Anomaly Explainer',
@@ -945,8 +1430,23 @@ const tools = [
     riskLevel: 'none',
     requiredTier: 0,
     timeout: 45000,
-    inputSchema: { type: 'object', properties: { data: { type: 'array' }, metric: { type: 'string' }, threshold: { type: 'number' } }, required: ['data', 'metric'] },
-    outputSchema: { type: 'object', properties: { anomalies: { type: 'array' }, explanations: { type: 'array' }, recommendations: { type: 'array' } } },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        data: { type: 'array' },
+        metric: { type: 'string' },
+        threshold: { type: 'number' },
+      },
+      required: ['data', 'metric'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        anomalies: { type: 'array' },
+        explanations: { type: 'array' },
+        recommendations: { type: 'array' },
+      },
+    },
   },
   // Security Tools
   {
@@ -958,8 +1458,19 @@ const tools = [
     riskLevel: 'none',
     requiredTier: 0,
     timeout: 30000,
-    inputSchema: { type: 'object', properties: { content: { type: 'string' }, policies: { type: 'array' } }, required: ['content'] },
-    outputSchema: { type: 'object', properties: { compliant: { type: 'boolean' }, violations: { type: 'array' }, recommendations: { type: 'array' } } },
+    inputSchema: {
+      type: 'object',
+      properties: { content: { type: 'string' }, policies: { type: 'array' } },
+      required: ['content'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        compliant: { type: 'boolean' },
+        violations: { type: 'array' },
+        recommendations: { type: 'array' },
+      },
+    },
   },
   {
     name: 'PII Scanner',
@@ -970,8 +1481,19 @@ const tools = [
     riskLevel: 'none',
     requiredTier: 0,
     timeout: 30000,
-    inputSchema: { type: 'object', properties: { content: { type: 'string' }, types: { type: 'array' } }, required: ['content'] },
-    outputSchema: { type: 'object', properties: { found: { type: 'array' }, redacted: { type: 'string' }, report: { type: 'object' } } },
+    inputSchema: {
+      type: 'object',
+      properties: { content: { type: 'string' }, types: { type: 'array' } },
+      required: ['content'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        found: { type: 'array' },
+        redacted: { type: 'string' },
+        report: { type: 'object' },
+      },
+    },
   },
   {
     name: 'Security Checklist',
@@ -982,8 +1504,19 @@ const tools = [
     riskLevel: 'none',
     requiredTier: 0,
     timeout: 45000,
-    inputSchema: { type: 'object', properties: { type: { type: 'string' }, context: { type: 'object' } }, required: ['type'] },
-    outputSchema: { type: 'object', properties: { checklist: { type: 'array' }, score: { type: 'number' }, recommendations: { type: 'array' } } },
+    inputSchema: {
+      type: 'object',
+      properties: { type: { type: 'string' }, context: { type: 'object' } },
+      required: ['type'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        checklist: { type: 'array' },
+        score: { type: 'number' },
+        recommendations: { type: 'array' },
+      },
+    },
   },
   {
     name: 'Audit Package Generator',
@@ -994,8 +1527,23 @@ const tools = [
     riskLevel: 'low',
     requiredTier: 1,
     timeout: 60000,
-    inputSchema: { type: 'object', properties: { framework: { type: 'string' }, scope: { type: 'object' }, period: { type: 'string' } }, required: ['framework'] },
-    outputSchema: { type: 'object', properties: { package: { type: 'object' }, evidence: { type: 'array' }, gaps: { type: 'array' } } },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        framework: { type: 'string' },
+        scope: { type: 'object' },
+        period: { type: 'string' },
+      },
+      required: ['framework'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        package: { type: 'object' },
+        evidence: { type: 'array' },
+        gaps: { type: 'array' },
+      },
+    },
   },
   // Automation Tools
   {
@@ -1007,8 +1555,23 @@ const tools = [
     riskLevel: 'low',
     requiredTier: 1,
     timeout: 30000,
-    inputSchema: { type: 'object', properties: { task: { type: 'object' }, schedule: { type: 'string' }, options: { type: 'object' } }, required: ['task', 'schedule'] },
-    outputSchema: { type: 'object', properties: { jobId: { type: 'string' }, nextRun: { type: 'string' }, status: { type: 'string' } } },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        task: { type: 'object' },
+        schedule: { type: 'string' },
+        options: { type: 'object' },
+      },
+      required: ['task', 'schedule'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        jobId: { type: 'string' },
+        nextRun: { type: 'string' },
+        status: { type: 'string' },
+      },
+    },
   },
   {
     name: 'Webhook Trigger',
@@ -1019,8 +1582,23 @@ const tools = [
     riskLevel: 'medium',
     requiredTier: 2,
     timeout: 30000,
-    inputSchema: { type: 'object', properties: { url: { type: 'string' }, method: { type: 'string' }, payload: { type: 'object' } }, required: ['url'] },
-    outputSchema: { type: 'object', properties: { status: { type: 'number' }, response: { type: 'object' }, duration: { type: 'number' } } },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string' },
+        method: { type: 'string' },
+        payload: { type: 'object' },
+      },
+      required: ['url'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        status: { type: 'number' },
+        response: { type: 'object' },
+        duration: { type: 'number' },
+      },
+    },
   },
   {
     name: 'Notification Dispatcher',
@@ -1031,8 +1609,23 @@ const tools = [
     riskLevel: 'low',
     requiredTier: 1,
     timeout: 30000,
-    inputSchema: { type: 'object', properties: { channel: { type: 'string' }, recipients: { type: 'array' }, message: { type: 'object' } }, required: ['channel', 'recipients', 'message'] },
-    outputSchema: { type: 'object', properties: { sent: { type: 'number' }, failed: { type: 'number' }, details: { type: 'array' } } },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        channel: { type: 'string' },
+        recipients: { type: 'array' },
+        message: { type: 'object' },
+      },
+      required: ['channel', 'recipients', 'message'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        sent: { type: 'number' },
+        failed: { type: 'number' },
+        details: { type: 'array' },
+      },
+    },
   },
   {
     name: 'Report Exporter',
@@ -1043,8 +1636,23 @@ const tools = [
     riskLevel: 'low',
     requiredTier: 1,
     timeout: 60000,
-    inputSchema: { type: 'object', properties: { data: { type: 'object' }, format: { type: 'string' }, template: { type: 'string' } }, required: ['data', 'format'] },
-    outputSchema: { type: 'object', properties: { url: { type: 'string' }, filename: { type: 'string' }, size: { type: 'number' } } },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        data: { type: 'object' },
+        format: { type: 'string' },
+        template: { type: 'string' },
+      },
+      required: ['data', 'format'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string' },
+        filename: { type: 'string' },
+        size: { type: 'number' },
+      },
+    },
   },
 ];
 
@@ -1058,11 +1666,61 @@ const workflowTemplates = [
     slug: 'bug-triage',
     description: 'Automatically triage and assign incoming bug reports',
     templateCategory: 'engineering',
-    trigger: { type: 'webhook', config: { webhookPath: '/webhooks/bug-triage', allowedMethods: ['POST'] } },
+    trigger: {
+      type: 'webhook',
+      config: { webhookPath: '/webhooks/bug-triage', allowedMethods: ['POST'] },
+    },
     steps: [
-      { id: 'classify', name: 'Classify Bug', type: 'ai', config: { prompt: 'Classify the severity and type of this bug report' }, inputs: [], outputs: [{ name: 'severity', type: 'string' }, { name: 'type', type: 'string' }], dependsOn: [], timeout: 30000, position: { x: 100, y: 100 } },
-      { id: 'assign', name: 'Assign Team', type: 'tool', toolId: 'notification-dispatcher', config: {}, inputs: [{ name: 'severity', type: 'string', source: { type: 'step_output', stepId: 'classify', outputName: 'severity' }, required: true }], outputs: [], dependsOn: ['classify'], timeout: 10000, position: { x: 300, y: 100 } },
-      { id: 'notify', name: 'Send Notification', type: 'notification', config: { notificationConfig: { channel: 'slack', template: 'New bug assigned: {{title}}', recipients: ['#engineering'] } }, inputs: [], outputs: [], dependsOn: ['assign'], timeout: 10000, position: { x: 500, y: 100 } },
+      {
+        id: 'classify',
+        name: 'Classify Bug',
+        type: 'ai',
+        config: { prompt: 'Classify the severity and type of this bug report' },
+        inputs: [],
+        outputs: [
+          { name: 'severity', type: 'string' },
+          { name: 'type', type: 'string' },
+        ],
+        dependsOn: [],
+        timeout: 30000,
+        position: { x: 100, y: 100 },
+      },
+      {
+        id: 'assign',
+        name: 'Assign Team',
+        type: 'tool',
+        toolId: 'notification-dispatcher',
+        config: {},
+        inputs: [
+          {
+            name: 'severity',
+            type: 'string',
+            source: { type: 'step_output', stepId: 'classify', outputName: 'severity' },
+            required: true,
+          },
+        ],
+        outputs: [],
+        dependsOn: ['classify'],
+        timeout: 10000,
+        position: { x: 300, y: 100 },
+      },
+      {
+        id: 'notify',
+        name: 'Send Notification',
+        type: 'notification',
+        config: {
+          notificationConfig: {
+            channel: 'slack',
+            template: 'New bug assigned: {{title}}',
+            recipients: ['#engineering'],
+          },
+        },
+        inputs: [],
+        outputs: [],
+        dependsOn: ['assign'],
+        timeout: 10000,
+        position: { x: 500, y: 100 },
+      },
     ],
     variables: [{ name: 'title', type: 'string', description: 'Bug title', isSecret: false }],
     errorHandling: { defaultRetries: 2, onErrorAction: 'continue', notifyOnError: true },
@@ -1074,11 +1732,71 @@ const workflowTemplates = [
     templateCategory: 'operations',
     trigger: { type: 'manual', config: { allowedRoles: ['admin', 'operator'] } },
     steps: [
-      { id: 'gather', name: 'Gather Logs', type: 'tool', toolId: 'log-analyzer', config: {}, inputs: [{ name: 'timeRange', type: 'string', source: { type: 'variable', name: 'timeRange' }, required: true }], outputs: [{ name: 'analysis', type: 'object' }], dependsOn: [], timeout: 60000, position: { x: 100, y: 100 } },
-      { id: 'summarize', name: 'Generate Summary', type: 'ai', config: { prompt: 'Generate an incident summary from these logs' }, inputs: [{ name: 'logs', type: 'object', source: { type: 'step_output', stepId: 'gather', outputName: 'analysis' }, required: true }], outputs: [{ name: 'summary', type: 'string' }], dependsOn: ['gather'], timeout: 45000, position: { x: 300, y: 100 } },
-      { id: 'export', name: 'Export Report', type: 'tool', toolId: 'report-exporter', config: {}, inputs: [{ name: 'content', type: 'string', source: { type: 'step_output', stepId: 'summarize', outputName: 'summary' }, required: true }], outputs: [{ name: 'url', type: 'string' }], dependsOn: ['summarize'], timeout: 30000, position: { x: 500, y: 100 } },
+      {
+        id: 'gather',
+        name: 'Gather Logs',
+        type: 'tool',
+        toolId: 'log-analyzer',
+        config: {},
+        inputs: [
+          {
+            name: 'timeRange',
+            type: 'string',
+            source: { type: 'variable', name: 'timeRange' },
+            required: true,
+          },
+        ],
+        outputs: [{ name: 'analysis', type: 'object' }],
+        dependsOn: [],
+        timeout: 60000,
+        position: { x: 100, y: 100 },
+      },
+      {
+        id: 'summarize',
+        name: 'Generate Summary',
+        type: 'ai',
+        config: { prompt: 'Generate an incident summary from these logs' },
+        inputs: [
+          {
+            name: 'logs',
+            type: 'object',
+            source: { type: 'step_output', stepId: 'gather', outputName: 'analysis' },
+            required: true,
+          },
+        ],
+        outputs: [{ name: 'summary', type: 'string' }],
+        dependsOn: ['gather'],
+        timeout: 45000,
+        position: { x: 300, y: 100 },
+      },
+      {
+        id: 'export',
+        name: 'Export Report',
+        type: 'tool',
+        toolId: 'report-exporter',
+        config: {},
+        inputs: [
+          {
+            name: 'content',
+            type: 'string',
+            source: { type: 'step_output', stepId: 'summarize', outputName: 'summary' },
+            required: true,
+          },
+        ],
+        outputs: [{ name: 'url', type: 'string' }],
+        dependsOn: ['summarize'],
+        timeout: 30000,
+        position: { x: 500, y: 100 },
+      },
     ],
-    variables: [{ name: 'timeRange', type: 'string', description: 'Time range for log analysis', isSecret: false }],
+    variables: [
+      {
+        name: 'timeRange',
+        type: 'string',
+        description: 'Time range for log analysis',
+        isSecret: false,
+      },
+    ],
     errorHandling: { defaultRetries: 1, onErrorAction: 'stop', notifyOnError: true },
   },
   {
@@ -1088,10 +1806,64 @@ const workflowTemplates = [
     templateCategory: 'engineering',
     trigger: { type: 'manual', config: { allowedRoles: ['admin', 'editor'] } },
     steps: [
-      { id: 'scan', name: 'Scan Dependencies', type: 'tool', toolId: 'dependency-scanner', config: {}, inputs: [], outputs: [{ name: 'vulnerabilities', type: 'array' }], dependsOn: [], timeout: 60000, position: { x: 100, y: 100 } },
-      { id: 'security', name: 'Security Checklist', type: 'tool', toolId: 'security-checklist', config: {}, inputs: [], outputs: [{ name: 'score', type: 'number' }], dependsOn: [], timeout: 45000, position: { x: 100, y: 200 } },
-      { id: 'approval', name: 'Release Approval', type: 'approval', config: { approvalConfig: { approvers: ['release-manager'], timeout: 3600000, message: 'Approve release?' } }, inputs: [], outputs: [], dependsOn: ['scan', 'security'], timeout: 3600000, position: { x: 300, y: 150 } },
-      { id: 'notify', name: 'Notify Team', type: 'notification', config: { notificationConfig: { channel: 'slack', template: 'Release approved and ready', recipients: ['#releases'] } }, inputs: [], outputs: [], dependsOn: ['approval'], timeout: 10000, position: { x: 500, y: 150 } },
+      {
+        id: 'scan',
+        name: 'Scan Dependencies',
+        type: 'tool',
+        toolId: 'dependency-scanner',
+        config: {},
+        inputs: [],
+        outputs: [{ name: 'vulnerabilities', type: 'array' }],
+        dependsOn: [],
+        timeout: 60000,
+        position: { x: 100, y: 100 },
+      },
+      {
+        id: 'security',
+        name: 'Security Checklist',
+        type: 'tool',
+        toolId: 'security-checklist',
+        config: {},
+        inputs: [],
+        outputs: [{ name: 'score', type: 'number' }],
+        dependsOn: [],
+        timeout: 45000,
+        position: { x: 100, y: 200 },
+      },
+      {
+        id: 'approval',
+        name: 'Release Approval',
+        type: 'approval',
+        config: {
+          approvalConfig: {
+            approvers: ['release-manager'],
+            timeout: 3600000,
+            message: 'Approve release?',
+          },
+        },
+        inputs: [],
+        outputs: [],
+        dependsOn: ['scan', 'security'],
+        timeout: 3600000,
+        position: { x: 300, y: 150 },
+      },
+      {
+        id: 'notify',
+        name: 'Notify Team',
+        type: 'notification',
+        config: {
+          notificationConfig: {
+            channel: 'slack',
+            template: 'Release approved and ready',
+            recipients: ['#releases'],
+          },
+        },
+        inputs: [],
+        outputs: [],
+        dependsOn: ['approval'],
+        timeout: 10000,
+        position: { x: 500, y: 150 },
+      },
     ],
     variables: [],
     errorHandling: { defaultRetries: 0, onErrorAction: 'stop', notifyOnError: true },
@@ -1103,12 +1875,70 @@ const workflowTemplates = [
     templateCategory: 'analytics',
     trigger: { type: 'scheduled', config: { cronExpression: '0 9 * * 1', timezone: 'UTC' } },
     steps: [
-      { id: 'fetch', name: 'Fetch Data', type: 'tool', toolId: 'csv-json-analyzer', config: {}, inputs: [], outputs: [{ name: 'data', type: 'object' }], dependsOn: [], timeout: 60000, position: { x: 100, y: 100 } },
-      { id: 'analyze', name: 'Analyze Metrics', type: 'tool', toolId: 'kpi-assistant', config: {}, inputs: [{ name: 'metrics', type: 'object', source: { type: 'step_output', stepId: 'fetch', outputName: 'data' }, required: true }], outputs: [{ name: 'insights', type: 'array' }], dependsOn: ['fetch'], timeout: 45000, position: { x: 300, y: 100 } },
-      { id: 'report', name: 'Generate Report', type: 'tool', toolId: 'report-exporter', config: {}, inputs: [], outputs: [{ name: 'url', type: 'string' }], dependsOn: ['analyze'], timeout: 60000, position: { x: 500, y: 100 } },
-      { id: 'send', name: 'Send Report', type: 'notification', config: { notificationConfig: { channel: 'email', template: 'Weekly data report', recipients: ['{{stakeholders}}'] } }, inputs: [], outputs: [], dependsOn: ['report'], timeout: 10000, position: { x: 700, y: 100 } },
+      {
+        id: 'fetch',
+        name: 'Fetch Data',
+        type: 'tool',
+        toolId: 'csv-json-analyzer',
+        config: {},
+        inputs: [],
+        outputs: [{ name: 'data', type: 'object' }],
+        dependsOn: [],
+        timeout: 60000,
+        position: { x: 100, y: 100 },
+      },
+      {
+        id: 'analyze',
+        name: 'Analyze Metrics',
+        type: 'tool',
+        toolId: 'kpi-assistant',
+        config: {},
+        inputs: [
+          {
+            name: 'metrics',
+            type: 'object',
+            source: { type: 'step_output', stepId: 'fetch', outputName: 'data' },
+            required: true,
+          },
+        ],
+        outputs: [{ name: 'insights', type: 'array' }],
+        dependsOn: ['fetch'],
+        timeout: 45000,
+        position: { x: 300, y: 100 },
+      },
+      {
+        id: 'report',
+        name: 'Generate Report',
+        type: 'tool',
+        toolId: 'report-exporter',
+        config: {},
+        inputs: [],
+        outputs: [{ name: 'url', type: 'string' }],
+        dependsOn: ['analyze'],
+        timeout: 60000,
+        position: { x: 500, y: 100 },
+      },
+      {
+        id: 'send',
+        name: 'Send Report',
+        type: 'notification',
+        config: {
+          notificationConfig: {
+            channel: 'email',
+            template: 'Weekly data report',
+            recipients: ['{{stakeholders}}'],
+          },
+        },
+        inputs: [],
+        outputs: [],
+        dependsOn: ['report'],
+        timeout: 10000,
+        position: { x: 700, y: 100 },
+      },
     ],
-    variables: [{ name: 'stakeholders', type: 'array', description: 'Report recipients', isSecret: false }],
+    variables: [
+      { name: 'stakeholders', type: 'array', description: 'Report recipients', isSecret: false },
+    ],
     errorHandling: { defaultRetries: 2, onErrorAction: 'continue', notifyOnError: true },
   },
   {
@@ -1118,12 +1948,83 @@ const workflowTemplates = [
     templateCategory: 'content',
     trigger: { type: 'manual', config: { allowedRoles: ['editor', 'admin'] } },
     steps: [
-      { id: 'check', name: 'Policy Check', type: 'tool', toolId: 'policy-checker', config: {}, inputs: [{ name: 'content', type: 'string', source: { type: 'variable', name: 'content' }, required: true }], outputs: [{ name: 'compliant', type: 'boolean' }], dependsOn: [], timeout: 30000, position: { x: 100, y: 100 } },
-      { id: 'pii', name: 'PII Scan', type: 'tool', toolId: 'pii-scanner', config: {}, inputs: [{ name: 'content', type: 'string', source: { type: 'variable', name: 'content' }, required: true }], outputs: [{ name: 'found', type: 'array' }], dependsOn: [], timeout: 30000, position: { x: 100, y: 200 } },
-      { id: 'review', name: 'Editorial Review', type: 'approval', config: { approvalConfig: { approvers: ['content-team'], timeout: 86400000, message: 'Review content' } }, inputs: [], outputs: [], dependsOn: ['check', 'pii'], timeout: 86400000, position: { x: 300, y: 150 } },
-      { id: 'publish', name: 'Ready to Publish', type: 'notification', config: { notificationConfig: { channel: 'in-app', template: 'Content approved', recipients: ['{{author}}'] } }, inputs: [], outputs: [], dependsOn: ['review'], timeout: 10000, position: { x: 500, y: 150 } },
+      {
+        id: 'check',
+        name: 'Policy Check',
+        type: 'tool',
+        toolId: 'policy-checker',
+        config: {},
+        inputs: [
+          {
+            name: 'content',
+            type: 'string',
+            source: { type: 'variable', name: 'content' },
+            required: true,
+          },
+        ],
+        outputs: [{ name: 'compliant', type: 'boolean' }],
+        dependsOn: [],
+        timeout: 30000,
+        position: { x: 100, y: 100 },
+      },
+      {
+        id: 'pii',
+        name: 'PII Scan',
+        type: 'tool',
+        toolId: 'pii-scanner',
+        config: {},
+        inputs: [
+          {
+            name: 'content',
+            type: 'string',
+            source: { type: 'variable', name: 'content' },
+            required: true,
+          },
+        ],
+        outputs: [{ name: 'found', type: 'array' }],
+        dependsOn: [],
+        timeout: 30000,
+        position: { x: 100, y: 200 },
+      },
+      {
+        id: 'review',
+        name: 'Editorial Review',
+        type: 'approval',
+        config: {
+          approvalConfig: {
+            approvers: ['content-team'],
+            timeout: 86400000,
+            message: 'Review content',
+          },
+        },
+        inputs: [],
+        outputs: [],
+        dependsOn: ['check', 'pii'],
+        timeout: 86400000,
+        position: { x: 300, y: 150 },
+      },
+      {
+        id: 'publish',
+        name: 'Ready to Publish',
+        type: 'notification',
+        config: {
+          notificationConfig: {
+            channel: 'in-app',
+            template: 'Content approved',
+            recipients: ['{{author}}'],
+          },
+        },
+        inputs: [],
+        outputs: [],
+        dependsOn: ['review'],
+        timeout: 10000,
+        position: { x: 500, y: 150 },
+      },
     ],
-    variables: [{ name: 'content', type: 'string', description: 'Content to review', isSecret: false }, { name: 'author', type: 'string', description: 'Content author', isSecret: false }],
+    variables: [
+      { name: 'content', type: 'string', description: 'Content to review', isSecret: false },
+      { name: 'author', type: 'string', description: 'Content author', isSecret: false },
+    ],
     errorHandling: { defaultRetries: 0, onErrorAction: 'stop', notifyOnError: true },
   },
 ];
@@ -1138,7 +2039,7 @@ async function main() {
   // Create admin user
   console.log('Creating admin user...');
   const passwordHash = await hashPassword('password123');
-  
+
   const adminUser = await prisma.user.upsert({
     where: { email: 'admin@soothsayer.local' },
     update: {},
@@ -1151,7 +2052,13 @@ async function main() {
       preferences: {
         theme: 'dark',
         language: 'en',
-        notifications: { email: true, inApp: true, approvalRequests: true, workflowCompletions: true, mentions: true },
+        notifications: {
+          email: true,
+          inApp: true,
+          approvalRequests: true,
+          workflowCompletions: true,
+          mentions: true,
+        },
       },
     },
   });
@@ -1170,7 +2077,13 @@ async function main() {
       preferences: {
         theme: 'light',
         language: 'en',
-        notifications: { email: false, inApp: true, approvalRequests: true, workflowCompletions: false, mentions: true },
+        notifications: {
+          email: false,
+          inApp: true,
+          approvalRequests: true,
+          workflowCompletions: false,
+          mentions: true,
+        },
       },
     },
   });
@@ -1263,7 +2176,7 @@ async function main() {
   // Create personas
   console.log('\nCreating personas...');
   const allPersonas = [...developerPersonas, ...businessPersonas, ...specialistPersonas];
-  
+
   for (const personaData of allPersonas) {
     const existingBuiltInPersona = await prisma.persona.findFirst({
       where: { workspaceId: null, slug: personaData.slug },
@@ -1321,6 +2234,44 @@ async function main() {
   }
   console.log(`  ✓ Created ${tools.length} tools`);
 
+  // Create allowlisted command for release preflight
+  console.log('\nCreating default commands...');
+  await prisma.command.upsert({
+    where: {
+      workspaceId_name: {
+        workspaceId: workspace.id,
+        name: 'Preflight Health Check',
+      },
+    },
+    update: {
+      description: 'Allowlisted command used by release preflight terminal check',
+      template: 'echo PRECHECK_OK',
+      category: 'system',
+      domain: 'release',
+      riskLevel: 'low',
+      requiredTier: 0,
+      timeout: 10000,
+      requiresApproval: false,
+      isBuiltIn: true,
+      createdById: adminUser.id,
+    },
+    create: {
+      workspaceId: workspace.id,
+      name: 'Preflight Health Check',
+      description: 'Allowlisted command used by release preflight terminal check',
+      template: 'echo PRECHECK_OK',
+      category: 'system',
+      domain: 'release',
+      riskLevel: 'low',
+      requiredTier: 0,
+      timeout: 10000,
+      requiresApproval: false,
+      isBuiltIn: true,
+      createdById: adminUser.id,
+    },
+  });
+  console.log('  ✓ Created default preflight command');
+
   // Create workflow templates
   console.log('\nCreating workflow templates...');
   for (const templateData of workflowTemplates) {
@@ -1364,7 +2315,10 @@ async function main() {
           name: 'Require Approval for Advanced Operations',
           description: 'Require approval for tier 3 operations',
           condition: { type: 'tier', config: { tiers: [3] } },
-          action: { type: 'require_approval', config: { approvers: ['admin'], approvalTimeout: 3600000 } },
+          action: {
+            type: 'require_approval',
+            config: { approvers: ['admin'], approvalTimeout: 3600000 },
+          },
           isActive: true,
           order: 1,
         },

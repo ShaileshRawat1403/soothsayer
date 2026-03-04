@@ -116,6 +116,41 @@ async function main() {
     },
   });
 
+  await prisma.command.upsert({
+    where: {
+      workspaceId_name: {
+        workspaceId: workspace.id,
+        name: 'Preflight Health Check',
+      },
+    },
+    update: {
+      description: 'Allowlisted command used by release preflight terminal check',
+      template: 'echo PRECHECK_OK',
+      category: 'system',
+      domain: 'release',
+      riskLevel: 'low',
+      requiredTier: 0,
+      timeout: 10000,
+      requiresApproval: false,
+      isBuiltIn: true,
+      createdById: user.id,
+    },
+    create: {
+      workspaceId: workspace.id,
+      name: 'Preflight Health Check',
+      description: 'Allowlisted command used by release preflight terminal check',
+      template: 'echo PRECHECK_OK',
+      category: 'system',
+      domain: 'release',
+      riskLevel: 'low',
+      requiredTier: 0,
+      timeout: 10000,
+      requiresApproval: false,
+      isBuiltIn: true,
+      createdById: user.id,
+    },
+  });
+
   console.log('Admin seed complete');
   console.log(`EMAIL=${email}`);
   console.log(`PASSWORD=${password}`);

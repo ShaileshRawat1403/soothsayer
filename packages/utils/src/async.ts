@@ -120,7 +120,11 @@ export async function parallelLimit<T, R>(
   async function worker(): Promise<void> {
     while (currentIndex < items.length) {
       const index = currentIndex++;
-      results[index] = await fn(items[index], index);
+      const item = items[index];
+      if (item === undefined) {
+        continue;
+      }
+      results[index] = await fn(item, index);
     }
   }
   
@@ -140,7 +144,11 @@ export async function sequential<T, R>(
   const results: R[] = [];
   
   for (let i = 0; i < items.length; i++) {
-    results.push(await fn(items[i], i));
+    const item = items[i];
+    if (item === undefined) {
+      continue;
+    }
+    results.push(await fn(item, i));
   }
   
   return results;

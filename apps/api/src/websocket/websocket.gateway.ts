@@ -6,9 +6,13 @@ import {
   OnGatewayDisconnect,
   ConnectedSocket,
   MessageBody,
+  WsException,
 } from '@nestjs/websockets';
-import { Logger, UseGuards } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../prisma/prisma.service';
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -29,30 +33,65 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
   private readonly logger = new Logger(WebsocketGateway.name);
   private connectedClients = new Map<string, Set<string>>(); // userId -> Set<socketId>
 
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
+    private readonly prisma: PrismaService
+  ) {}
+
   async handleConnection(client: AuthenticatedSocket) {
-    this.logger.log(`Client connected: ${client.id}`);
-    
-    // TODO: Validate JWT from handshake auth and set userId
-    const token = client.handshake.auth?.token || client.handshake.headers?.authorization;
-    
-    if (!token) {
-      this.logger.warn(`Client ${client.id} connected without authentication`);
-      // Allow connection for now, but mark as unauthenticated
-      client.userId = undefined;
-    }
-    
-    // Track connection
-    if (client.userId) {
-      if (!this.connectedClients.has(client.userId)) {
-        this.connectedClients.set(client.userId, new Set());
+    const rawToken = this.extractToken(client);
+    const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
+    const allowUnauthenticatedDev =
+      nodeEnv !== 'production' && this.configService.get<boolean>('WS_AUTH_ALLOW_IN_DEV', false);
+
+    if (!rawToken) {
+      if (allowUnauthenticatedDev) {
+        this.logger.warn(
+          `Client ${client.id} connected without authentication (WS_AUTH_ALLOW_IN_DEV=true)`
+        );
+        return;
       }
-      this.connectedClients.get(client.userId)!.add(client.id);
+
+      this.logger.warn(`Client ${client.id} rejected: missing websocket authentication token`);
+      client.disconnect(true);
+      return;
+    }
+
+    const token = this.normalizeToken(rawToken);
+
+    try {
+      const payload = await this.jwtService.verifyAsync<{ sub?: string }>(token);
+      if (!payload?.sub) {
+        throw new Error('JWT payload missing subject');
+      }
+
+      const user = await this.prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: { id: true, isActive: true },
+      });
+
+      if (!user || !user.isActive) {
+        throw new Error('User not found or inactive');
+      }
+
+      client.userId = user.id;
+      if (!this.connectedClients.has(user.id)) {
+        this.connectedClients.set(user.id, new Set());
+      }
+      this.connectedClients.get(user.id)!.add(client.id);
+      this.logger.log(`Authenticated websocket client connected: ${client.id} (user=${user.id})`);
+    } catch (error) {
+      this.logger.warn(
+        `Client ${client.id} rejected: invalid websocket token (${error instanceof Error ? error.message : 'unknown'})`
+      );
+      client.disconnect(true);
     }
   }
 
   handleDisconnect(client: AuthenticatedSocket) {
     this.logger.log(`Client disconnected: ${client.id}`);
-    
+
     // Remove from tracking
     if (client.userId) {
       const userSockets = this.connectedClients.get(client.userId);
@@ -72,8 +111,9 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
   @SubscribeMessage('chat:join')
   handleJoinConversation(
     @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody() data: { conversationId: string },
+    @MessageBody() data: { conversationId: string }
   ) {
+    this.ensureAuthenticated(client);
     client.join(`conversation:${data.conversationId}`);
     this.logger.debug(`Client ${client.id} joined conversation ${data.conversationId}`);
     return { event: 'chat:joined', data: { conversationId: data.conversationId } };
@@ -82,8 +122,9 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
   @SubscribeMessage('chat:leave')
   handleLeaveConversation(
     @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody() data: { conversationId: string },
+    @MessageBody() data: { conversationId: string }
   ) {
+    this.ensureAuthenticated(client);
     client.leave(`conversation:${data.conversationId}`);
     this.logger.debug(`Client ${client.id} left conversation ${data.conversationId}`);
     return { event: 'chat:left', data: { conversationId: data.conversationId } };
@@ -92,8 +133,9 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
   @SubscribeMessage('chat:stop')
   handleStopGeneration(
     @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody() data: { conversationId: string; messageId: string },
+    @MessageBody() data: { conversationId: string; messageId: string }
   ) {
+    this.ensureAuthenticated(client);
     // TODO: Cancel the AI generation job
     this.logger.log(`Stop generation requested for message ${data.messageId}`);
     return { event: 'chat:stopped', data };
@@ -106,8 +148,9 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
   @SubscribeMessage('command:subscribe')
   handleSubscribeCommand(
     @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody() data: { executionId: string },
+    @MessageBody() data: { executionId: string }
   ) {
+    this.ensureAuthenticated(client);
     client.join(`execution:${data.executionId}`);
     return { event: 'command:subscribed', data };
   }
@@ -115,8 +158,9 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
   @SubscribeMessage('command:unsubscribe')
   handleUnsubscribeCommand(
     @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody() data: { executionId: string },
+    @MessageBody() data: { executionId: string }
   ) {
+    this.ensureAuthenticated(client);
     client.leave(`execution:${data.executionId}`);
     return { event: 'command:unsubscribed', data };
   }
@@ -124,8 +168,9 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
   @SubscribeMessage('command:cancel')
   handleCancelCommand(
     @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody() data: { executionId: string; reason?: string },
+    @MessageBody() data: { executionId: string; reason?: string }
   ) {
+    this.ensureAuthenticated(client);
     // TODO: Cancel the command execution
     this.logger.log(`Cancel requested for execution ${data.executionId}`);
     return { event: 'command:cancelled', data };
@@ -138,8 +183,9 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
   @SubscribeMessage('workflow:subscribe')
   handleSubscribeWorkflow(
     @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody() data: { runId: string },
+    @MessageBody() data: { runId: string }
   ) {
+    this.ensureAuthenticated(client);
     client.join(`workflow:${data.runId}`);
     return { event: 'workflow:subscribed', data };
   }
@@ -147,8 +193,9 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
   @SubscribeMessage('workflow:unsubscribe')
   handleUnsubscribeWorkflow(
     @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody() data: { runId: string },
+    @MessageBody() data: { runId: string }
   ) {
+    this.ensureAuthenticated(client);
     client.leave(`workflow:${data.runId}`);
     return { event: 'workflow:unsubscribed', data };
   }
@@ -160,10 +207,39 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
   @SubscribeMessage('approval:subscribe')
   handleSubscribeApprovals(
     @ConnectedSocket() client: AuthenticatedSocket,
-    @MessageBody() data: { workspaceId: string },
+    @MessageBody() data: { workspaceId: string }
   ) {
+    this.ensureAuthenticated(client);
     client.join(`approvals:${data.workspaceId}`);
     return { event: 'approval:subscribed', data };
+  }
+
+  private extractToken(client: AuthenticatedSocket): string | undefined {
+    const authToken = client.handshake.auth?.token;
+    if (typeof authToken === 'string' && authToken.trim()) {
+      return authToken;
+    }
+
+    const headerToken = client.handshake.headers?.authorization;
+    if (typeof headerToken === 'string' && headerToken.trim()) {
+      return headerToken;
+    }
+
+    return undefined;
+  }
+
+  private normalizeToken(token: string): string {
+    const trimmed = token.trim();
+    if (trimmed.toLowerCase().startsWith('bearer ')) {
+      return trimmed.slice(7).trim();
+    }
+    return trimmed;
+  }
+
+  private ensureAuthenticated(client: AuthenticatedSocket): void {
+    if (!client.userId) {
+      throw new WsException('Authentication required');
+    }
   }
 
   // ============================================
@@ -190,7 +266,11 @@ export class WebsocketGateway implements OnGatewayConnection, OnGatewayDisconnec
     });
   }
 
-  emitChatError(conversationId: string, messageId: string, error: { code: string; message: string }) {
+  emitChatError(
+    conversationId: string,
+    messageId: string,
+    error: { code: string; message: string }
+  ) {
     this.server.to(`conversation:${conversationId}`).emit('chat:error', {
       conversationId,
       messageId,

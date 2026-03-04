@@ -8,6 +8,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
+import { createHash, randomBytes } from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -41,7 +42,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
-    private usersService: UsersService,
+    private usersService: UsersService
   ) {}
 
   async validateUser(email: string, password: string): Promise<TokenPayload | null> {
@@ -65,16 +66,31 @@ export class AuthService {
     };
   }
 
-  async login(dto: LoginDto, userAgent?: string, ipAddress?: string): Promise<AuthTokens & { user: TokenPayload }> {
+  async login(
+    dto: LoginDto,
+    userAgent?: string,
+    ipAddress?: string
+  ): Promise<AuthTokens & { user: TokenPayload }> {
     const authBypass = this.configService.get<boolean>('AUTH_BYPASS', false);
     if (authBypass) {
-      const fallbackEmail = this.configService.get<string>('AUTH_BYPASS_EMAIL', 'admin@soothsayer.local');
+      const nodeEnv = this.configService.get<string>('NODE_ENV', 'development');
+      if (nodeEnv === 'production') {
+        throw new UnauthorizedException('AUTH_BYPASS is not allowed in production');
+      }
+
+      this.logger.warn('AUTH_BYPASS is enabled in non-production. Password checks are skipped.');
+      const fallbackEmail = this.configService.get<string>(
+        'AUTH_BYPASS_EMAIL',
+        'admin@soothsayer.local'
+      );
       const email = (dto.email || fallbackEmail).toLowerCase();
       let user = await this.prisma.user.findUnique({ where: { email } });
 
       if (!user) {
         const generatedPassword = `Bypass${uuidv4()}Aa1!`;
-        const generatedName = dto.email ? dto.email.split('@')[0] : this.configService.get<string>('AUTH_BYPASS_NAME', 'Admin User');
+        const generatedName = dto.email
+          ? dto.email.split('@')[0]
+          : this.configService.get<string>('AUTH_BYPASS_NAME', 'Admin User');
         const provisioned = await this.register({
           email,
           password: generatedPassword,
@@ -239,8 +255,11 @@ export class AuthService {
   }
 
   async refreshToken(dto: RefreshTokenDto): Promise<AuthTokens> {
-    const session = await this.prisma.session.findUnique({
-      where: { refreshToken: dto.refreshToken },
+    const refreshTokenHash = this.hashToken(dto.refreshToken);
+    const session = await this.prisma.session.findFirst({
+      where: {
+        OR: [{ refreshTokenHash }, { refreshToken: dto.refreshToken }],
+      },
       include: { user: true },
     });
 
@@ -264,7 +283,8 @@ export class AuthService {
     await this.prisma.session.update({
       where: { id: session.id },
       data: {
-        refreshToken: tokens.refreshToken,
+        refreshToken: null,
+        refreshTokenHash: this.hashToken(tokens.refreshToken),
         expiresAt: this.getRefreshTokenExpiry(),
         lastActiveAt: new Date(),
       },
@@ -275,9 +295,13 @@ export class AuthService {
 
   async logout(userId: string, refreshToken?: string): Promise<void> {
     if (refreshToken) {
+      const refreshTokenHash = this.hashToken(refreshToken);
       // Invalidate specific session
       await this.prisma.session.deleteMany({
-        where: { userId, refreshToken },
+        where: {
+          userId,
+          OR: [{ refreshTokenHash }, { refreshToken }],
+        },
       });
     } else {
       // Invalidate all sessions
@@ -299,26 +323,69 @@ export class AuthService {
       return;
     }
 
-    // Generate password reset token (in real app, send via email)
-    const resetToken = uuidv4();
-    
-    // Store token (in real app, would use a dedicated table or cache)
-    this.logger.log(`Password reset requested for: ${dto.email} (Token: ${resetToken})`);
-    
-    // TODO: Send email with reset link
+    const resetToken = randomBytes(32).toString('hex');
+    const resetTokenHash = this.hashToken(resetToken);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordResetTokenHash: resetTokenHash,
+        passwordResetExpiresAt: this.getPasswordResetExpiry(),
+        passwordResetUsedAt: null,
+      },
+    });
+
+    this.logger.log(`Password reset requested for: ${dto.email}`);
+    this.logger.debug('Password reset token generated and stored as hash.');
   }
 
   async resetPassword(dto: ResetPasswordDto): Promise<void> {
-    // TODO: Validate reset token and update password
+    const resetTokenHash = this.hashToken(dto.token);
+    const user = await this.prisma.user.findUnique({
+      where: { passwordResetTokenHash: resetTokenHash },
+      select: {
+        id: true,
+        passwordResetExpiresAt: true,
+        passwordResetUsedAt: true,
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException('Invalid or expired reset token');
+    }
+
+    if (!user.passwordResetExpiresAt || user.passwordResetExpiresAt < new Date()) {
+      throw new BadRequestException('Invalid or expired reset token');
+    }
+
+    if (user.passwordResetUsedAt) {
+      throw new BadRequestException('Reset token has already been used');
+    }
+
     const passwordHash = await bcrypt.hash(dto.password, this.saltRounds);
-    
-    this.logger.log(`Password reset completed for token: ${dto.token}`);
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          passwordHash,
+          passwordResetUsedAt: new Date(),
+          passwordResetTokenHash: null,
+          passwordResetExpiresAt: null,
+        },
+      }),
+      this.prisma.session.deleteMany({
+        where: { userId: user.id },
+      }),
+    ]);
+
+    this.logger.log('Password reset completed successfully');
   }
 
   private async generateTokens(payload: TokenPayload): Promise<AuthTokens> {
     const accessToken = this.jwtService.sign(payload);
     const refreshToken = uuidv4();
-    
+
     const accessExpiration = this.configService.get<string>('JWT_ACCESS_EXPIRATION', '15m');
     const expiresAt = Date.now() + this.parseExpiration(accessExpiration);
 
@@ -333,17 +400,27 @@ export class AuthService {
     userId: string,
     refreshToken: string,
     userAgent?: string,
-    ipAddress?: string,
+    ipAddress?: string
   ): Promise<void> {
     await this.prisma.session.create({
       data: {
         userId,
-        refreshToken,
+        refreshToken: null,
+        refreshTokenHash: this.hashToken(refreshToken),
         userAgent,
         ipAddress,
         expiresAt: this.getRefreshTokenExpiry(),
       },
     });
+  }
+
+  private getPasswordResetExpiry(): Date {
+    const expiration = this.configService.get<string>('PASSWORD_RESET_TOKEN_EXPIRATION', '1h');
+    return new Date(Date.now() + this.parseExpiration(expiration));
+  }
+
+  private hashToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex');
   }
 
   private getRefreshTokenExpiry(): Date {
