@@ -1,19 +1,26 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { ProjectsService } from './projects.service';
+import { GetCurrentUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('projects')
 @Controller('projects')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class ProjectsController {
+  constructor(private readonly projectsService: ProjectsService) {}
+
   @Get()
-  async findAll() {
-    return { message: 'projects endpoint - TODO' };
+  @ApiOperation({ summary: 'List workspace projects' })
+  @ApiQuery({ name: 'workspaceId', required: true })
+  async findAll(@GetCurrentUser() user: CurrentUser, @Query('workspaceId') workspaceId: string) {
+    return this.projectsService.findAll(user.id, workspaceId);
   }
 
   @Get(':id')
-  async findOne(@Param('id') id: string) {
-    return { id, message: 'projects detail - TODO' };
+  @ApiOperation({ summary: 'Get project details' })
+  async findOne(@Param('id') id: string, @GetCurrentUser() user: CurrentUser) {
+    return this.projectsService.findOne(id, user.id);
   }
 }
