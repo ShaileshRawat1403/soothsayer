@@ -109,6 +109,20 @@
   .shadow-apple-lg {
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
   }
+
+  .interactive-scale {
+    @apply transition-transform duration-200 active:scale-95;
+  }
+
+  .shimmer-glow {
+    @apply relative overflow-hidden;
+  }
+
+  .shimmer-glow::after {
+    content: '';
+    @apply absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent;
+    animation: shimmer 3s infinite;
+  }
 }
 
 /* Professional spacing and transition defaults */
@@ -121,7 +135,22 @@
 }
 
 .button-professional {
-  @apply rounded-full px-6 py-2.5 text-sm font-medium transition-all duration-200 active:scale-[0.98];
+  @apply rounded-full px-6 py-2.5 text-sm font-medium transition-all duration-200 active:scale-[0.98] shadow-sm hover:shadow-md;
+}
+
+/* Keyframes */
+@keyframes scanning {
+  0%, 100% { transform: translateY(-80%); opacity: 0.2; }
+  50% { transform: translateY(80%); opacity: 0.8; }
+}
+
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(0.98); }
 }
 
 /* Terminal styling */

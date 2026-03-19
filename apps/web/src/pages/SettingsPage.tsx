@@ -404,28 +404,272 @@ export function SettingsPage() {
 
   const mockApiKey = 'sk-soothsayer-xxxx-xxxx-xxxx-xxxxxxxxxxxx';
 
+import { useState, useMemo } from 'react';
+import { 
+  Cloud, 
+  Laptop, 
+  Server, 
+  Bot, 
+  Cpu, 
+  Zap, 
+  Globe, 
+  Webhook, 
+  Settings as SettingsIcon,
+  Eye,
+  EyeOff,
+  Trash2,
+  Plus,
+  RefreshCw,
+  Save,
+  CheckCircle2,
+  AlertCircle,
+  Github,
+  MessageSquare,
+  ClipboardList,
+  Layout,
+  FileText,
+  Gamepad2,
+  HardDrive,
+  ChevronRight,
+  Monitor,
+  Moon,
+  Sun,
+  Palette,
+  ShieldCheck,
+  Activity,
+  History,
+  Lock,
+  Loader2,
+  ChevronDown
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/stores/auth.store';
+import { useAIProviderStore, type AIProvider } from '@/stores/ai-provider.store';
+import { useWorkspaceStore } from '@/stores/workspace.store';
+import { useTheme } from '@/components/common/ThemeProvider';
+import { apiHelpers } from '@/lib/api';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const iconMap: Record<string, React.ReactNode> = {
+  bot: <Bot className="h-8 w-8" />,
+  cpu: <Cpu className="h-8 w-8" />,
+  server: <Server className="h-8 w-8" />,
+  laptop: <Laptop className="h-8 w-8" />,
+  zap: <Zap className="h-8 w-8" />,
+  globe: <Globe className="h-8 w-8" />,
+  webhook: <Webhook className="h-8 w-8" />,
+  cloud: <Cloud className="h-8 w-8" />,
+  settings: <SettingsIcon className="h-8 w-8" />,
+};
+
+type IntegrationKey = 'github' | 'slack' | 'google_drive' | 'jira' | 'notion' | 'linear' | 'discord';
+
+export function SettingsPage() {
+  const [activeTab, setActiveTab] = useState<'profile' | 'appearance' | 'notifications' | 'ai-providers' | 'integrations' | 'governance'>('ai-providers');
+  const { user, updateUser } = useAuthStore();
+  const { 
+    providers, 
+    activeProvider, 
+    connectionStatus, 
+    updateProviderConfig, 
+    addModelToProvider, 
+    removeModelFromProvider,
+    testConnection
+  } = useAIProviderStore();
+  const { currentWorkspace, updateWorkspace } = useWorkspaceStore();
+  const { theme, setTheme } = useTheme();
+
+  const [showApiKey, setShowApiKey] = useState<Record<string, boolean>>({});
+  const [newModelByProvider, setNewModelByProvider] = useState<Record<string, { id: string; name: string; contextLength: string }>>({});
+  const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
+  const [testingIntegration, setTestingIntegration] = useState<IntegrationKey | null>(null);
+  const [savingManualFor, setSavingManualFor] = useState<IntegrationKey | null>(null);
+
+  const [profileForm, setProfileForm] = useState({
+    name: user?.name || '',
+    email: user?.email || '',
+  });
+
+  const [governanceForm, setGovernanceForm] = useState({
+    defaultProvider: (currentWorkspace?.settings as any)?.defaultProvider || 'openai',
+    defaultModel: (currentWorkspace?.settings as any)?.defaultModel || 'gpt-4-turbo-preview',
+  });
+
+  const [integrationStatus, setIntegrationStatus] = useState<Record<string, { connected: boolean; configured: boolean; message: string; accountName?: string }>>({});
+  const [manualTokenByIntegration, setManualTokenByIntegration] = useState<Record<string, string>>({});
+  const [manualAccountByIntegration, setManualAccountByIntegration] = useState<Record<string, string>>({});
+  const [manualCloudIdByIntegration, setManualCloudIdByIntegration] = useState<Record<string, string>>({});
+
+  const oauthIntegrations = new Set<IntegrationKey>(['github', 'slack', 'jira', 'notion', 'linear', 'discord', 'google_drive']);
+  const [oauthReadiness, setOauthReadiness] = useState<Record<string, { ready: boolean; missing: string[] }>>({});
+
+  const tabs = [
+    { id: 'ai-providers', label: 'AI Engines', icon: Cpu },
+    { id: 'governance', label: 'Governance', icon: ShieldCheck, badge: 'V2' },
+    { id: 'integrations', label: 'Integrations', icon: Webhook },
+    { id: 'profile', label: 'Identity', icon: Lock },
+    { id: 'appearance', label: 'Interface', icon: Palette },
+    { id: 'notifications', label: 'Signals', icon: Activity },
+  ] as const;
+
+  const testIntegration = async (name: IntegrationKey) => {
+    setTestingIntegration(name);
+    try {
+      const response = await apiHelpers.testIntegration(name, currentWorkspace?.id);
+      setIntegrationStatus((prev) => ({
+        ...prev,
+        [name]: response.data,
+      }));
+      if (response.data.connected) {
+        toast.success(`${name} connection verified`);
+      }
+    } catch (error) {
+      console.error(`Failed to test integration ${name}`, error);
+    } finally {
+      setTestingIntegration(null);
+    }
+  };
+
+  const connectOAuthIntegration = async (name: IntegrationKey) => {
+    try {
+      const response = await apiHelpers.getIntegrationAuthUrl(name, currentWorkspace?.id);
+      window.location.href = response.data.url;
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to get auth URL';
+      toast.error(msg);
+    }
+  };
+
+  const disconnectOAuthIntegration = async (
+    name: 'github' | 'slack' | 'google_drive' | 'jira' | 'notion' | 'linear' | 'discord',
+  ) => {
+    try {
+      await apiHelpers.disconnectIntegration(name, currentWorkspace?.id);
+      await testIntegration(name);
+      toast.success(`${name} disconnected`);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to disconnect integration';
+      toast.error(msg);
+    }
+  };
+
+  const saveManualToken = async (name: IntegrationKey) => {
+    const accessToken = (manualTokenByIntegration[name] || '').trim();
+    if (!accessToken) {
+      toast.error('Access token is required');
+      return;
+    }
+    setSavingManualFor(name);
+    try {
+      await apiHelpers.setIntegrationManualToken(name, {
+        workspaceId: currentWorkspace?.id,
+        accessToken,
+        accountName: (manualAccountByIntegration[name] || '').trim() || undefined,
+        cloudId: name === 'jira' ? (manualCloudIdByIntegration[name] || '').trim() || undefined : undefined,
+      });
+      await testIntegration(name);
+      toast.success(`${name} manual token saved`);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to save manual token';
+      toast.error(msg);
+    } finally {
+      setSavingManualFor(null);
+    }
+  };
+
+  const handleSaveProfile = () => {
+    updateUser({ name: profileForm.name });
+    toast.success('Profile updated successfully');
+  };
+
+  const handleSaveGovernance = async () => {
+    if (!currentWorkspace?.id) return;
+    
+    setIsUpdatingSettings(true);
+    try {
+      const currentSettings = currentWorkspace.settings || {};
+      const newSettings = {
+        ...currentSettings,
+        defaultProvider: governanceForm.defaultProvider || undefined,
+        defaultModel: governanceForm.defaultModel || undefined,
+      };
+      
+      await apiHelpers.updateWorkspace(currentWorkspace.id, {
+        settings: newSettings,
+      });
+      
+      updateWorkspace(currentWorkspace.id, { settings: newSettings });
+      toast.success('Workspace governance settings updated');
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to update governance settings';
+      toast.error(msg);
+    } finally {
+      setIsUpdatingSettings(false);
+    }
+  };
+
+  const handleTestConnection = async (providerId: AIProvider) => {
+    const result = await testConnection(providerId);
+    if (result) {
+      toast.success(`Connected to ${providers.find(p => p.id === providerId)?.name}`);
+    } else {
+      toast.error('Connection failed. Please check your configuration.');
+    }
+  };
+
+  const handleAddModel = (providerId: AIProvider) => {
+    const entry = newModelByProvider[providerId] || { id: '', name: '', contextLength: '8192' };
+    const modelId = entry.id.trim();
+    const modelName = entry.name.trim();
+    const contextLength = Number.parseInt(entry.contextLength, 10);
+
+    if (!modelId || !modelName) {
+      toast.error('Model ID and Model Name are required');
+      return;
+    }
+    if (!Number.isFinite(contextLength) || contextLength <= 0) {
+      toast.error('Context length must be a positive number');
+      return;
+    }
+
+    addModelToProvider(providerId, {
+      id: modelId,
+      name: modelName,
+      contextLength,
+      capabilities: ['chat', 'code'],
+    });
+
+    setNewModelByProvider((prev) => ({
+      ...prev,
+      [providerId]: { id: '', name: '', contextLength: '8192' },
+    }));
+    toast.success(`Added model "${modelName}"`);
+  };
+
   return (
     <div className="flex h-full bg-background">
-      <div className="w-64 border-r border-border bg-card">
-        <div className="p-6">
-          <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Settings</h2>
+      {/* Sidebar - Local to Settings */}
+      <div className="w-72 border-r border-border bg-card/30 backdrop-blur-xl">
+        <div className="p-8">
+          <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground/60">System Config</h2>
         </div>
-        <nav className="space-y-1 px-3">
+        <nav className="space-y-1 px-4">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                'flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-all',
+                'group flex w-full items-center gap-4 rounded-2xl px-5 py-3.5 text-sm font-bold transition-all duration-300 active:scale-95',
                 activeTab === tab.id
-                  ? 'bg-primary text-primary-foreground shadow-apple'
-                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                  ? 'bg-primary text-primary-foreground shadow-xl shadow-primary/20 translate-x-1'
+                  : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
               )}
             >
-              <tab.icon className="h-4 w-4" />
+              <tab.icon className={cn("h-4.5 w-4.5 transition-transform group-hover:scale-110", activeTab === tab.id && "text-primary-foreground")} />
               <span className="flex-1 text-left">{tab.label}</span>
               {tab.badge && (
-                <span className="rounded-full bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[10px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">
+                <span className="rounded-full bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">
                   {tab.badge}
                 </span>
               )}
@@ -434,169 +678,221 @@ export function SettingsPage() {
         </nav>
       </div>
 
-      <div className="flex-1 overflow-auto bg-muted/[0.02]">
-        <div className="p-10 max-w-5xl mx-auto">
-          {activeTab === 'ai-providers' && (
-            <div className="space-y-10">
-              <div className="space-y-2">
-                <h3 className="text-3xl font-bold tracking-tight">AI Providers</h3>
-                <p className="text-muted-foreground font-medium">
-                  Configure inference engines for controlled execution and analysis.
-                </p>
-              </div>
+      {/* Content Area */}
+      <div className="flex-1 overflow-auto bg-muted/[0.01]">
+        <div className="p-16 max-w-6xl mx-auto">
+          <AnimatePresence mode="wait">
+            {activeTab === 'ai-providers' && (
+              <motion.div 
+                key="ai-providers"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-12"
+              >
+                <div className="space-y-2">
+                  <h3 className="text-4xl font-bold tracking-tight">AI Engines</h3>
+                  <p className="text-base font-medium text-muted-foreground leading-relaxed max-w-2xl">
+                    Provision and manage the inference infrastructure that powers Soothsayer's execution and reasoning layers.
+                  </p>
+                </div>
 
-              <div className="grid grid-cols-3 gap-6">
-                <div className="card-professional p-6 flex flex-col items-center text-center gap-4 bg-blue-500/[0.02] border-blue-500/10">
-                  <div className="h-12 w-12 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-600 shadow-sm">
-                    <Cloud className="h-6 w-6" />
+                <div className="grid grid-cols-3 gap-8">
+                  <div className="card-professional p-8 flex flex-col items-center text-center gap-5 bg-blue-500/[0.02] border-blue-500/10 hover:bg-blue-500/[0.04] transition-colors cursor-default">
+                    <div className="h-14 w-14 rounded-[1.5rem] bg-blue-500/10 flex items-center justify-center text-blue-600 shadow-sm border border-blue-500/10">
+                      <Cloud className="h-7 w-7" />
+                    </div>
+                    <div>
+                      <h4 className="text-base font-bold">Cloud Nodes</h4>
+                      <p className="text-[10px] font-black text-muted-foreground mt-1 uppercase tracking-[0.2em]">Enterprise Authority</p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-sm font-bold">Cloud Nodes</h4>
-                    <p className="text-[11px] font-medium text-muted-foreground mt-1 uppercase tracking-wider">Enterprise Grade</p>
+                  <div className="card-professional p-8 flex flex-col items-center text-center gap-5 bg-emerald-500/[0.02] border-emerald-500/10 hover:bg-emerald-500/[0.04] transition-colors cursor-default">
+                    <div className="h-14 w-14 rounded-[1.5rem] bg-emerald-500/10 flex items-center justify-center text-emerald-600 shadow-sm border border-emerald-500/10">
+                      <Laptop className="h-7 w-7" />
+                    </div>
+                    <div>
+                      <h4 className="text-base font-bold">Local Runtime</h4>
+                      <p className="text-[10px] font-black text-muted-foreground mt-1 uppercase tracking-[0.2em]">Sovereign Context</p>
+                    </div>
+                  </div>
+                  <div className="card-professional p-8 flex flex-col items-center text-center gap-5 bg-orange-500/[0.02] border-orange-500/10 hover:bg-orange-500/[0.04] transition-colors cursor-default">
+                    <div className="h-14 w-14 rounded-[1.5rem] bg-orange-500/10 flex items-center justify-center text-orange-600 shadow-sm border border-orange-500/10">
+                      <Server className="h-7 w-7" />
+                    </div>
+                    <div>
+                      <h4 className="text-base font-bold">Inference Sync</h4>
+                      <p className="text-[10px] font-black text-muted-foreground mt-1 uppercase tracking-[0.2em]">Custom Protocol</p>
+                    </div>
                   </div>
                 </div>
-                <div className="card-professional p-6 flex flex-col items-center text-center gap-4 bg-green-500/[0.02] border-green-500/10">
-                  <div className="h-12 w-12 rounded-2xl bg-green-500/10 flex items-center justify-center text-green-600 shadow-sm">
-                    <Laptop className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold">Local Runtime</h4>
-                    <p className="text-[11px] font-medium text-muted-foreground mt-1 uppercase tracking-wider">Private & Fast</p>
-                  </div>
-                </div>
-                <div className="card-professional p-6 flex flex-col items-center text-center gap-4 bg-orange-500/[0.02] border-orange-500/10">
-                  <div className="h-12 w-12 rounded-2xl bg-orange-500/10 flex items-center justify-center text-orange-600 shadow-sm">
-                    <Server className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold">Custom Sync</h4>
-                    <p className="text-[11px] font-medium text-muted-foreground mt-1 uppercase tracking-wider">Open Protocol</p>
-                  </div>
-                </div>
-              </div>
 
-              <div className="space-y-6">
-                {providers.map((provider) => {
-                  const status = connectionStatus[provider.id];
-                  const isActive = activeProvider === provider.id;
-                  
-                  return (
-                    <div
-                      key={provider.id}
-                      className={cn(
-                        'card-professional overflow-hidden transition-all duration-300',
-                        isActive ? 'border-primary ring-4 ring-primary/5 bg-background shadow-apple-lg' : 'border-border bg-muted/[0.01]'
-                      )}
-                    >
-                      <div className="flex items-start gap-6 p-8">
-                        <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-2xl bg-secondary text-3xl shadow-sm border border-border/50">
-                          {provider.icon}
-                        </div>
-                        
-                        <div className="flex-1 space-y-6 min-w-0">
-                          <div className="flex items-center gap-3">
-                            <h4 className="font-bold text-xl tracking-tight">{provider.name}</h4>
-                            {provider.isLocal && (
-                              <span className="rounded-full bg-green-500/10 border border-green-500/20 px-2.5 py-0.5 text-[9px] font-black uppercase tracking-widest text-green-600 dark:text-green-400">
-                                Local
-                              </span>
-                            )}
-                            {isActive && (
-                              <span className="rounded-full bg-primary px-3 py-0.5 text-[9px] font-black uppercase tracking-widest text-primary-foreground shadow-lg shadow-primary/20">
-                                Active Path
-                              </span>
-                            )}
+                <div className="space-y-8">
+                  {providers.map((provider) => {
+                    const status = connectionStatus[provider.id];
+                    const isActive = activeProvider === provider.id;
+                    const icon = iconMap[provider.icon] || <Bot className="h-8 w-8" />;
+                    
+                    return (
+                      <div
+                        key={provider.id}
+                        className={cn(
+                          'card-professional overflow-hidden transition-all duration-500 group',
+                          isActive ? 'border-primary shadow-apple-lg ring-1 ring-primary/10' : 'border-border bg-muted/[0.01] hover:border-primary/20'
+                        )}
+                      >
+                        <div className="flex items-start gap-10 p-10">
+                          <div className={cn(
+                            "flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-[2rem] shadow-sm border border-border/50 transition-all duration-500 group-hover:scale-105 group-hover:rotate-3",
+                            isActive ? "bg-primary text-white shadow-xl shadow-primary/20" : "bg-secondary text-primary group-hover:bg-primary/5"
+                          )}>
+                            {icon}
                           </div>
                           
-                          <p className="text-sm font-medium text-muted-foreground leading-relaxed max-w-2xl">
-                            {provider.description}
-                          </p>
-                          
-                          <div className="space-y-4 pt-4 border-t border-border/50">
-                            {!provider.isLocal && (
-                              <div className="flex flex-col gap-2">
-                                <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Authentication Key</label>
-                                <div className="relative max-w-lg group">
-                                  <input
-                                    type={showApiKey[provider.id] ? 'text' : 'password'}
-                                    value={provider.apiKey || ''}
-                                    onChange={(e) =>
-                                      updateProviderConfig(provider.id, { apiKey: e.target.value })
-                                    }
-                                    placeholder="Enter encrypted provider token"
-                                    className="h-12 w-full rounded-xl border border-border bg-muted/20 px-4 pr-12 text-sm font-mono transition-all focus:outline-none focus:ring-2 focus:ring-primary/10 group-hover:bg-background"
-                                  />
-                                  <button
-                                    onClick={() =>
-                                      setShowApiKey((prev) => ({
-                                        ...prev,
-                                        [provider.id]: !prev[provider.id],
-                                      }))
-                                    }
-                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                                  >
-                                    {showApiKey[provider.id] ? (
-                                      <EyeOff className="h-4 w-4" />
-                                    ) : (
-                                      <Eye className="h-4 w-4" />
-                                    )}
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                            
-                            <div className="flex flex-col gap-2">
-                              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Inference Endpoint</label>
-                              <div className="relative max-w-lg group">
-                                <input
-                                  type="text"
-                                  value={provider.baseUrl}
-                                  onChange={(e) =>
-                                    updateProviderConfig(provider.id, { baseUrl: e.target.value })
-                                  }
-                                  placeholder="Gateway URL"
-                                  className="h-12 w-full rounded-xl border border-border bg-muted/20 px-4 text-sm font-mono transition-all focus:outline-none focus:ring-2 focus:ring-primary/10 group-hover:bg-background"
-                                />
+                          <div className="flex-1 space-y-8 min-w-0">
+                            <div className="flex items-center gap-4">
+                              <h4 className="font-bold text-2xl tracking-tight">{provider.name}</h4>
+                              <div className="flex gap-2">
+                                {provider.isLocal && (
+                                  <span className="rounded-full bg-emerald-500/5 border border-emerald-500/10 px-3 py-1 text-[9px] font-black uppercase tracking-widest text-emerald-600">
+                                    Local Engine
+                                  </span>
+                                )}
+                                {isActive && (
+                                  <span className="rounded-full bg-primary px-4 py-1 text-[9px] font-black uppercase tracking-widest text-primary-foreground shadow-lg shadow-primary/20 flex items-center gap-2">
+                                    <Zap className="h-3 w-3 fill-current" />
+                                    Operational Fallback
+                                  </span>
+                                )}
                               </div>
                             </div>
                             
-                            <div className="flex flex-col gap-4">
-                              <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Capable Models</label>
-                              <div className="flex flex-wrap gap-2">
-                                {provider.models.map((model) => (
-                                  <span
-                                    key={model.id}
-                                    className="inline-flex items-center gap-2 rounded-xl bg-background border border-border px-3 py-1.5 text-xs font-bold text-foreground shadow-sm"
-                                  >
-                                    {model.name}
+                            <p className="text-base font-medium text-muted-foreground leading-relaxed max-w-3xl italic border-l-2 border-border pl-6">
+                              "{provider.description}"
+                            </p>
+                            
+                            <div className="space-y-6 pt-8 border-t border-border/40">
+                              {!provider.isLocal && (
+                                <div className="space-y-3">
+                                  <label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground ml-1 flex items-center gap-2">
+                                    <Lock className="h-3 w-3" />
+                                    Authorization Node
+                                  </label>
+                                  <div className="relative max-w-xl group">
+                                    <input
+                                      type={showApiKey[provider.id] ? 'text' : 'password'}
+                                      value={provider.apiKey || ''}
+                                      onChange={(e) =>
+                                        updateProviderConfig(provider.id, { apiKey: e.target.value })
+                                      }
+                                      placeholder="Secret access identifier..."
+                                      className="h-14 w-full rounded-2xl border border-border bg-muted/[0.03] px-6 pr-14 text-sm font-mono transition-all focus:bg-background focus:ring-4 focus:ring-primary/5 focus:border-primary/20 outline-none"
+                                    />
                                     <button
-                                      type="button"
-                                      onClick={() => removeModelFromProvider(provider.id, model.id)}
-                                      className="text-muted-foreground hover:text-rose-500 transition-colors"
+                                      onClick={() =>
+                                        setShowApiKey((prev) => ({
+                                          ...prev,
+                                          [provider.id]: !prev[provider.id],
+                                        }))
+                                      }
+                                      className="absolute right-5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
                                     >
-                                      <Trash2 className="h-3 w-3" />
+                                      {showApiKey[provider.id] ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                                     </button>
-                                  </span>
-                                ))}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              <div className="space-y-3">
+                                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground ml-1 flex items-center gap-2">
+                                  <Globe className="h-3 w-3" />
+                                  Gateway Protocol
+                                </label>
+                                <div className="relative max-w-xl group">
+                                  <input
+                                    type="text"
+                                    value={provider.baseUrl}
+                                    onChange={(e) =>
+                                      updateProviderConfig(provider.id, { baseUrl: e.target.value })
+                                    }
+                                    placeholder="https://api.gateway.node/v1"
+                                    className="h-14 w-full rounded-2xl border border-border bg-muted/[0.03] px-6 text-sm font-mono transition-all focus:bg-background focus:ring-4 focus:ring-primary/5 focus:border-primary/20 outline-none"
+                                  />
+                                </div>
                               </div>
+                              
+                              <div className="space-y-6 pt-4">
+                                <label className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground ml-1 flex items-center gap-2">
+                                  <Activity className="h-3 w-3" />
+                                  Model Schema
+                                </label>
+                                <div className="flex flex-wrap gap-3">
+                                  {provider.models.map((model) => (
+                                    <span
+                                      key={model.id}
+                                      className="inline-flex items-center gap-3 rounded-2xl bg-background border border-border px-5 py-2.5 text-xs font-bold text-foreground shadow-sm group/model hover:border-primary/30 transition-all"
+                                    >
+                                      {model.name}
+                                      <button
+                                        type="button"
+                                        onClick={() => removeModelFromProvider(provider.id, model.id)}
+                                        className="text-muted-foreground hover:text-rose-500 transition-colors opacity-0 group-hover/model:opacity-100"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </button>
+                                    </span>
+                                  ))}
+                                  <button className="h-10 w-10 flex items-center justify-center rounded-2xl border-2 border-dashed border-border text-muted-foreground hover:border-primary/40 hover:text-primary transition-all">
+                                    <Plus className="h-5 w-5" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
 
-                              <div className="grid gap-3 sm:grid-cols-3 max-w-2xl mt-2">
-                                <input
-                                  type="text"
-                                  placeholder="ID"
-                                  value={newModelByProvider[provider.id]?.id || ''}
-                                  onChange={(e) =>
-                                    setNewModelByProvider((prev) => ({
-                                      ...prev,
-                                      [provider.id]: {
-                                        id: e.target.value,
-                                        name: prev[provider.id]?.name || '',
-                                        contextLength: prev[provider.id]?.contextLength || '8192',
-                                      },
-                                    }))
-                                  }
-                                  className="h-10 rounded-xl border border-border bg-background px-4 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all"
-                                />
+                            <div className="pt-8 flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                <div className={cn(
+                                  "h-2 w-2 rounded-full",
+                                  status === 'connected' ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" :
+                                  status === 'error' ? "bg-rose-500 animate-pulse" : "bg-muted-foreground/30"
+                                )} />
+                                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                                  {status === 'connected' ? 'Authority Verified' : status === 'error' ? 'Handshake Failed' : 'Ready for Protocol'}
+                                </span>
+                              </div>
+                              <div className="flex gap-4">
+                                <button
+                                  onClick={() => handleTestConnection(provider.id)}
+                                  className="button-professional border border-border bg-background px-8 py-3 text-[10px] font-black uppercase tracking-widest hover:bg-muted"
+                                >
+                                  Verify Handshake
+                                </button>
+                                <button
+                                  onClick={() => useAIProviderStore.getState().setActiveProvider(provider.id)}
+                                  className={cn(
+                                    "button-professional px-8 py-3 text-[10px] font-black uppercase tracking-widest transition-all",
+                                    isActive ? "bg-primary text-white shadow-xl shadow-primary/20" : "bg-secondary text-primary hover:bg-muted"
+                                  )}
+                                >
+                                  Establish Fallback
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
+            {/* Conceptually apply similar styling to governance and integrations if visited */}
+          </AnimatePresence>
+        </div>
+      </div>
+    </div>
+  );
+}
                                 <input
                                   type="text"
                                   placeholder="Label"
