@@ -285,8 +285,19 @@ function RunRow({
         <div className="min-w-0">
           <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">{run.runId.substring(0, 12)}</div>
           <div className="mt-1 text-sm font-bold text-foreground group-hover:text-primary transition-colors">{run.title || 'Untitled Context'}</div>
-          <div className="mt-1 text-[11px] font-medium text-muted-foreground">
-            {run.currentStep?.title || 'Inactive'} · {run.sourceSurface}
+          <div className="mt-1 text-[11px] font-medium text-muted-foreground flex flex-wrap items-center gap-2">
+            <span>{run.currentStep?.title || 'Inactive'}</span>
+            <span>·</span>
+            <span>{run.sourceSurface}</span>
+            {run.provider && (
+              <>
+                <span>·</span>
+                <div className="flex items-center gap-1 rounded-md bg-secondary px-1.5 py-0.5 text-[9px] font-bold text-muted-foreground uppercase tracking-wider border border-border/50">
+                  <Cpu className="h-2.5 w-2.5" />
+                  {run.provider}
+                </div>
+              </>
+            )}
           </div>
         </div>
         <div className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-widest border ${
