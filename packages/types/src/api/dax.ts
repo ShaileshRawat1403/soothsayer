@@ -96,6 +96,16 @@ export interface DaxRunCurrentStep {
   detail?: string;
 }
 
+export interface DaxExecutionProfile {
+  personaId: string;
+  provider: string;
+  model: string;
+  approvalMode: 'strict' | 'balanced' | 'relaxed';
+  riskLevel: DaxRiskLevel;
+  fallbackReason?: string;
+  isFallback: boolean;
+}
+
 export interface DaxRunSnapshot {
   schemaVersion: 'v1';
   authority: 'dax';
@@ -111,6 +121,7 @@ export interface DaxRunSnapshot {
   pendingApprovalCount: number;
   trust?: DaxRunTrustState;
   artifactSummary?: DaxRunArtifactSummary;
+  executionProfile?: DaxExecutionProfile;
   lastEvent?: {
     eventId: string;
     sequence: number;
@@ -235,6 +246,8 @@ export interface DaxRunListItem {
   projectId?: string;
   chatId?: string;
   workflowId?: string;
+  provider?: string;
+  model?: string;
 }
 
 export interface DaxPendingApprovalSummary {

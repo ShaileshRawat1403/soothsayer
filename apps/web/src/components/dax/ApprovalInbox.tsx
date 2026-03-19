@@ -8,10 +8,15 @@ import {
   Clock, 
   ChevronDown, 
   Folder,
-  Hash
+  Hash,
+  Cpu,
+  Bot,
+  Terminal,
+  Zap
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
+import { cn } from '@/lib/utils';
 import type { DaxPendingApprovalSummary } from '@/types/dax';
 
 interface ApprovalInboxProps {
@@ -32,9 +37,30 @@ const RISK_WEIGHT = {
 export function ApprovalInbox({ approvals, runLink }: ApprovalInboxProps) {
   const [sortBy, setSortBy] = useState<SortField>('risk');
   const [groupBy, setGroupBy] = useState<GroupField>('none');
+  const [filterSource, setFilterSource] = useState<string>('all');
+  const [filterProvider, setFilterProvider] = useState<string>('all');
+
+  const sources = useMemo(() => {
+    const s = new Set(approvals.map(a => a.sourceSurface));
+    return ['all', ...Array.from(s)];
+  }, [approvals]);
+
+  // For now, since provider might be missing in pending approvals summary, 
+  // we'll assume a placeholder list or try to extract it.
+  // In V2, we added targeting info, but provider info might need another backend pass.
+  // Let's stick to sources for now or assume common ones.
+  const providers = ['all', 'openai', 'google', 'anthropic'];
+
+  const filteredApprovals = useMemo(() => {
+    return approvals.filter(a => {
+      const matchSource = filterSource === 'all' || a.sourceSurface === filterSource;
+      // Note: filterProvider is a placeholder until we have provider info in summary
+      return matchSource;
+    });
+  }, [approvals, filterSource]);
 
   const sortedApprovals = useMemo(() => {
-    return [...approvals].sort((a, b) => {
+    return [...filteredApprovals].sort((a, b) => {
       if (sortBy === 'risk') {
         const weightA = RISK_WEIGHT[a.risk] || 0;
         const weightB = RISK_WEIGHT[b.risk] || 0;
@@ -44,10 +70,10 @@ export function ApprovalInbox({ approvals, runLink }: ApprovalInboxProps) {
         return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       }
     });
-  }, [approvals, sortBy]);
+  }, [filteredApprovals, sortBy]);
 
   const groupedApprovals = useMemo(() => {
-    if (groupBy === 'none') return { 'All Pending': sortedApprovals };
+    if (groupBy === 'none') return { 'All Actionable': sortedApprovals };
 
     return sortedApprovals.reduce((acc, approval) => {
       const key = groupBy === 'repo' 
@@ -61,110 +87,144 @@ export function ApprovalInbox({ approvals, runLink }: ApprovalInboxProps) {
   }, [sortedApprovals, groupBy]);
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Controls */}
-      <div className="flex flex-wrap items-center justify-between gap-4 bg-muted/30 p-4 rounded-2xl border border-border">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Sort by</span>
-            <div className="flex bg-background border border-border rounded-lg p-0.5">
-              <button
-                onClick={() => setSortBy('risk')}
-                className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
-                  sortBy === 'risk' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                Risk
-              </button>
-              <button
-                onClick={() => setSortBy('age')}
-                className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
-                  sortBy === 'age' ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                Age
-              </button>
+    <div className="flex flex-col gap-8">
+      {/* Controls Panel */}
+      <div className="flex flex-col gap-6 bg-muted/20 p-6 rounded-[2rem] border border-border/60">
+        <div className="flex flex-wrap items-center justify-between gap-6">
+          <div className="flex flex-wrap items-center gap-8">
+            <div className="flex flex-col gap-2">
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Sort Path</span>
+              <div className="flex bg-background border border-border rounded-xl p-1 shadow-sm">
+                {(['risk', 'age'] as const).map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setSortBy(s)}
+                    className={cn(
+                      "px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all",
+                      sortBy === s ? "bg-primary text-primary-foreground shadow-apple" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Group By</span>
+              <div className="flex bg-background border border-border rounded-xl p-1 shadow-sm">
+                {(['none', 'repo', 'runId'] as const).map((g) => (
+                  <button
+                    key={g}
+                    onClick={() => setGroupBy(g)}
+                    className={cn(
+                      "px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all",
+                      groupBy === g ? "bg-primary text-primary-foreground shadow-apple" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground ml-1">Source Filter</span>
+              <div className="flex bg-background border border-border rounded-xl p-1 shadow-sm overflow-x-auto scrollbar-none max-w-[300px]">
+                {sources.map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setFilterSource(s)}
+                    className={cn(
+                      "px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all whitespace-nowrap",
+                      filterSource === s ? "bg-primary text-primary-foreground shadow-apple" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Group by</span>
-            <div className="flex bg-background border border-border rounded-lg p-0.5">
-              {(['none', 'repo', 'runId'] as const).map((g) => (
-                <button
-                  key={g}
-                  onClick={() => setGroupBy(g)}
-                  className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
-                    groupBy === g ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {g}
-                </button>
-              ))}
-            </div>
+          <div className="flex flex-col items-end gap-1">
+            <div className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Live Attention</div>
+            <div className="text-2xl font-bold tracking-tight text-foreground">{filteredApprovals.length}</div>
           </div>
-        </div>
-
-        <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-          {approvals.length} Actionable Items
         </div>
       </div>
 
       {/* List */}
-      <div className="space-y-10">
+      <div className="space-y-12">
         {Object.entries(groupedApprovals).map(([groupName, items]) => (
-          <div key={groupName} className="space-y-4">
+          <div key={groupName} className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {groupBy !== 'none' && (
-              <div className="flex items-center gap-2 px-2">
-                {groupBy === 'repo' ? <Folder className="h-3.5 w-3.5 text-primary/60" /> : <Hash className="h-3.5 w-3.5 text-primary/60" />}
-                <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-foreground">{groupName}</h3>
-                <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-muted-foreground">{items.length}</span>
+              <div className="flex items-center gap-3 px-2">
+                <div className="h-1.5 w-1.5 rounded-full bg-primary" />
+                <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground">{groupName}</h3>
+                <span className="rounded-full bg-primary/5 border border-primary/10 px-2.5 py-0.5 text-[10px] font-bold text-primary">{items.length}</span>
               </div>
             )}
             
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {items.map((approval) => (
                 <Link
                   key={approval.approvalId}
                   to={`${runLink(approval)}&highlight=${approval.approvalId}`}
-                  className="group block card-professional overflow-hidden hover:border-primary/30 hover:shadow-apple-lg transition-all"
+                  className="group block card-professional overflow-hidden hover:border-primary/30 hover:shadow-apple-lg transition-all duration-300"
                 >
-                  <div className="p-5 flex flex-col h-full">
+                  <div className="p-6 flex flex-col h-full">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex flex-col min-w-0">
-                        <span className="font-mono text-[10px] text-muted-foreground mb-1">
-                          {approval.runId.substring(0, 12)}
-                        </span>
-                        <h4 className="text-sm font-bold text-foreground line-clamp-1 group-hover:text-primary transition-colors">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className="font-mono text-[9px] font-bold text-muted-foreground/60 uppercase tracking-widest">
+                            Run: {approval.runId.substring(0, 8)}
+                          </span>
+                          <span className={cn(
+                            "flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest border",
+                            approval.sourceSurface === 'chat' ? "bg-blue-500/5 text-blue-600 border-blue-500/10" :
+                            approval.sourceSurface === 'workflow' ? "bg-purple-500/5 text-purple-600 border-purple-500/10" :
+                            "bg-orange-500/5 text-orange-600 border-orange-500/10"
+                          )}>
+                            {approval.sourceSurface === 'chat' ? <Bot className="h-2 w-2" /> : 
+                             approval.sourceSurface === 'workflow' ? <Zap className="h-2 w-2" /> : 
+                             <Terminal className="h-2 w-2" />}
+                            {approval.sourceSurface}
+                          </span>
+                        </div>
+                        <h4 className="text-sm font-bold text-foreground line-clamp-1 group-hover:text-primary transition-colors tracking-tight">
                           {approval.title}
                         </h4>
                       </div>
-                      <div className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-widest border ${
+                      <div className={cn(
+                        "rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] border",
                         approval.risk === 'critical' || approval.risk === 'high' 
-                          ? 'bg-rose-500/10 border-rose-500/20 text-rose-600'
-                          : 'bg-orange-500/10 border-orange-500/20 text-orange-600'
-                      }`}>
+                          ? 'bg-rose-500 text-white border-rose-500 shadow-lg shadow-rose-500/20'
+                          : 'bg-orange-500 text-white border-orange-500 shadow-lg shadow-orange-500/20'
+                      )}>
                         {approval.risk}
                       </div>
                     </div>
 
-                    <div className="mt-4 flex flex-col gap-2 flex-1">
-                      <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                        <ShieldAlert className="h-3 w-3" />
-                        <span className="font-medium uppercase tracking-wider">{approval.type.replace('_', ' ')}</span>
+                    <div className="mt-6 flex flex-col gap-3 flex-1">
+                      <div className="flex items-center gap-2">
+                        <div className="rounded-lg bg-secondary p-1.5">
+                          <ShieldAlert className="h-3.5 w-3.5 text-muted-foreground" />
+                        </div>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{approval.type.replace('_', ' ')}</span>
                       </div>
-                      <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                      <p className="text-xs font-medium text-muted-foreground line-clamp-2 leading-relaxed italic border-l-2 border-border pl-3">
                         {approval.reason}
                       </p>
                     </div>
 
-                    <div className="mt-6 pt-4 border-t border-border/50 flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                        <Clock className="h-3 w-3" />
+                    <div className="mt-8 pt-6 border-t border-border/40 flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                        <Clock className="h-3.5 w-3.5 text-muted-foreground/40" />
                         {formatDistanceToNow(new Date(approval.createdAt))} ago
                       </div>
-                      <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-primary opacity-0 group-hover:opacity-100 transition-opacity">
-                        Resolve <ArrowUpRight className="h-3 w-3" />
+                      <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-primary opacity-0 group-hover:opacity-100 transition-all transform translate-x-2 group-hover:translate-x-0">
+                        Review <ArrowUpRight className="h-3.5 w-3.5" />
                       </div>
                     </div>
                   </div>
