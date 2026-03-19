@@ -26,9 +26,11 @@ import {
   ChevronDown,
   Square,
   X,
+  ArrowUpRight,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { MessageContent } from '@/components/chat/MessageContent';
+import type { DaxRunStatus } from '@/types/dax';
 
 interface Message {
   id: string;
@@ -39,7 +41,48 @@ interface Message {
   metadata?: {
     provider?: string;
     model?: string;
+    handoff?: {
+      type: 'dax_run';
+      runId: string;
+      status?: DaxRunStatus;
+      targetPath: string;
+    };
   };
+}
+
+function formatHandoffStatus(status?: DaxRunStatus): string {
+  switch (status) {
+    case 'waiting_approval':
+      return 'Waiting for approval';
+    case 'completed':
+      return 'Completed';
+    case 'failed':
+      return 'Failed';
+    case 'cancelled':
+      return 'Cancelled';
+    case 'running':
+      return 'Running';
+    case 'queued':
+      return 'Queued';
+    case 'created':
+      return 'Created';
+    default:
+      return 'Run created';
+  }
+}
+
+function handoffStatusClasses(status?: DaxRunStatus): string {
+  switch (status) {
+    case 'completed':
+      return 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300';
+    case 'failed':
+    case 'cancelled':
+      return 'border-rose-500/20 bg-rose-500/10 text-rose-700 dark:text-rose-300';
+    case 'waiting_approval':
+      return 'border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300';
+    default:
+      return 'border-primary/20 bg-primary/10 text-primary';
+  }
 }
 
 type SuggestedPrompt = {
@@ -120,6 +163,22 @@ function mapApiMessageToUi(message: any): Message {
         ? {
             provider: message.metadata.provider,
             model: message.metadata.model,
+            handoff:
+              message.metadata.handoff &&
+              typeof message.metadata.handoff === 'object' &&
+              message.metadata.handoff.type === 'dax_run' &&
+              typeof message.metadata.handoff.runId === 'string' &&
+              typeof message.metadata.handoff.targetPath === 'string'
+                ? {
+                    type: 'dax_run' as const,
+                    runId: message.metadata.handoff.runId,
+                    status:
+                      typeof message.metadata.handoff.status === 'string'
+                        ? (message.metadata.handoff.status as DaxRunStatus)
+                        : undefined,
+                    targetPath: message.metadata.handoff.targetPath,
+                  }
+                : undefined,
           }
         : undefined,
   };
@@ -450,6 +509,9 @@ export function ChatPage() {
 
           if (assistantMessage) {
             const mappedAssistant = mapApiMessageToUi(assistantMessage);
+            if (mappedAssistant.metadata?.handoff?.type === 'dax_run') {
+              toast.success('DAX run created from chat');
+            }
             const existingAssistantIdx = next.findIndex((m) => m.id === mappedAssistant.id);
             if (existingAssistantIdx >= 0) {
               next[existingAssistantIdx] = mappedAssistant;
@@ -643,6 +705,39 @@ export function ChatPage() {
                     <div className="mt-2 text-xs text-muted-foreground">
                       Model: {message.metadata.provider ? `${message.metadata.provider}/` : ''}
                       {message.metadata.model}
+                    </div>
+                  )}
+                  {message.role === 'assistant' && message.metadata?.handoff?.type === 'dax_run' && (
+                    <div className="mt-4 rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-primary/5 to-background px-4 py-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={cn('inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium', handoffStatusClasses(message.metadata.handoff.status))}>
+                          {formatHandoffStatus(message.metadata.handoff.status)}
+                        </span>
+                        <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                          Live execution handoff
+                        </span>
+                      </div>
+                      <div className="mt-3">
+                        <div className="text-sm font-medium text-foreground">Execution moved to the live run console</div>
+                        <div className="mt-1 text-sm text-muted-foreground">
+                          Use the run page to watch progress, handle approvals, and review the final outcome.
+                        </div>
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center gap-3">
+                        <div className="rounded-lg border border-border/80 bg-background/80 px-3 py-2">
+                          <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Run ID</div>
+                          <div className="font-mono text-xs text-foreground">
+                            {message.metadata.handoff.runId}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => navigate(message.metadata!.handoff!.targetPath)}
+                          className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+                        >
+                          Open live run
+                          <ArrowUpRight className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
                   )}
 
