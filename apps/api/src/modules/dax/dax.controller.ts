@@ -45,17 +45,18 @@ export class DaxController {
   }
 
   @Get('runs/:id')
-  async getRun(@Param('id') id: string) {
-    return this.daxService.getRun(id);
+  async getRun(@Param('id') id: string, @Query('repoPath') repoPath?: string) {
+    return this.daxService.getRun(id, repoPath);
   }
 
   @Get('runs/:id/events')
   async streamEvents(
     @Param('id') id: string,
     @Query('cursor') cursor: string | undefined,
+    @Query('repoPath') repoPath: string | undefined,
     @Res() res: Response,
   ) {
-    const upstream = await this.daxService.getEventStream(id, cursor);
+    const upstream = await this.daxService.getEventStream(id, cursor, repoPath);
 
     res.status(upstream.status);
     res.setHeader('Content-Type', upstream.headers.get('content-type') || 'text/event-stream');
@@ -93,8 +94,8 @@ export class DaxController {
   }
 
   @Get('runs/:id/approvals')
-  async getApprovals(@Param('id') id: string) {
-    return this.daxService.getApprovals(id);
+  async getApprovals(@Param('id') id: string, @Query('repoPath') repoPath?: string) {
+    return this.daxService.getApprovals(id, repoPath);
   }
 
   @Post('runs/:id/approvals/:approvalId')
@@ -102,6 +103,7 @@ export class DaxController {
     @Param('id') id: string,
     @Param('approvalId') approvalId: string,
     @GetCurrentUser() user: CurrentUser,
+    @Query('repoPath') repoPath: string | undefined,
     @Body() payload: { decision: DaxApprovalDecision; comment?: string; requestId?: string },
   ) {
     const request: DaxResolveApprovalRequest = {
@@ -112,16 +114,16 @@ export class DaxController {
       ...(payload.requestId ? { requestId: payload.requestId } : {}),
     };
 
-    return this.daxService.resolveApproval(id, approvalId, request);
+    return this.daxService.resolveApproval(id, approvalId, request, repoPath);
   }
 
   @Get('runs/:id/summary')
-  async getSummary(@Param('id') id: string) {
-    return this.daxService.getSummary(id);
+  async getSummary(@Param('id') id: string, @Query('repoPath') repoPath?: string) {
+    return this.daxService.getSummary(id, repoPath);
   }
 
   @Get('runs/:id/artifacts')
-  async getArtifacts(@Param('id') id: string) {
-    return this.daxService.getArtifacts(id);
+  async getArtifacts(@Param('id') id: string, @Query('repoPath') repoPath?: string) {
+    return this.daxService.getArtifacts(id, repoPath);
   }
 }

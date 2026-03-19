@@ -20,17 +20,6 @@ export function RunPage() {
   const [launchInput, setLaunchInput] = useState('');
   const [launchKind, setLaunchKind] = useState<'general' | 'analysis' | 'edit'>('edit');
   const { currentWorkspace, currentProject } = useWorkspaceStore();
-  const {
-    activeApproval,
-    events,
-    isApproving,
-    isLoading,
-    loadRun,
-    resolveApproval,
-    snapshot,
-    streamState,
-    summary,
-  } = useRunConsole(runId, !isLauncher);
 
   const workspaceSettings =
     currentWorkspace?.settings && typeof currentWorkspace.settings === 'object'
@@ -58,6 +47,18 @@ export function RunPage() {
     ...(currentWorkspace?.name ? { workspaceName: currentWorkspace.name } : {}),
     ...(currentProject?.name ? { projectName: currentProject.name } : {}),
   } as const;
+
+  const {
+    activeApproval,
+    events,
+    isApproving,
+    isLoading,
+    loadRun,
+    resolveApproval,
+    snapshot,
+    streamState,
+    summary,
+  } = useRunConsole(runId, !isLauncher, inferredRepoPath);
 
   const handleLaunch = async () => {
     const input = launchInput.trim();
