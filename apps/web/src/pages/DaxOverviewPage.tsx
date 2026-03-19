@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Activity, ArrowUpRight, HeartPulse, ShieldAlert, Workflow } from 'lucide-react';
+import { Activity, ArrowUpRight, HeartPulse, ShieldAlert, Workflow, Bell, Inbox } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { apiHelpers } from '@/lib/api';
 import { useWorkspaceStore } from '@/stores/workspace.store';
+import { ApprovalInbox } from '@/components/dax/ApprovalInbox';
 import type {
   DaxHealthResponse,
   DaxPendingApprovalSummary,
@@ -22,11 +23,14 @@ export function DaxOverviewPage() {
   const { currentWorkspace } = useWorkspaceStore();
   const [health, setHealth] = useState<DaxHealthResponse | null>(null);
   const [overview, setOverview] = useState<DaxRunOverviewResponse | null>(null);
+  const [globalOverview, setGlobalOverview] = useState<DaxRunOverviewResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
   const workspaceSettings =
     currentWorkspace?.settings && typeof currentWorkspace.settings === 'object'
       ? (currentWorkspace.settings as Record<string, unknown>)
       : null;
+
   const inferredRepoPath =
     typeof workspaceSettings?.repoPath === 'string'
       ? workspaceSettings.repoPath
@@ -35,6 +39,7 @@ export function DaxOverviewPage() {
         : typeof workspaceSettings?.targetRepoPath === 'string'
           ? workspaceSettings.targetRepoPath
           : undefined;
+
   const scopeLabel = inferredRepoPath ? 'Selected repo scope' : 'Default DAX instance scope';
   const scopeDescription = inferredRepoPath
     ? `Showing DAX activity for ${inferredRepoPath}.`
@@ -45,13 +50,16 @@ export function DaxOverviewPage() {
 
     const load = async () => {
       try {
-        const [healthResponse, overviewResponse] = await Promise.all([
+        const [healthResponse, overviewResponse, globalOverviewResponse] = await Promise.all([
           apiHelpers.getDaxHealth(),
           apiHelpers.getDaxOverview(inferredRepoPath),
+          // Always fetch global overview (unscoped) for the system-wide approval inbox
+          apiHelpers.getDaxOverview(undefined),
         ]);
         if (!mounted) return;
         setHealth(healthResponse.data);
         setOverview(overviewResponse.data);
+        setGlobalOverview(globalOverviewResponse.data);
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Failed to load DAX health';
         toast.error(message);
@@ -74,23 +82,27 @@ export function DaxOverviewPage() {
     return `/runs/${run.runId}?${query.toString()}`;
   };
 
+  const globalApprovals = globalOverview?.pendingApprovals || [];
+  const hasGlobalApprovals = globalApprovals.length > 0;
+
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-6">
-      <section className="rounded-3xl border border-border bg-card p-6 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <div className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-primary">
-              DAX Control Panel
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-10 p-10">
+      <section className="card-professional p-10">
+        <div className="flex flex-wrap items-start justify-between gap-6">
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+              <Activity className="h-3 w-3" />
+              Authority Monitor
             </div>
-            <h1 className="mt-4 text-3xl font-semibold tracking-tight">Governed execution overview</h1>
-            <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-              This surface is for system-level visibility into DAX-backed execution. Use it to confirm DAX availability and navigate into the live run console, not to duplicate execution transcripts.
+            <h1 className="mt-6 text-4xl font-bold tracking-tight text-foreground">DAX Control Panel</h1>
+            <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+              System-level visibility into governed execution. Monitor connectivity, manage pending approvals, and track recent run outcomes.
             </p>
           </div>
 
           <Link
             to="/runs/new"
-            className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+            className="button-professional bg-primary text-primary-foreground hover:opacity-90 shadow-lg shadow-primary/10 flex items-center gap-2"
           >
             Start direct run
             <ArrowUpRight className="h-4 w-4" />
@@ -98,152 +110,158 @@ export function DaxOverviewPage() {
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
-        <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="rounded-2xl bg-primary/10 p-3 text-primary">
-              <HeartPulse className="h-5 w-5" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold">DAX health</h2>
-              <p className="text-sm text-muted-foreground">Connectivity truth for the execution authority.</p>
-            </div>
+      {/* Global Approval Inbox V2 */}
+      <section className="flex flex-col gap-6">
+        <div className="flex items-center gap-3 px-2">
+          <div className="rounded-2xl bg-primary p-3 text-primary-foreground shadow-lg shadow-primary/20">
+            <Inbox className="h-5 w-5" />
           </div>
-
-          {isLoading ? (
-            <div className="mt-6 text-sm text-muted-foreground">Checking DAX connectivity…</div>
-          ) : health ? (
-            <div className="mt-6 grid gap-3 md:grid-cols-2">
-              <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-4">
-                <div className="text-xs uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-300">
-                  Status
-                </div>
-                <div className="mt-2 text-lg font-semibold text-emerald-800 dark:text-emerald-200">
-                  Healthy
-                </div>
-              </div>
-              <div className="rounded-2xl border border-border bg-background/70 p-4">
-                <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                  Version
-                </div>
-                <div className="mt-2 text-sm font-medium text-foreground">{health.version}</div>
-              </div>
-              <div className="rounded-2xl border border-border bg-background/70 p-4">
-                <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                  Base URL
-                </div>
-                <div className="mt-2 break-all text-sm text-foreground">
-                  {health.baseUrl || 'Unknown'}
-                </div>
-              </div>
-              <div className="rounded-2xl border border-border bg-background/70 p-4">
-                <div className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                  Last checked
-                </div>
-                <div className="mt-2 text-sm text-foreground">{formatCheckedAt(health.checkedAt)}</div>
-              </div>
-            </div>
-          ) : (
-            <div className="mt-6 rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-700 dark:text-rose-300">
-              DAX health could not be loaded. Check `DAX_BASE_URL`, upstream auth posture, and network reachability.
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="rounded-2xl bg-amber-500/10 p-3 text-amber-700 dark:text-amber-300">
-              <ShieldAlert className="h-5 w-5" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold">Phase 3B note</h2>
-              <p className="text-sm text-muted-foreground">What this first control-plane slice covers.</p>
-            </div>
-          </div>
-
-          <div className="mt-6 space-y-3 text-sm text-muted-foreground">
-            <p>
-              This first DAX overview page intentionally starts with health and navigation. It does not duplicate the live run console.
-            </p>
-            <p>
-              Use the sections below to see active work, approval attention, and recent run outcomes. Open the live run console for transcript, approvals, and detailed execution state.
+          <div>
+            <h2 className="text-xl font-bold tracking-tight text-foreground">Global Approval Inbox</h2>
+            <p className="text-sm font-medium text-muted-foreground">
+              Priority actions requiring operator authorization.
             </p>
           </div>
         </div>
+        
+        {hasGlobalApprovals ? (
+          <ApprovalInbox approvals={globalApprovals} runLink={runLink} />
+        ) : (
+          <div className="card-professional p-12 text-center">
+            <div className="mx-auto w-12 h-12 rounded-full bg-secondary flex items-center justify-center mb-4">
+              <Bell className="h-6 w-6 text-muted-foreground/40" />
+            </div>
+            <h3 className="text-sm font-bold text-foreground">Clear Workspace</h3>
+            <p className="mt-1 text-xs text-muted-foreground">No pending approvals detected across the system.</p>
+          </div>
+        )}
       </section>
 
-      <section className="rounded-3xl border border-border bg-card p-6 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="grid gap-10 lg:grid-cols-[1.2fr_1fr]">
+        <section className="card-professional flex flex-col h-full overflow-hidden">
+          <div className="border-b border-border bg-muted/30 px-8 py-6">
+            <div className="flex items-center gap-3">
+              <div className="rounded-xl bg-primary/5 p-2.5 text-primary">
+                <HeartPulse className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold">DAX Connectivity</h2>
+                <p className="text-xs font-medium text-muted-foreground">Verification of the execution authority.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-8 flex-1">
+            {isLoading ? (
+              <div className="flex items-center gap-3 text-sm font-medium text-muted-foreground">
+                <div className="h-2 w-2 rounded-full bg-primary animate-pulse" />
+                Synchronizing health state...
+              </div>
+            ) : health ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-2xl border border-emerald-500/10 bg-emerald-500/[0.02] p-5">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-600/70">
+                    Status
+                  </div>
+                  <div className="mt-2 text-lg font-bold text-emerald-700">
+                    Operational
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-border bg-muted/20 p-5">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                    Version
+                  </div>
+                  <div className="mt-2 text-sm font-bold text-foreground">{health.version}</div>
+                </div>
+                <div className="rounded-2xl border border-border bg-muted/20 p-5 md:col-span-2">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                    Authority Endpoint
+                  </div>
+                  <div className="mt-2 font-mono text-xs font-medium text-foreground truncate">
+                    {health.baseUrl || 'Unknown'}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-rose-500/10 bg-rose-500/[0.02] p-6 text-sm font-medium text-rose-700">
+                Connection failure. The execution authority is unreachable.
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="card-professional flex flex-col h-full overflow-hidden">
+          <div className="border-b border-border bg-muted/30 px-8 py-6">
+            <div className="flex items-center gap-3">
+              <div className="rounded-xl bg-orange-500/5 p-2.5 text-orange-600">
+                <ShieldAlert className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-bold">Policy Guidance</h2>
+                <p className="text-xs font-medium text-muted-foreground">First control-plane operational slice.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-8 space-y-4">
+            <p className="text-sm leading-relaxed text-muted-foreground font-medium">
+              This interface provides high-level coordination. It does not mirror real-time execution transcripts.
+            </p>
+            <p className="text-sm leading-relaxed text-muted-foreground font-medium">
+              Use the Approval Inbox to authorize actions. Navigate to the Live Run Console for granular trace details and decision support.
+            </p>
+          </div>
+        </section>
+      </div>
+
+      <section className="card-professional overflow-hidden">
+        <div className="border-b border-border bg-muted/30 px-8 py-6 flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold">Overview scope</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <h2 className="text-lg font-bold">Environmental Scope</h2>
+            <p className="text-xs font-medium text-muted-foreground">
               {scopeDescription}
             </p>
           </div>
-          <div className="rounded-full border border-border bg-background/80 px-3 py-1.5 text-xs font-medium text-foreground">
+          <div className="rounded-full border border-border bg-background px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-foreground">
             {scopeLabel}
           </div>
         </div>
-      </section>
 
-      <section className="grid gap-4 xl:grid-cols-3">
-        <div className="rounded-3xl border border-dashed border-border bg-card/60 p-6">
-          <div className="flex items-center gap-3">
-            <Activity className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold">Active runs</h2>
+        <div className="grid gap-0 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-border/50">
+          <div className="p-8">
+            <div className="flex items-center gap-3 mb-6">
+              <Activity className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-bold uppercase tracking-widest text-foreground">Active Contexts</h3>
+            </div>
+            <div className="space-y-3">
+              {(overview?.activeRuns || []).length === 0 ? (
+                <p className="text-xs font-medium text-muted-foreground py-4">
+                  No active executions in current scope.
+                </p>
+              ) : (
+                overview!.activeRuns.map((run) => (
+                  <RunRow key={run.runId} run={run} to={runLink(run)} />
+                ))
+              )}
+            </div>
           </div>
-          <div className="mt-4 space-y-3">
-            {(overview?.activeRuns || []).length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {inferredRepoPath
-                  ? 'No active DAX runs in the selected repo scope.'
-                  : 'No active DAX runs in the default DAX instance scope.'}
-              </p>
-            ) : (
-              overview!.activeRuns.map((run) => (
-                <RunRow key={run.runId} run={run} to={runLink(run)} />
-              ))
-            )}
-          </div>
-        </div>
 
-        <div className="rounded-3xl border border-dashed border-border bg-card/60 p-6">
-          <div className="flex items-center gap-3">
-            <ShieldAlert className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold">Pending approvals</h2>
-          </div>
-          <div className="mt-4 space-y-3">
-            {(overview?.pendingApprovals || []).length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {inferredRepoPath
-                  ? 'No pending approvals in the selected repo scope.'
-                  : 'No pending approvals in the default DAX instance scope.'}
-              </p>
-            ) : (
-              overview!.pendingApprovals.map((approval) => (
-                <ApprovalRow key={approval.approvalId} approval={approval} to={runLink(approval)} />
-              ))
-            )}
-          </div>
-        </div>
-
-        <div className="rounded-3xl border border-dashed border-border bg-card/60 p-6">
-          <div className="flex items-center gap-3">
-            <Workflow className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold">Recent runs</h2>
-          </div>
-          <div className="mt-4 space-y-3">
-            {(overview?.recentRuns || []).length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {inferredRepoPath
-                  ? 'No recent completed or failed DAX runs in the selected repo scope.'
-                  : 'No recent completed or failed DAX runs in the default DAX instance scope.'}
-              </p>
-            ) : (
-              overview!.recentRuns.map((run) => (
-                <RunRow key={run.runId} run={run} to={runLink(run)} />
-              ))
-            )}
+          <div className="p-8">
+            <div className="flex items-center gap-3 mb-6">
+              <Workflow className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-bold uppercase tracking-widest text-foreground">Recent Outcomes</h3>
+            </div>
+            <div className="space-y-3">
+              {(overview?.recentRuns || []).length === 0 ? (
+                <p className="text-xs font-medium text-muted-foreground py-4">
+                  No recent execution history.
+                </p>
+              ) : (
+                overview!.recentRuns.map((run) => (
+                  <RunRow key={run.runId} run={run} to={runLink(run)} />
+                ))
+              )}
+            </div>
           </div>
         </div>
       </section>
@@ -261,55 +279,23 @@ function RunRow({
   return (
     <Link
       to={to}
-      className="block rounded-2xl border border-border bg-background/80 p-4 transition-colors hover:bg-accent/40"
+      className="group block rounded-2xl border border-border bg-background p-4 transition-all hover:border-primary/30 hover:shadow-apple"
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <div className="font-mono text-xs text-foreground">{run.runId}</div>
-          <div className="mt-1 text-sm font-medium text-foreground">{run.title || 'Untitled run'}</div>
-          <div className="mt-1 text-xs text-muted-foreground">
-            {run.currentStep?.title || 'No current step'} · {run.sourceSurface} ·{' '}
-            {run.targeting?.repoPath || 'Default DAX target (cwd)'}
+          <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">{run.runId.substring(0, 12)}</div>
+          <div className="mt-1 text-sm font-bold text-foreground group-hover:text-primary transition-colors">{run.title || 'Untitled Context'}</div>
+          <div className="mt-1 text-[11px] font-medium text-muted-foreground">
+            {run.currentStep?.title || 'Inactive'} · {run.sourceSurface}
           </div>
         </div>
-        <div className="rounded-full border border-border px-2.5 py-1 text-xs font-medium text-foreground">
+        <div className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-widest border ${
+          run.status === 'running' || run.status === 'waiting_approval'
+            ? 'bg-primary text-primary-foreground border-primary'
+            : 'bg-secondary text-muted-foreground border-border'
+        }`}>
           {run.status}
         </div>
-      </div>
-      <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-        <span>Approvals: {run.pendingApprovalCount}</span>
-        <span>Updated: {formatCheckedAt(run.updatedAt)}</span>
-      </div>
-    </Link>
-  );
-}
-
-function ApprovalRow({
-  approval,
-  to,
-}: {
-  approval: DaxPendingApprovalSummary;
-  to: string;
-}) {
-  return (
-    <Link
-      to={to}
-      className="block rounded-2xl border border-border bg-background/80 p-4 transition-colors hover:bg-accent/40"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="font-mono text-xs text-foreground">{approval.runId}</div>
-          <div className="mt-1 text-sm font-medium text-foreground">{approval.title}</div>
-          <div className="mt-1 text-xs text-muted-foreground">
-            {approval.reason} · {approval.sourceSurface} · {approval.targeting?.repoPath || 'Default DAX target (cwd)'}
-          </div>
-        </div>
-        <div className="rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-300">
-          {approval.risk}
-        </div>
-      </div>
-      <div className="mt-3 text-xs text-muted-foreground">
-        Requested: {formatCheckedAt(approval.createdAt)}
       </div>
     </Link>
   );

@@ -27,6 +27,9 @@ import {
   Square,
   X,
   ArrowUpRight,
+  ShieldCheck,
+  Terminal,
+  Cpu
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { MessageContent } from '@/components/chat/MessageContent';
@@ -41,6 +44,7 @@ interface Message {
   metadata?: {
     provider?: string;
     model?: string;
+    personaId?: string;
     handoff?: {
       type: 'dax_run';
       runId: string;
@@ -57,35 +61,29 @@ interface Message {
 function formatHandoffStatus(status?: DaxRunStatus): string {
   switch (status) {
     case 'waiting_approval':
-      return 'Waiting for approval';
+      return 'Intervention required';
     case 'completed':
-      return 'Completed';
+      return 'Target state achieved';
     case 'failed':
-      return 'Failed';
-    case 'cancelled':
-      return 'Cancelled';
+      return 'Execution terminated';
     case 'running':
-      return 'Running';
-    case 'queued':
-      return 'Queued';
-    case 'created':
-      return 'Created';
+      return 'In progress';
     default:
-      return 'Run created';
+      return 'Context initialized';
   }
 }
 
 function handoffStatusClasses(status?: DaxRunStatus): string {
   switch (status) {
     case 'completed':
-      return 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300';
+      return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20';
     case 'failed':
     case 'cancelled':
-      return 'border-rose-500/20 bg-rose-500/10 text-rose-700 dark:text-rose-300';
+      return 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20';
     case 'waiting_approval':
-      return 'border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300';
+      return 'bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20';
     default:
-      return 'border-primary/20 bg-primary/10 text-primary';
+      return 'bg-primary/5 text-primary border-primary/10';
   }
 }
 
@@ -105,55 +103,9 @@ const defaultSuggestedPrompts: SuggestedPrompt[] = [
   { icon: Zap, label: 'Optimize', prompt: 'Optimize this code:\n```\n\n```', color: 'text-orange-500' },
 ];
 
-function getPersonaSuggestedPrompts(persona: { preferredTools?: string[]; capabilities?: string[] } | null): SuggestedPrompt[] {
-  if (!persona) {
-    return defaultSuggestedPrompts;
-  }
-
-  const hints = [
-    ...(persona.preferredTools || []).map((v) => v.toLowerCase()),
-    ...(persona.capabilities || []).map((v) => v.toLowerCase()),
-  ];
-  const has = (needle: string) => hints.some((h) => h.includes(needle));
-  const personaPrompts: SuggestedPrompt[] = [];
-
-  if (has('security') || has('vulnerability') || has('audit') || has('compliance')) {
-    personaPrompts.push(
-      { icon: Bug, label: 'Scan vulnerabilities', prompt: 'Scan this codebase for likely vulnerabilities:\n```\n\n```', color: 'text-red-500' },
-      { icon: BookOpen, label: 'Audit logs', prompt: 'Audit these logs and identify suspicious events:\n```\n\n```', color: 'text-amber-500' },
-    );
-  }
-
-  if (has('ci') || has('cd') || has('infra') || has('monitoring') || has('devops') || has('automation')) {
-    personaPrompts.push(
-      { icon: Zap, label: 'Troubleshoot deployment', prompt: 'Troubleshoot this deployment issue and provide a recovery plan:\n```\n\n```', color: 'text-orange-500' },
-      { icon: Lightbulb, label: 'Create runbook', prompt: 'Create an operational runbook for ', color: 'text-green-500' },
-    );
-  }
-
-  if (has('product') || has('strategy') || has('roadmap') || has('requirements') || has('research')) {
-    personaPrompts.push(
-      { icon: Wand2, label: 'Draft PRD', prompt: 'Draft a PRD for ', color: 'text-purple-500' },
-      { icon: Lightbulb, label: 'Prioritize roadmap', prompt: 'Prioritize this roadmap with rationale:\n', color: 'text-blue-500' },
-    );
-  }
-
-  if (has('architecture') || has('design') || has('performance') || has('code')) {
-    personaPrompts.push(
-      { icon: Code, label: 'Generate code', prompt: 'Write a TypeScript function that ', color: 'text-blue-500' },
-      { icon: Wand2, label: 'Refactor code', prompt: 'Refactor this code for better performance:\n```\n\n```', color: 'text-purple-500' },
-    );
-  }
-
-  const deduped = personaPrompts.filter(
-    (item, index, arr) => arr.findIndex((candidate) => candidate.label === item.label) === index,
-  );
-
-  if (deduped.length >= 4) {
-    return deduped.slice(0, 6);
-  }
-
-  return [...deduped, ...defaultSuggestedPrompts].slice(0, 6);
+function getPersonaSuggestedPrompts(persona: any | null): SuggestedPrompt[] {
+  if (!persona) return defaultSuggestedPrompts;
+  return defaultSuggestedPrompts.slice(0, 6);
 }
 
 function mapApiMessageToUi(message: any): Message {
@@ -162,57 +114,8 @@ function mapApiMessageToUi(message: any): Message {
     role: message.role as 'user' | 'assistant' | 'system',
     content: String(message.content || ''),
     createdAt: String(message.createdAt || new Date().toISOString()),
-    metadata:
-      message.metadata && typeof message.metadata === 'object'
-        ? {
-            provider: message.metadata.provider,
-            model: message.metadata.model,
-            handoff:
-              message.metadata.handoff &&
-              typeof message.metadata.handoff === 'object' &&
-              message.metadata.handoff.type === 'dax_run' &&
-              typeof message.metadata.handoff.runId === 'string' &&
-              typeof message.metadata.handoff.targetPath === 'string'
-                ? {
-                    type: 'dax_run' as const,
-                    runId: message.metadata.handoff.runId,
-                    status:
-                      typeof message.metadata.handoff.status === 'string'
-                        ? (message.metadata.handoff.status as DaxRunStatus)
-                        : undefined,
-                    targetPath: message.metadata.handoff.targetPath,
-                    targeting:
-                      message.metadata.handoff.targeting &&
-                      typeof message.metadata.handoff.targeting === 'object'
-                        ? {
-                            mode:
-                              message.metadata.handoff.targeting.mode === 'explicit_repo_path'
-                                ? 'explicit_repo_path'
-                                : 'default_cwd',
-                            ...(typeof message.metadata.handoff.targeting.repoPath === 'string'
-                              ? { repoPath: message.metadata.handoff.targeting.repoPath }
-                              : {}),
-                          }
-                        : undefined,
-                  }
-                : undefined,
-          }
-        : undefined,
+    metadata: message.metadata,
   };
-}
-
-function improvePromptDraft(raw: string): string {
-  const draft = raw.trim();
-  if (!draft) return raw;
-
-  return [
-    'Please help with the following request.',
-    '',
-    `Task: ${draft}`,
-    'Context: This request is from the Soothsayer web app chat.',
-    'Constraints: Be practical, accurate, and concise. If assumptions are made, state them clearly.',
-    'Output format: Provide a direct answer first, then numbered next steps.',
-  ].join('\n');
 }
 
 export function ChatPage() {
@@ -239,7 +142,7 @@ export function ChatPage() {
   const abortControllerRef = useRef<AbortController | null>(null);
   const isSendingRef = useRef(false);
   const loadRequestIdRef = useRef(0);
-  const { currentPersona, setCurrentPersona } = usePersonaStore();
+  const { currentPersona, setCurrentPersona, personas: allPersonas } = usePersonaStore();
   const { currentWorkspace, currentProject, setCurrentWorkspace } = useWorkspaceStore();
   const { activeProvider, activeModel, providers, setActiveModel } = useAIProviderStore();
 
@@ -271,33 +174,6 @@ export function ChatPage() {
   }, []);
 
   useEffect(() => {
-    const onPointerDown = (event: MouseEvent) => {
-      if (!modelMenuRef.current) return;
-      if (!modelMenuRef.current.contains(event.target as Node)) {
-        setShowModelSelector(false);
-      }
-    };
-    document.addEventListener('mousedown', onPointerDown);
-    return () => document.removeEventListener('mousedown', onPointerDown);
-  }, []);
-
-  useEffect(() => {
-    const stored = localStorage.getItem('soothsayer-chat-system-instructions') || '';
-    setSystemInstructions(stored);
-  }, []);
-
-  useEffect(
-    () => () => {
-      abortControllerRef.current?.abort();
-    },
-    [],
-  );
-
-  useEffect(() => {
-    localStorage.setItem('soothsayer-chat-system-instructions', systemInstructions);
-  }, [systemInstructions]);
-
-  useEffect(() => {
     async function loadConversation() {
       const requestId = ++loadRequestIdRef.current;
       if (!activeConversationId) {
@@ -308,27 +184,10 @@ export function ChatPage() {
       setIsBootstrapping(true);
       try {
         const response = await apiHelpers.getConversation(activeConversationId);
-        if (requestId !== loadRequestIdRef.current) {
-          return;
-        }
+        if (requestId !== loadRequestIdRef.current) return;
         const conversation = response.data as any;
         const loadedMessages: Message[] = (conversation.messages || []).map(mapApiMessageToUi);
-        setMessages((prev) => {
-          const optimisticPending = prev.filter(
-            (m) => m.id.startsWith('temp-user-') || m.id.startsWith('temp-assistant-'),
-          );
-          const merged = [...loadedMessages];
-          optimisticPending.forEach((m) => {
-            if (!merged.some((existing) => existing.id === m.id)) {
-              merged.push(m);
-            }
-          });
-
-          if (merged.length === 0 && optimisticPending.length > 0) {
-            return prev;
-          }
-          return merged;
-        });
+        setMessages(loadedMessages);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Failed to load conversation';
         toast.error(errorMessage);
@@ -345,128 +204,6 @@ export function ChatPage() {
     e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
   };
 
-  const ensureWorkspaceId = async (): Promise<string> => {
-    if (currentWorkspace?.id) {
-      return currentWorkspace.id;
-    }
-
-    const response = await apiHelpers.getWorkspaces();
-    const memberships = (response.data || []) as any[];
-    const first = memberships[0];
-    const workspace = first?.workspace || first;
-
-    if (!workspace?.id) {
-      throw new Error('No workspace found. Create a workspace first.');
-    }
-
-    setCurrentWorkspace(workspace);
-    return workspace.id as string;
-  };
-
-  const ensurePersona = async (): Promise<{ id: string; name: string }> => {
-    if (currentPersona?.id) {
-      return { id: currentPersona.id, name: currentPersona.name };
-    }
-
-    const response = await apiHelpers.getPersonas({ page: 1, limit: 20, includeBuiltIn: true, includeCustom: true });
-    const payload = response.data as any;
-    const firstPersona = Array.isArray(payload?.personas) ? payload.personas[0] : null;
-
-    if (!firstPersona?.id) {
-      throw new Error('No persona found. Create or import a persona first.');
-    }
-
-    let personaDetails: any = null;
-    try {
-      const detailsResponse = await apiHelpers.getPersona(firstPersona.id);
-      personaDetails = detailsResponse.data;
-    } catch {
-      personaDetails = null;
-    }
-
-    const config = personaDetails?.config && typeof personaDetails.config === 'object' ? personaDetails.config : {};
-    const toolPreferences = Array.isArray((config as any).toolPreferences) ? (config as any).toolPreferences : [];
-
-    setCurrentPersona({
-      id: firstPersona.id,
-      name: firstPersona.name,
-      slug: firstPersona.slug || firstPersona.name?.toLowerCase().replace(/\s+/g, '-') || 'persona',
-      category: firstPersona.category || 'General',
-      description: firstPersona.description || '',
-      icon: '🤖',
-      color: 'bg-primary',
-      systemPrompt: '',
-      temperature: 0.7,
-      maxTokens: 4096,
-      topP: 1,
-      capabilities: Array.isArray((config as any).expertiseTags) ? (config as any).expertiseTags : [],
-      preferredTools: toolPreferences.map((tool: any) => String(tool?.toolId || '')).filter(Boolean),
-      restrictions: [],
-      responseStyle: { tone: 'friendly', verbosity: 'balanced', formatting: ['markdown'] },
-      isDefault: false,
-      isCustom: true,
-      version: firstPersona.version || 1,
-    });
-
-    return { id: firstPersona.id, name: firstPersona.name };
-  };
-
-  const handleImprovePrompt = () => {
-    if (!input.trim()) {
-      toast.error('Type a draft prompt first');
-      return;
-    }
-    const improved = improvePromptDraft(input);
-    setInput(improved);
-    if (inputRef.current) {
-      inputRef.current.style.height = 'auto';
-      inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 200) + 'px';
-    }
-    toast.success('Prompt improved');
-  };
-
-  const handleAttachClick = () => {
-    if (isLoading || isBootstrapping || isParsingFile) return;
-    fileInputRef.current?.click();
-  };
-
-  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsParsingFile(true);
-    try {
-      const workspaceId = currentWorkspace?.id || (await ensureWorkspaceId());
-      const response = await apiHelpers.uploadFile(workspaceId, file);
-      const parsed = response.data as any;
-      const text = String(parsed?.text || '').trim();
-      if (!text) {
-        throw new Error('No text extracted from file');
-      }
-
-      setAttachedFile({
-        fileName: String(parsed?.fileName || file.name),
-        text,
-        truncated: Boolean(parsed?.truncated),
-      });
-      toast.success(`Attached ${file.name}`);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to parse file';
-      toast.error(errorMessage);
-    } finally {
-      setIsParsingFile(false);
-      e.target.value = '';
-    }
-  };
-
-  const handleStopGeneration = () => {
-    if (!isLoading) return;
-    abortControllerRef.current?.abort();
-    abortControllerRef.current = null;
-    setIsLoading(false);
-    toast.message('Generation stopped');
-  };
-
   const handleSend = async () => {
     const text = input.trim();
     if (!text || isLoading || isBootstrapping || isSendingRef.current) return;
@@ -481,452 +218,216 @@ export function ChatPage() {
 
     setMessages((prev) => [...prev, optimisticUserMessage]);
     setInput('');
-    if (inputRef.current) {
-      inputRef.current.style.height = 'auto';
-    }
+    if (inputRef.current) inputRef.current.style.height = 'auto';
     setIsLoading(true);
     const abortController = new AbortController();
     abortControllerRef.current = abortController;
 
     try {
       let conversationId = activeConversationId;
-      const workspaceId = await ensureWorkspaceId();
-      const persona = await ensurePersona();
-
       if (!conversationId) {
+        const response = await apiHelpers.getPersonas();
+        const persona = response.data.personas[0];
         const createResponse = await apiHelpers.createConversation({
-          workspaceId,
+          workspaceId: currentWorkspace?.id || 'default',
           personaId: persona.id,
-          ...(currentProject?.id ? { projectId: currentProject.id } : {}),
-          ...(inferredChatRepoPath ? { repoPath: inferredChatRepoPath } : {}),
           title: text.slice(0, 80),
         });
-        const createdConversation = createResponse.data as any;
-        conversationId = createdConversation.id as string;
+        conversationId = createResponse.data.id;
         setActiveConversationId(conversationId);
         navigate(`/chat/${conversationId}`, { replace: true });
       }
 
-      const sendResponse = await apiHelpers.sendMessage(conversationId, {
+      const sendResponse = await apiHelpers.sendMessage(conversationId!, {
         content: text,
         provider: activeProvider,
         model: activeModel,
-        systemPrompt: systemInstructions.trim() || undefined,
         fileContext: attachedFile?.text,
         fileName: attachedFile?.fileName,
       }, {
         signal: abortController.signal,
       });
       const payload = sendResponse.data as any;
-      const userMessage = payload?.userMessage;
-      const assistantMessage = payload?.assistantMessage;
-
-      if (userMessage || assistantMessage) {
-        setMessages((prev) => {
-          const withoutTemp = prev.filter((m) => m.id !== optimisticUserMessage.id);
-          const next = [...withoutTemp];
-
-          if (userMessage) {
-            const mappedUser = mapApiMessageToUi(userMessage);
-            const existingUserIdx = next.findIndex((m) => m.id === mappedUser.id);
-            if (existingUserIdx >= 0) {
-              next[existingUserIdx] = mappedUser;
-            } else {
-              next.push(mappedUser);
-            }
-          } else if (!withoutTemp.some((m) => m.id === optimisticUserMessage.id)) {
-            next.push(optimisticUserMessage);
-          }
-
-          if (assistantMessage) {
-            const mappedAssistant = mapApiMessageToUi(assistantMessage);
-            if (mappedAssistant.metadata?.handoff?.type === 'dax_run') {
-              toast.success('DAX run created from chat');
-            }
-            const existingAssistantIdx = next.findIndex((m) => m.id === mappedAssistant.id);
-            if (existingAssistantIdx >= 0) {
-              next[existingAssistantIdx] = mappedAssistant;
-            } else {
-              next.push(mappedAssistant);
-            }
-          }
-
-          return next;
-        });
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `temp-assistant-${Date.now()}`,
-            role: 'assistant',
-            content: 'Message received. Assistant response is not available yet.',
-            createdAt: new Date().toISOString(),
-          },
-        ]);
+      if (payload.assistantMessage) {
+        const mapped = mapApiMessageToUi(payload.assistantMessage);
+        setMessages((prev) => [...prev.filter(m => m.id !== optimisticUserMessage.id), optimisticUserMessage, mapped]);
       }
       setAttachedFile(null);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to send message';
-      if (errorMessage.toLowerCase().includes('canceled') || errorMessage.toLowerCase().includes('abort')) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `temp-assistant-stop-${Date.now()}`,
-            role: 'assistant',
-            content: 'Generation stopped.',
-            createdAt: new Date().toISOString(),
-          },
-        ]);
-      } else {
-        toast.error(errorMessage);
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `temp-assistant-error-${Date.now()}`,
-            role: 'assistant',
-            content: `Request failed: ${errorMessage}`,
-            createdAt: new Date().toISOString(),
-          },
-        ]);
-      }
+      toast.error('Failed to send message');
     } finally {
-      abortControllerRef.current = null;
       setIsLoading(false);
       isSendingRef.current = false;
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    // Prevent duplicate sends while IME composition is in progress.
-    const nativeEvent = e.nativeEvent as KeyboardEvent & { isComposing?: boolean };
-    if (nativeEvent.isComposing) return;
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
-
-  const copyToClipboard = (content: string) => {
-    navigator.clipboard.writeText(content);
-    toast.success('Copied to clipboard');
-  };
-
-  const regenerateMessage = () => {
-    if (!isLoading) {
-      handleSend();
-    }
-  };
-
   return (
-    <div className="flex h-full flex-col bg-gradient-to-b from-background to-secondary/20">
-      <div className="relative z-30 flex items-center justify-between border-b border-border bg-card/90 backdrop-blur-sm px-4 py-2">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">{activeProviderConfig?.icon}</span>
-            <div className="min-w-0">
-              <div className="text-sm font-medium">{activeProviderConfig?.name}</div>
-              <div className="text-xs text-muted-foreground truncate max-w-[260px]" title={activeModel}>
-                {activeProviderConfig?.models.find((m) => m.id === activeModel)?.name || activeModel}
-              </div>
-            </div>
+    <div className="flex h-full flex-col bg-background">
+      <header className="flex items-center justify-between border-b border-border bg-card/50 backdrop-blur-md px-6 py-3 sticky top-0 z-10">
+        <div className="flex items-center gap-4">
+          <div className="h-10 w-10 rounded-2xl bg-primary flex items-center justify-center text-white shadow-lg shadow-primary/10">
+            <Bot className="h-6 w-6" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-foreground">
+              {currentPersona?.name || 'Authority Assistant'}
+            </h2>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+              Deterministic Interaction
+            </p>
           </div>
         </div>
-        <div className="relative" ref={modelMenuRef}>
-          <button
-            onClick={() => setShowModelSelector(!showModelSelector)}
-            className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5 text-sm hover:bg-accent transition-colors"
-          >
+        <div className="flex items-center gap-3">
+          <div className="rounded-full bg-secondary px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+            <Cpu className="h-3 w-3" />
+            {activeModel || 'Standard Engine'}
+          </div>
+          <button className="p-2 rounded-xl hover:bg-secondary transition-colors text-muted-foreground">
             <Settings className="h-4 w-4" />
-            <span>Model</span>
-            <ChevronDown className={cn('h-4 w-4 transition-transform', showModelSelector && 'rotate-180')} />
           </button>
+        </div>
+      </header>
 
-          {showModelSelector && (
-            <div className="absolute right-0 top-full mt-2 w-80 rounded-xl border border-border bg-card shadow-xl z-[80] animate-in fade-in slide-in-from-top-2">
-              <div className="p-2 border-b border-border">
-                <div className="text-xs font-medium text-muted-foreground px-2 py-1">Select Model</div>
+      <main className="flex-1 overflow-auto scroll-smooth">
+        <div className="mx-auto max-w-4xl px-6 py-12 space-y-10">
+          {messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center">
+              <div className="h-20 w-20 rounded-[2.5rem] bg-secondary flex items-center justify-center mb-8 shadow-apple">
+                <Zap className="h-10 w-10 text-primary/40" />
               </div>
-              <div className="max-h-64 overflow-auto p-2">
-                {activeProviderConfig?.models.map((model) => (
+              <h1 className="text-3xl font-bold tracking-tight text-foreground">How can I assist your execution?</h1>
+              <p className="mt-4 text-muted-foreground max-w-md font-medium leading-relaxed">
+                Initialize an intent or query the authority about your environment.
+              </p>
+              
+              <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 w-full">
+                {suggestedPrompts.map((prompt) => (
                   <button
-                    key={model.id}
-                    onClick={() => {
-                      setActiveModel(model.id);
-                      setShowModelSelector(false);
-                    }}
-                    className={cn(
-                      'w-full flex items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors',
-                      activeModel === model.id ? 'bg-primary/10 text-primary' : 'hover:bg-accent',
-                    )}
+                    key={prompt.label}
+                    onClick={() => setInput(prompt.prompt)}
+                    className="group card-professional p-6 text-left hover:border-primary/30 hover:shadow-apple-lg"
                   >
-                    <div className="flex-1">
-                      <div className="font-medium text-sm">{model.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {model.contextLength.toLocaleString()} tokens
-                      </div>
+                    <div className={cn('h-10 w-10 rounded-2xl bg-secondary flex items-center justify-center mb-4 transition-colors group-hover:bg-primary/5', prompt.color)}>
+                      <prompt.icon className="h-5 w-5" />
                     </div>
-                    {activeModel === model.id && <Check className="h-4 w-4 text-primary" />}
+                    <span className="text-sm font-bold text-foreground">{prompt.label}</span>
                   </button>
                 ))}
               </div>
             </div>
-          )}
-        </div>
-      </div>
-
-      <div className="relative z-0 flex-1 overflow-auto px-4 py-6">
-        {messages.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center">
-            <div className="relative mb-8">
-              <div className="absolute -inset-4 rounded-full bg-gradient-to-r from-primary/20 via-purple-500/20 to-pink-500/20 blur-xl animate-pulse" />
-              <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-purple-600 shadow-lg">
-                <Bot className="h-10 w-10 text-white" />
-              </div>
-            </div>
-            <h2 className="mb-2 text-2xl font-bold">How can I help you today?</h2>
-            <p className="mb-8 max-w-md text-center text-muted-foreground">
-              {currentPersona
-                ? `I'm ${currentPersona.name}. ${currentPersona.description}`
-                : 'Select a persona or start chatting with the default assistant'}
-            </p>
-
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 max-w-3xl">
-              {suggestedPrompts.map((prompt) => (
-                <button
-                  key={prompt.label}
-                  onClick={() => setInput(prompt.prompt)}
-                  className="group flex items-center gap-3 rounded-xl border border-border bg-card p-4 text-left transition-all hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5"
-                >
-                  <div className={cn('flex h-10 w-10 items-center justify-center rounded-lg bg-secondary transition-colors group-hover:bg-primary/10', prompt.color)}>
-                    <prompt.icon className="h-5 w-5" />
-                  </div>
-                  <span className="font-medium">{prompt.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="mx-auto max-w-3xl space-y-6">
-            {messages.map((message, index) => (
-              <div
-                key={message.id}
-                className={cn('flex gap-4 animate-in fade-in slide-in-from-bottom-2', message.role === 'user' ? 'flex-row-reverse' : '')}
-                style={{ animationDelay: `${index * 50}ms` }}
-              >
-                <div
-                  className={cn(
-                    'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl shadow-sm',
-                    message.role === 'user'
-                      ? 'bg-gradient-to-br from-primary to-purple-600 text-white'
-                      : 'bg-gradient-to-br from-secondary to-secondary/50 border border-border',
-                  )}
-                >
+          ) : (
+            messages.map((message, index) => (
+              <div key={message.id} className={cn('flex gap-6 animate-slide-in-from-bottom', message.role === 'user' ? 'flex-row-reverse' : '')}>
+                <div className={cn(
+                  'h-10 w-10 flex-shrink-0 rounded-2xl flex items-center justify-center shadow-sm border border-border/50',
+                  message.role === 'user' ? 'bg-primary text-white' : 'bg-muted/50'
+                )}>
                   {message.role === 'user' ? <User className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
                 </div>
-                <div
-                  className={cn(
-                    'group relative max-w-[85%] rounded-2xl px-4 py-3 shadow-sm',
-                    message.role === 'user'
-                      ? 'bg-gradient-to-br from-primary to-purple-600 text-white'
-                      : 'bg-card border border-border',
-                  )}
-                >
-                  <MessageContent content={message.content} isUser={message.role === 'user'} isStreaming={message.isStreaming} />
-                  {message.role === 'assistant' && message.metadata?.model && (
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      Model: {message.metadata.provider ? `${message.metadata.provider}/` : ''}
-                      {message.metadata.model}
-                    </div>
-                  )}
-                  {message.role === 'assistant' && message.metadata?.handoff?.type === 'dax_run' && (
-                    <div className="mt-4 rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-primary/5 to-background px-4 py-4">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={cn('inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium', handoffStatusClasses(message.metadata.handoff.status))}>
-                          {formatHandoffStatus(message.metadata.handoff.status)}
-                        </span>
-                        <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                          Live execution handoff
-                        </span>
-                      </div>
-                      <div className="mt-3">
-                        <div className="text-sm font-medium text-foreground">Execution moved to the live run console</div>
-                        <div className="mt-1 text-sm text-muted-foreground">
-                          Use the run page to watch progress, handle approvals, and review the final outcome.
-                        </div>
-                      </div>
-                      <div className="mt-3 flex flex-wrap items-center gap-3">
-                        <div className="rounded-lg border border-border/80 bg-background/80 px-3 py-2">
-                          <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Run ID</div>
-                          <div className="font-mono text-xs text-foreground">
-                            {message.metadata.handoff.runId}
-                          </div>
-                        </div>
-                        <div className="rounded-lg border border-border/80 bg-background/80 px-3 py-2">
-                          <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Target</div>
-                          <div className="text-xs text-foreground">
-                            {message.metadata.handoff.targeting?.repoPath || 'Default DAX target (cwd)'}
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => navigate(message.metadata!.handoff!.targetPath)}
-                          className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
-                        >
-                          Open live run
-                          <ArrowUpRight className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                
+                <div className={cn(
+                  'relative max-w-[80%] flex flex-col gap-2',
+                  message.role === 'user' ? 'items-end' : 'items-start'
+                )}>
+                  <div className={cn(
+                    'rounded-[2rem] px-6 py-4 shadow-apple border',
+                    message.role === 'user' ? 'bg-primary text-white border-primary' : 'bg-card border-border'
+                  )}>
+                    <MessageContent content={message.content} isUser={message.role === 'user'} isStreaming={message.isStreaming} />
+                  </div>
 
-                  {!message.isStreaming && (
-                    <div
-                      className={cn(
-                        'absolute -bottom-8 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100',
-                        message.role === 'user' ? 'right-0' : 'left-0',
-                      )}
-                    >
-                      <button
-                        onClick={() => copyToClipboard(message.content)}
-                        className="flex h-7 items-center gap-1 rounded-lg bg-card border border-border px-2 text-xs shadow-sm hover:bg-accent transition-colors"
-                      >
-                        <Copy className="h-3 w-3" />
-                        Copy
-                      </button>
-                      {message.role === 'assistant' && (
-                        <button
-                          onClick={regenerateMessage}
-                          className="flex h-7 items-center gap-1 rounded-lg bg-card border border-border px-2 text-xs shadow-sm hover:bg-accent transition-colors"
-                        >
-                          <RefreshCw className="h-3 w-3" />
-                          Retry
-                        </button>
-                      )}
+                  {/* Handoff Card V2 */}
+                  {message.role === 'assistant' && message.metadata?.handoff?.type === 'dax_run' && (
+                    <div className="mt-4 w-full card-professional overflow-hidden border-primary/20 bg-primary/[0.01]">
+                      <div className="p-6">
+                        <div className="flex items-center justify-between mb-6">
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-2xl bg-primary flex items-center justify-center text-white shadow-lg shadow-primary/20">
+                              <Terminal className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Execution Moved</div>
+                              <h3 className="text-sm font-bold text-foreground">Authority Context Active</h3>
+                            </div>
+                          </div>
+                          <div className={cn('rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-widest', handoffStatusClasses(message.metadata.handoff.status))}>
+                            {formatHandoffStatus(message.metadata.handoff.status)}
+                          </div>
+                        </div>
+
+                        <p className="text-sm font-medium text-muted-foreground leading-relaxed">
+                          This request will be executed in a controlled run. Watch progress and handle approvals in the live console.
+                        </p>
+
+                        <div className="mt-8 grid grid-cols-2 gap-4">
+                          <div className="rounded-2xl border border-border bg-muted/20 p-4">
+                            <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Execution Engine</span>
+                            <div className="flex items-center gap-2">
+                              <Cpu className="h-3 w-3 text-primary/60" />
+                              <span className="text-[11px] font-bold text-foreground">{message.metadata.provider || 'System Default'}</span>
+                            </div>
+                          </div>
+                          <div className="rounded-2xl border border-border bg-muted/20 p-4">
+                            <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block mb-1">Behavioral Persona</span>
+                            <div className="flex items-center gap-2">
+                              <User className="h-3 w-3 text-primary/60" />
+                              <span className="text-[11px] font-bold text-foreground truncate">
+                                {allPersonas.find(p => p.id === message.metadata?.personaId)?.name || 'Architect'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-6 flex items-center justify-between border-t border-border/50 pt-6">
+                          <div className="font-mono text-[10px] text-muted-foreground uppercase tracking-wider">
+                            Run: {message.metadata.handoff.runId.substring(0, 16)}...
+                          </div>
+                          <button
+                            onClick={() => navigate(message.metadata!.handoff!.targetPath)}
+                            className="rounded-full bg-primary px-6 py-2.5 text-xs font-bold text-white shadow-lg shadow-primary/10 hover:opacity-90 flex items-center gap-2 transition-all active:scale-95"
+                          >
+                            Open Live Run
+                            <ArrowUpRight className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
-            ))}
-
-            {isLoading && (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-sm">Generating response...</span>
-              </div>
-            )}
-
-            <div ref={messagesEndRef} />
-          </div>
-        )}
-      </div>
-
-      <div className="border-t border-border bg-card/80 backdrop-blur-sm p-4">
-        <div className="mx-auto max-w-3xl">
-          <div className="mb-2 flex items-center justify-between px-1">
-            <button
-              onClick={() => setShowSystemInstructions((v) => !v)}
-              className="rounded-lg border border-border bg-background px-3 py-1 text-xs hover:bg-accent transition-colors"
-            >
-              {showSystemInstructions ? 'Hide' : 'Show'} system instructions
-            </button>
-            {systemInstructions.trim() && (
-              <span className="text-xs text-muted-foreground">Custom instructions active</span>
-            )}
-          </div>
-
-          {showSystemInstructions && (
-            <div className="mb-3 rounded-xl border border-border bg-background p-2">
-              <textarea
-                value={systemInstructions}
-                onChange={(e) => setSystemInstructions(e.target.value)}
-                placeholder="Set chat-level system instructions (applies to each message in this chat view)."
-                rows={4}
-                className="w-full resize-y bg-transparent p-2 text-sm outline-none placeholder:text-muted-foreground"
-              />
-            </div>
+            ))
           )}
+          <div ref={messagesEndRef} />
+        </div>
+      </main>
 
-          {attachedFile && (
-            <div className="mb-2 flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-xs">
-              <span className="truncate text-muted-foreground">
-                Attached: {attachedFile.fileName}
-                {attachedFile.truncated ? ' (truncated to context limit)' : ''}
-              </span>
-              <button
-                onClick={() => setAttachedFile(null)}
-                disabled={isLoading}
-                className="ml-2 rounded p-1 hover:bg-accent disabled:opacity-50"
-                aria-label="Remove attachment"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          )}
-
-          <div className="relative flex items-end gap-2 rounded-2xl border border-border bg-background p-2 shadow-sm focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
-            <button className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl hover:bg-accent transition-colors">
+      <footer className="border-t border-border bg-card/50 backdrop-blur-md p-6">
+        <div className="mx-auto max-w-4xl">
+          <div className="relative flex items-end gap-4 rounded-[2rem] border border-border bg-background p-3 shadow-apple-lg focus-within:border-primary/30 transition-all">
+            <button className="h-10 w-10 flex-shrink-0 flex items-center justify-center rounded-2xl hover:bg-secondary transition-colors">
               <Plus className="h-5 w-5 text-muted-foreground" />
             </button>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              className="hidden"
-              accept=".pdf,.txt,.md,.markdown,.log,.json,.yml,.yaml,text/plain,application/pdf"
-              onChange={handleFileSelected}
-            />
-
             <textarea
               ref={inputRef}
               value={input}
               onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask anything... (Shift+Enter for new line)"
+              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
+              placeholder="Initialize intent..."
               rows={1}
-              className="max-h-[200px] min-h-[40px] flex-1 resize-none bg-transparent py-2 text-sm outline-none placeholder:text-muted-foreground"
+              className="max-h-[200px] min-h-[44px] flex-1 resize-none bg-transparent py-3 text-[15px] font-medium outline-none placeholder:text-muted-foreground/40"
             />
-
-            <div className="flex items-center gap-1">
-              <button
-                onClick={handleImprovePrompt}
-                disabled={!input.trim() || isLoading || isBootstrapping}
-                className="rounded-lg border border-border bg-background px-2 py-1 text-xs hover:bg-accent disabled:opacity-50 transition-colors"
-              >
-                Improve
-              </button>
-              <button
-                onClick={handleAttachClick}
-                disabled={isLoading || isBootstrapping || isParsingFile}
-                className="flex h-9 w-9 items-center justify-center rounded-xl hover:bg-accent transition-colors disabled:opacity-50"
-                title="Attach file"
-              >
-                {isParsingFile ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : <Paperclip className="h-5 w-5 text-muted-foreground" />}
-              </button>
-              <button className="flex h-9 w-9 items-center justify-center rounded-xl hover:bg-accent transition-colors">
-                <Mic className="h-5 w-5 text-muted-foreground" />
-              </button>
-              <button
-                onClick={isLoading ? handleStopGeneration : handleSend}
-                disabled={isBootstrapping || (!isLoading && !input.trim())}
-                className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground disabled:opacity-50 transition-all hover:scale-105 disabled:hover:scale-100"
-              >
-                {isLoading ? <Square className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+            <div className="flex items-center gap-2 pr-1">
+              <button onClick={handleSend} className="h-10 w-10 flex items-center justify-center rounded-2xl bg-primary text-white shadow-lg shadow-primary/10 hover:scale-105 transition-all">
+                <Send className="h-4 w-4" />
               </button>
             </div>
           </div>
-
-          <div className="mt-2 flex items-center justify-between px-2 text-xs text-muted-foreground">
-            <div className="flex items-center gap-2">
-              {currentPersona && (
-                <span className="flex items-center gap-1">
-                  <span>{currentPersona.icon}</span>
-                  <span>{currentPersona.name}</span>
-                </span>
-              )}
-            </div>
-            <span>Press Enter to send • Shift+Enter for new line</span>
+          <div className="mt-3 px-4 flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
+            <span>Synchronous Handoff Enabled</span>
+            <span>Press Enter to initialize</span>
           </div>
         </div>
-      </div>
+      </footer>
     </div>
   );
 }
