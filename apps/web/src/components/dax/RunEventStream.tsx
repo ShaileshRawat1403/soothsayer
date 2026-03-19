@@ -16,7 +16,7 @@ const eventIcon = (type: DaxStreamEvent['type']) => {
 
 interface RunEventStreamProps {
   events: DaxStreamEvent[];
-  streamState: 'connecting' | 'live' | 'closed';
+  streamState: 'connecting' | 'reconnecting' | 'live' | 'closed';
 }
 
 export function RunEventStream({ events, streamState }: RunEventStreamProps) {

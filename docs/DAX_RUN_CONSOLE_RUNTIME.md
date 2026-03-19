@@ -11,6 +11,7 @@ This note captures the current runtime assumptions, supported behavior, and know
 - `intent.repoPath` is the execution target when Soothsayer knows the target repo/workspace. `metadata.workspaceId` and `metadata.projectId` remain context only.
 - If `intent.repoPath` is missing, Soothsayer now falls back explicitly to the DAX server cwd and annotates that as `default_cwd` targeting rather than silently relying on it.
 - SSE behavior depends on live runtime transport. Local proof passed with backend-proxied SSE and fetch-based browser streaming.
+- Soothsayer's SSE proxy currently forwards `text/event-stream` with `Cache-Control: no-cache, no-transform`, `Connection: keep-alive`, and `X-Accel-Buffering: no`. Local live checks showed incremental chunks arriving through the proxy rather than buffering until stream end.
 
 ## Supported Now
 
@@ -24,6 +25,7 @@ This note captures the current runtime assumptions, supported behavior, and know
 - Recover correctly on refresh during active runs
 - Recover correctly on refresh during pending approval
 - Open `/runs/:id` directly and continue from current DAX truth
+- Reconnect interrupted event streams with cursor resume and converge back to DAX snapshot truth
 
 ## Operational Truths
 
@@ -38,6 +40,7 @@ This note captures the current runtime assumptions, supported behavior, and know
 - Explicit repo targeting still falls back to DAX cwd in legacy/dev flows when no repo context is available
 - Rich natural-language run summary text
 - Frontend/backend mirrored DAX DTOs are temporary and should move to a shared/generated contract later
+- Live reconnect proof is currently browser-controlled/mocked; a naturally interrupted end-to-end transport test is still worth doing for especially hostile proxy environments
 
 ## Phase 2 Focus
 
