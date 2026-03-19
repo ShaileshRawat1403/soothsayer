@@ -59,6 +59,13 @@ const iconMap: Record<string, React.ReactNode> = {
 
 type IntegrationKey = 'github' | 'slack' | 'google_drive' | 'jira' | 'notion' | 'linear' | 'discord';
 
+interface SettingsTab {
+  id: 'profile' | 'appearance' | 'notifications' | 'ai-providers' | 'integrations' | 'governance';
+  label: string;
+  icon: any;
+  badge?: string;
+}
+
 export function SettingsPage() {
   const [activeTab, setActiveTab] = useState<'profile' | 'appearance' | 'notifications' | 'ai-providers' | 'integrations' | 'governance'>('ai-providers');
   const { user, updateUser } = useAuthStore();
@@ -99,14 +106,14 @@ export function SettingsPage() {
   const oauthIntegrations = new Set<IntegrationKey>(['github', 'slack', 'jira', 'notion', 'linear', 'discord', 'google_drive']);
   const [oauthReadiness, setOauthReadiness] = useState<Record<string, { ready: boolean; missing: string[] }>>({});
 
-  const tabs = [
+  const tabs: SettingsTab[] = [
     { id: 'ai-providers', label: 'AI Engines', icon: Cpu },
     { id: 'governance', label: 'Governance', icon: ShieldCheck, badge: 'V2' },
     { id: 'integrations', label: 'Integrations', icon: Webhook },
     { id: 'profile', label: 'Identity', icon: Lock },
     { id: 'appearance', label: 'Interface', icon: Palette },
     { id: 'notifications', label: 'Signals', icon: Activity },
-  ] as const;
+  ];
 
   const testIntegration = async (name: IntegrationKey) => {
     setTestingIntegration(name);
@@ -145,9 +152,9 @@ export function SettingsPage() {
       
       await apiHelpers.updateWorkspace(currentWorkspace.id, {
         settings: newSettings,
-      });
+      } as any);
       
-      updateWorkspace(currentWorkspace.id, { settings: newSettings });
+      updateWorkspace(currentWorkspace.id, { settings: newSettings } as any);
       toast.success('Workspace governance settings updated');
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Failed to update governance settings';
@@ -197,7 +204,7 @@ export function SettingsPage() {
 
   return (
     <div className="flex h-full bg-background">
-      <div className="w-72 border-r border-border bg-card/30 backdrop-blur-xl">
+      <div className="w-72 border-r border-border bg-card/30 backdrop-blur-xl shrink-0">
         <div className="p-8">
           <h2 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground/60">System Config</h2>
         </div>
