@@ -70,7 +70,13 @@ export class WorkflowsController {
   async run(
     @Param('id') id: string,
     @GetCurrentUser() user: CurrentUser,
-    @Body() dto: { inputs?: Record<string, unknown>; projectId?: string; conversationId?: string },
+    @Body()
+    dto: {
+      inputs?: Record<string, unknown>;
+      projectId?: string;
+      conversationId?: string;
+      repoPath?: string;
+    },
   ) {
     return this.workflowsService.run(id, user.id, dto);
   }

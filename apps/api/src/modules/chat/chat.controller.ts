@@ -32,6 +32,7 @@ export class ChatController {
   ) {
     return this.chatService.createConversation(user.id, dto.workspaceId, dto.personaId, {
       projectId: dto.projectId,
+      repoPath: dto.repoPath,
       title: dto.title,
       memoryMode: dto.memoryMode,
     });

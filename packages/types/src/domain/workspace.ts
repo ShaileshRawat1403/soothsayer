@@ -36,6 +36,8 @@ export interface WorkspaceSettings {
   maxConcurrentJobs: number;
   retentionDays: number;
   policyOverrides: Record<string, unknown>;
+  defaultProvider?: string;
+  defaultModel?: string;
 }
 
 export type WorkspaceRole = 'admin' | 'editor' | 'operator' | 'viewer';

@@ -18,8 +18,19 @@ import {
   Shield,
   BarChart,
   Zap,
+  Cpu,
+  User,
+  Settings2,
+  Lock,
+  Workflow,
+  Terminal,
+  FileCode,
+  Layout,
+  Scale,
+  X
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { EditPersonaModal } from '@/components/dax/EditPersonaModal';
 
 const defaultPersonas: Persona[] = [
   {
@@ -28,38 +39,9 @@ const defaultPersonas: Persona[] = [
     slug: 'auto',
     category: 'Meta',
     description: 'Grounded assistant optimized to demo and guide the Soothsayer web app end-to-end.',
-    icon: '🎯',
+    icon: 'Target',
     color: 'bg-gradient-to-r from-indigo-500 to-purple-500',
-    systemPrompt: `You are Soothsayer, the Grounded One.
-
-Identity and tone:
-- Introduce yourself as "Soothsayer" when asked who you are.
-- Be practical, clear, and concise.
-- Do not be generic; give specific, actionable answers.
-
-Primary job:
-- Help users understand and demo the Soothsayer web app end-to-end.
-- Explain features in product terms: Workspaces, Personas, AI Providers, Chat, Tools, Workflows, Analytics, Settings.
-- When asked for a demo, provide a step-by-step walkthrough with exact clicks and expected outcomes.
-
-Grounding rules:
-- Never invent app features or states you cannot verify.
-- If information is missing, say what is unknown and what to check next.
-- Prefer deterministic guidance over vague suggestions.
-
-Response style:
-- Start with the direct answer.
-- Then provide numbered steps.
-- Include quick verification checks.
-- Keep outputs short unless the user asks for detail.
-
-Failure handling:
-- If provider/model fails, identify likely root cause and provide concrete recovery steps.
-- Distinguish configuration issues, quota/rate issues, and runtime/performance issues.
-
-Safety:
-- Do not expose secrets or keys.
-- If asked to show keys, explain how to verify safely without revealing secret values.`,
+    systemPrompt: `You are Soothsayer, the Grounded One.`,
     temperature: 0.7,
     maxTokens: 4096,
     topP: 1,
@@ -77,7 +59,7 @@ Safety:
     slug: 'staff-swe',
     category: 'Engineering',
     description: 'Senior technical expert with deep system design knowledge',
-    icon: '👨‍💻',
+    icon: 'Code',
     color: 'bg-blue-500',
     systemPrompt: 'You are a Staff Software Engineer...',
     temperature: 0.3,
@@ -97,7 +79,7 @@ Safety:
     slug: 'backend-dev',
     category: 'Engineering',
     description: 'API design, database optimization, and server-side logic',
-    icon: '⚙️',
+    icon: 'Cpu',
     color: 'bg-emerald-500',
     systemPrompt: 'You are a Backend Developer...',
     temperature: 0.4,
@@ -117,7 +99,7 @@ Safety:
     slug: 'product-manager',
     category: 'Business',
     description: 'Product strategy, roadmapping, and stakeholder communication',
-    icon: '📊',
+    icon: 'Briefcase',
     color: 'bg-purple-500',
     systemPrompt: 'You are a Product Manager...',
     temperature: 0.6,
@@ -137,7 +119,7 @@ Safety:
     slug: 'devops-engineer',
     category: 'Engineering',
     description: 'CI/CD, infrastructure, and deployment automation',
-    icon: '🚀',
+    icon: 'Workflow',
     color: 'bg-orange-500',
     systemPrompt: 'You are a DevOps Engineer...',
     temperature: 0.3,
@@ -157,7 +139,7 @@ Safety:
     slug: 'security-engineer',
     category: 'Engineering',
     description: 'Security assessments, vulnerability analysis, and compliance',
-    icon: '🔒',
+    icon: 'Lock',
     color: 'bg-red-500',
     systemPrompt: 'You are a Security Engineer...',
     temperature: 0.2,
@@ -182,12 +164,25 @@ const categories = [
   { id: 'Meta', name: 'Meta', icon: Zap },
 ];
 
+const PersonaIcon = ({ icon, className }: { icon: string; className?: string }) => {
+  switch (icon) {
+    case 'Target': return <Layout className={className} />;
+    case 'Code': return <Code className={className} />;
+    case 'Cpu': return <Cpu className={className} />;
+    case 'Briefcase': return <Briefcase className={className} />;
+    case 'Workflow': return <Workflow className={className} />;
+    case 'Lock': return <Lock className={className} />;
+    default: return <User className={className} />;
+  }
+};
+
 export function PersonasPage() {
-  const { currentPersona, setCurrentPersona } = usePersonaStore();
-  const [personas] = useState<Persona[]>(defaultPersonas);
+  const { currentPersona, setCurrentPersona, updatePersona } = usePersonaStore();
+  const [personas, setPersonasState] = useState<Persona[]>(defaultPersonas);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
+  const [editingPersona, setEditingPersona] = useState<Persona | null>(null);
 
   const filteredPersonas = personas.filter((p) => {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -200,23 +195,28 @@ export function PersonasPage() {
     toast.success(`Switched to ${persona.name}`);
   };
 
+  const handleSavePersona = async (id: string, data: Partial<Persona>) => {
+    setPersonasState(prev => prev.map(p => p.id === id ? { ...p, ...data } : p));
+    updatePersona(id, data);
+    toast.success('Persona mapping updated');
+  };
+
   return (
     <div className="flex h-full">
-      {/* Categories Sidebar */}
-      <div className="w-56 border-r border-border bg-card">
-        <div className="p-4">
-          <h2 className="font-semibold">Categories</h2>
+      <div className="w-64 border-r border-border bg-card">
+        <div className="p-6">
+          <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Categories</h2>
         </div>
-        <nav className="space-y-1 px-2">
+        <nav className="space-y-1 px-3">
           {categories.map((category) => (
             <button
               key={category.id}
               onClick={() => setSelectedCategory(category.id)}
               className={cn(
-                'flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors',
+                'flex w-full items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-all',
                 selectedCategory === category.id
-                  ? 'bg-primary text-primary-foreground'
-                  : 'hover:bg-accent'
+                  ? 'bg-primary text-primary-foreground shadow-apple'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
               )}
             >
               <category.icon className="h-4 w-4" />
@@ -224,107 +224,120 @@ export function PersonasPage() {
             </button>
           ))}
         </nav>
-        <div className="mt-4 border-t border-border p-4">
-          <button className="flex w-full items-center gap-2 rounded-md bg-secondary px-3 py-2 text-sm hover:bg-secondary/80">
-            <Plus className="h-4 w-4" />
+        <div className="mt-6 border-t border-border p-6">
+          <button className="flex w-full items-center justify-center gap-2 rounded-full border border-border bg-background px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-foreground hover:bg-muted transition-all">
+            <Plus className="h-3.5 w-3.5" />
             Create Persona
           </button>
         </div>
       </div>
 
-      {/* Persona Grid */}
-      <div className="flex-1 overflow-auto">
-        {/* Search Header */}
-        <div className="sticky top-0 z-10 border-b border-border bg-background p-4">
-          <div className="flex items-center gap-4">
+      <div className="flex-1 overflow-auto bg-muted/[0.02]">
+        <div className="sticky top-0 z-10 border-b border-border bg-background/80 backdrop-blur-md px-8 py-6">
+          <div className="flex items-center gap-6">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
-                placeholder="Search personas..."
+                placeholder="Filter personas..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-10 w-full rounded-md border border-input bg-background pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                className="h-12 w-full rounded-2xl border border-border bg-muted/30 pl-12 pr-6 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all placeholder:text-muted-foreground/40"
               />
             </div>
-            <button className="flex h-10 items-center gap-2 rounded-md border border-input px-4 text-sm hover:bg-accent">
+            <button className="flex h-12 items-center gap-2 rounded-2xl border border-border bg-background px-6 text-xs font-bold uppercase tracking-widest text-foreground hover:bg-muted transition-all">
               <Upload className="h-4 w-4" />
               Import
             </button>
           </div>
         </div>
 
-        {/* Persona Cards */}
-        <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-6 p-8 sm:grid-cols-2 lg:grid-cols-3">
           {filteredPersonas.map((persona) => (
             <div
               key={persona.id}
               onClick={() => setSelectedPersona(persona)}
               className={cn(
-                'group relative cursor-pointer rounded-xl border bg-card p-4 transition-all hover:shadow-md',
+                'group relative cursor-pointer card-professional p-6 hover:border-primary/30 hover:shadow-apple-lg',
                 currentPersona?.id === persona.id
-                  ? 'border-primary ring-2 ring-primary/20'
-                  : 'border-border hover:border-primary/50'
+                  ? 'border-primary ring-4 ring-primary/5'
+                  : 'border-border'
               )}
             >
               {currentPersona?.id === persona.id && (
-                <div className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                <div className="absolute -right-2 -top-2 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/20">
                   <Check className="h-4 w-4" />
                 </div>
               )}
-              <div className="flex items-start gap-3">
+              <div className="flex items-start gap-4">
                 <div
                   className={cn(
-                    'flex h-12 w-12 items-center justify-center rounded-xl text-2xl',
+                    'flex h-14 w-14 items-center justify-center rounded-[1.25rem] border border-white/10 shadow-sm text-white',
                     persona.color || getPersonaColor(personas.indexOf(persona))
                   )}
                 >
-                  {persona.icon}
+                  <PersonaIcon icon={persona.icon} className="h-7 w-7" />
                 </div>
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="font-semibold">{persona.name}</h3>
+                    <h3 className="font-bold text-foreground truncate">{persona.name}</h3>
                     {persona.isDefault && (
-                      <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
+                      <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400 flex-shrink-0" />
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground">{persona.category}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{persona.category}</p>
+                    {persona.defaultProvider && (
+                      <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-primary/5 border border-primary/10 text-[8px] font-black text-primary uppercase tracking-widest">
+                        <Cpu className="h-2 w-2" />
+                        Mapped
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-              <p className="mt-3 text-sm text-muted-foreground line-clamp-2">
+              <p className="mt-4 text-xs font-medium text-muted-foreground line-clamp-2 leading-relaxed">
                 {persona.description}
               </p>
-              <div className="mt-3 flex flex-wrap gap-1">
+              
+              <div className="mt-6 flex flex-wrap gap-1.5">
                 {persona.capabilities.slice(0, 3).map((cap) => (
                   <span
                     key={cap}
-                    className="rounded-full bg-secondary px-2 py-0.5 text-xs"
+                    className="rounded-full bg-secondary border border-border/50 px-2.5 py-0.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider"
                   >
                     {cap}
                   </span>
                 ))}
               </div>
-              <div className="mt-4 flex items-center justify-between">
+
+              <div className="mt-8 flex items-center justify-between">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     selectPersona(persona);
                   }}
                   className={cn(
-                    'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                    'rounded-full px-5 py-2 text-[10px] font-black uppercase tracking-[0.2em] transition-all',
                     currentPersona?.id === persona.id
-                      ? 'bg-primary/10 text-primary'
-                      : 'bg-primary text-primary-foreground hover:bg-primary/90'
+                      ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/10'
+                      : 'bg-secondary text-muted-foreground hover:bg-primary hover:text-primary-foreground'
                   )}
                 >
-                  {currentPersona?.id === persona.id ? 'Active' : 'Select'}
+                  {currentPersona?.id === persona.id ? 'Active' : 'Authorize'}
                 </button>
-                <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                  <button className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent">
+                <div className="flex items-center gap-1.5 opacity-0 transition-all transform translate-x-2 group-hover:opacity-100 group-hover:translate-x-0">
+                  <button className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/50 hover:bg-muted text-muted-foreground transition-colors">
                     <Copy className="h-4 w-4" />
                   </button>
-                  <button className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent">
-                    <Settings className="h-4 w-4" />
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingPersona(persona);
+                    }}
+                    className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/50 hover:bg-primary/10 hover:text-primary text-muted-foreground transition-colors"
+                  >
+                    <Settings2 className="h-4 w-4" />
                   </button>
                 </div>
               </div>
@@ -333,47 +346,48 @@ export function PersonasPage() {
         </div>
       </div>
 
-      {/* Persona Details Panel */}
       {selectedPersona && (
-        <div className="w-80 border-l border-border bg-card">
-          <div className="border-b border-border p-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold">Persona Details</h3>
-              <button
-                onClick={() => setSelectedPersona(null)}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                ×
-              </button>
-            </div>
+        <div className="w-96 border-l border-border bg-card animate-in slide-in-from-right duration-300">
+          <div className="border-b border-border bg-muted/30 px-8 py-6 flex items-center justify-between">
+            <h3 className="text-sm font-black uppercase tracking-[0.2em] text-muted-foreground">Trace Profile</h3>
+            <button
+              onClick={() => setSelectedPersona(null)}
+              className="rounded-full p-2 hover:bg-muted transition-colors text-muted-foreground"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
-          <div className="overflow-auto p-4">
-            <div className="flex items-center gap-3">
+          <div className="overflow-auto p-8 h-[calc(100vh-140px)] scrollbar-none">
+            <div className="flex flex-col items-center text-center mb-8">
               <div
                 className={cn(
-                  'flex h-14 w-14 items-center justify-center rounded-xl text-3xl',
+                  'flex h-24 w-24 items-center justify-center rounded-[2rem] text-4xl text-white shadow-xl shadow-border/20 mb-6',
                   selectedPersona.color
                 )}
               >
-                {selectedPersona.icon}
+                <PersonaIcon icon={selectedPersona.icon} className="h-12 w-12" />
               </div>
-              <div>
-                <h4 className="font-semibold">{selectedPersona.name}</h4>
-                <p className="text-sm text-muted-foreground">
-                  {selectedPersona.category}
-                </p>
-              </div>
+              <h4 className="text-2xl font-bold tracking-tight text-foreground">{selectedPersona.name}</h4>
+              <p className="mt-1 text-[10px] font-black uppercase tracking-[0.3em] text-primary">
+                {selectedPersona.category}
+              </p>
             </div>
-            <p className="mt-4 text-sm">{selectedPersona.description}</p>
+            
+            <p className="text-sm font-medium text-muted-foreground leading-relaxed text-center mb-10">
+              {selectedPersona.description}
+            </p>
 
-            <div className="mt-6 space-y-4">
-              <div>
-                <h5 className="mb-2 text-sm font-medium">Capabilities</h5>
-                <div className="flex flex-wrap gap-1">
+            <div className="space-y-10">
+              <div className="space-y-4">
+                <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2 px-1">
+                  <Cpu className="h-3 w-3" />
+                  Technical Competencies
+                </h5>
+                <div className="flex flex-wrap gap-2">
                   {selectedPersona.capabilities.map((cap) => (
                     <span
                       key={cap}
-                      className="rounded-full bg-secondary px-2 py-1 text-xs"
+                      className="rounded-xl bg-secondary border border-border/50 px-3 py-1.5 text-[11px] font-bold text-foreground uppercase tracking-wider"
                     >
                       {cap}
                     </span>
@@ -381,31 +395,45 @@ export function PersonasPage() {
                 </div>
               </div>
 
-              <div>
-                <h5 className="mb-2 text-sm font-medium">Response Style</h5>
-                <div className="space-y-1 text-sm text-muted-foreground">
-                  <div>Tone: {selectedPersona.responseStyle.tone}</div>
-                  <div>Verbosity: {selectedPersona.responseStyle.verbosity}</div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="rounded-2xl bg-muted/30 border border-border/50 p-4">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block mb-2">Decision Style</span>
+                  <span className="text-xs font-bold text-foreground capitalize">{'Balanced'}</span>
+                </div>
+                <div className="rounded-2xl bg-muted/30 border border-border/50 p-4">
+                  <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground block mb-2">Risk Tolerance</span>
+                  <span className="text-xs font-bold text-foreground capitalize">{'Medium'}</span>
                 </div>
               </div>
 
-              <div>
-                <h5 className="mb-2 text-sm font-medium">Model Settings</h5>
-                <div className="space-y-1 text-sm text-muted-foreground">
-                  <div>Temperature: {selectedPersona.temperature}</div>
-                  <div>Max Tokens: {selectedPersona.maxTokens}</div>
-                  <div>Top P: {selectedPersona.topP}</div>
+              <div className="space-y-4">
+                <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2 px-1">
+                  <Scale className="h-3 w-3" />
+                  Inference Constraints
+                </h5>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center px-4 py-3 rounded-2xl bg-background border border-border/50">
+                    <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Temperature</span>
+                    <span className="text-xs font-black text-foreground">{selectedPersona.temperature}</span>
+                  </div>
+                  <div className="flex justify-between items-center px-4 py-3 rounded-2xl bg-background border border-border/50">
+                    <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Window</span>
+                    <span className="text-xs font-black text-foreground">{selectedPersona.maxTokens}</span>
+                  </div>
                 </div>
               </div>
 
               {selectedPersona.restrictions.length > 0 && (
-                <div>
-                  <h5 className="mb-2 text-sm font-medium">Restrictions</h5>
-                  <ul className="space-y-1 text-sm text-muted-foreground">
+                <div className="space-y-4">
+                  <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2 px-1">
+                    <Shield className="h-3 w-3" />
+                    Operational Guards
+                  </h5>
+                  <ul className="space-y-3">
                     {selectedPersona.restrictions.map((r, i) => (
-                      <li key={i} className="flex items-start gap-2">
-                        <Shield className="mt-0.5 h-3 w-3 text-amber-500" />
-                        {r}
+                      <li key={i} className="flex items-start gap-3 p-4 rounded-2xl bg-rose-500/[0.02] border border-rose-500/10">
+                        <Lock className="mt-0.5 h-3.5 w-3.5 text-rose-500" />
+                        <span className="text-xs font-medium text-rose-900/80 dark:text-rose-400/80">{r}</span>
                       </li>
                     ))}
                   </ul>
@@ -413,19 +441,28 @@ export function PersonasPage() {
               )}
             </div>
 
-            <div className="mt-6 flex gap-2">
+            <div className="mt-12 flex gap-3">
               <button
                 onClick={() => selectPersona(selectedPersona)}
-                className="flex-1 rounded-md bg-primary py-2 text-sm font-medium text-primary-foreground"
+                className="flex-1 rounded-full bg-primary py-3 text-xs font-black uppercase tracking-widest text-primary-foreground shadow-xl shadow-primary/20 transition-all active:scale-95"
               >
-                Use This Persona
+                Authorize Path
               </button>
-              <button className="flex h-9 w-9 items-center justify-center rounded-md border border-input hover:bg-accent">
+              <button className="flex h-12 w-12 items-center justify-center rounded-full border border-border bg-background hover:bg-muted transition-all">
                 <Download className="h-4 w-4" />
               </button>
             </div>
           </div>
         </div>
+      )}
+
+      {editingPersona && (
+        <EditPersonaModal
+          persona={editingPersona}
+          isOpen={true}
+          onClose={() => setEditingPersona(null)}
+          onSave={handleSavePersona}
+        />
       )}
     </div>
   );

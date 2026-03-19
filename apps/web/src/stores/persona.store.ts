@@ -24,6 +24,8 @@ export interface Persona {
   isDefault: boolean;
   isCustom: boolean;
   version: number;
+  defaultProvider?: string;
+  defaultModel?: string;
 }
 
 const AUTO_PERSONA_OVERRIDE = {

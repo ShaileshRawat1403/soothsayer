@@ -26,9 +26,21 @@ import {
   ChevronDown,
   Square,
   X,
+  ArrowUpRight,
+  ShieldCheck,
+  Terminal,
+  Cpu,
+  Sparkles,
+  Command,
+  AlignLeft,
+  ChevronRight,
+  History,
+  ShieldAlert
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { motion, AnimatePresence } from 'framer-motion';
 import { MessageContent } from '@/components/chat/MessageContent';
+import type { DaxRunStatus } from '@/types/dax';
 
 interface Message {
   id: string;
@@ -39,104 +51,28 @@ interface Message {
   metadata?: {
     provider?: string;
     model?: string;
+    personaId?: string;
+    handoff?: {
+      type: 'dax_run';
+      runId: string;
+      status?: DaxRunStatus;
+      targetPath: string;
+      targeting?: {
+        mode: 'explicit_repo_path' | 'default_cwd';
+        repoPath?: string;
+      };
+    };
   };
 }
 
-type SuggestedPrompt = {
-  icon: typeof Code;
-  label: string;
-  prompt: string;
-  color: string;
-};
-
-const defaultSuggestedPrompts: SuggestedPrompt[] = [
-  { icon: Code, label: 'Generate code', prompt: 'Write a TypeScript function that ', color: 'text-blue-500' },
-  { icon: Bug, label: 'Debug code', prompt: 'Help me debug this code:\n```\n\n```', color: 'text-red-500' },
-  { icon: Lightbulb, label: 'Explain concept', prompt: 'Explain the concept of ', color: 'text-amber-500' },
-  { icon: Wand2, label: 'Refactor code', prompt: 'Refactor this code for better performance:\n```\n\n```', color: 'text-purple-500' },
-  { icon: BookOpen, label: 'Write docs', prompt: 'Write documentation for ', color: 'text-green-500' },
-  { icon: Zap, label: 'Optimize', prompt: 'Optimize this code:\n```\n\n```', color: 'text-orange-500' },
-];
-
-function getPersonaSuggestedPrompts(persona: { preferredTools?: string[]; capabilities?: string[] } | null): SuggestedPrompt[] {
-  if (!persona) {
-    return defaultSuggestedPrompts;
+function formatHandoffStatus(status?: DaxRunStatus): string {
+  switch (status) {
+    case 'waiting_approval': return 'Authorization Node';
+    case 'completed': return 'Trace Validated';
+    case 'failed': return 'Fault Encountered';
+    case 'running': return 'Active Execution';
+    default: return 'Established';
   }
-
-  const hints = [
-    ...(persona.preferredTools || []).map((v) => v.toLowerCase()),
-    ...(persona.capabilities || []).map((v) => v.toLowerCase()),
-  ];
-  const has = (needle: string) => hints.some((h) => h.includes(needle));
-  const personaPrompts: SuggestedPrompt[] = [];
-
-  if (has('security') || has('vulnerability') || has('audit') || has('compliance')) {
-    personaPrompts.push(
-      { icon: Bug, label: 'Scan vulnerabilities', prompt: 'Scan this codebase for likely vulnerabilities:\n```\n\n```', color: 'text-red-500' },
-      { icon: BookOpen, label: 'Audit logs', prompt: 'Audit these logs and identify suspicious events:\n```\n\n```', color: 'text-amber-500' },
-    );
-  }
-
-  if (has('ci') || has('cd') || has('infra') || has('monitoring') || has('devops') || has('automation')) {
-    personaPrompts.push(
-      { icon: Zap, label: 'Troubleshoot deployment', prompt: 'Troubleshoot this deployment issue and provide a recovery plan:\n```\n\n```', color: 'text-orange-500' },
-      { icon: Lightbulb, label: 'Create runbook', prompt: 'Create an operational runbook for ', color: 'text-green-500' },
-    );
-  }
-
-  if (has('product') || has('strategy') || has('roadmap') || has('requirements') || has('research')) {
-    personaPrompts.push(
-      { icon: Wand2, label: 'Draft PRD', prompt: 'Draft a PRD for ', color: 'text-purple-500' },
-      { icon: Lightbulb, label: 'Prioritize roadmap', prompt: 'Prioritize this roadmap with rationale:\n', color: 'text-blue-500' },
-    );
-  }
-
-  if (has('architecture') || has('design') || has('performance') || has('code')) {
-    personaPrompts.push(
-      { icon: Code, label: 'Generate code', prompt: 'Write a TypeScript function that ', color: 'text-blue-500' },
-      { icon: Wand2, label: 'Refactor code', prompt: 'Refactor this code for better performance:\n```\n\n```', color: 'text-purple-500' },
-    );
-  }
-
-  const deduped = personaPrompts.filter(
-    (item, index, arr) => arr.findIndex((candidate) => candidate.label === item.label) === index,
-  );
-
-  if (deduped.length >= 4) {
-    return deduped.slice(0, 6);
-  }
-
-  return [...deduped, ...defaultSuggestedPrompts].slice(0, 6);
-}
-
-function mapApiMessageToUi(message: any): Message {
-  return {
-    id: String(message.id),
-    role: message.role as 'user' | 'assistant' | 'system',
-    content: String(message.content || ''),
-    createdAt: String(message.createdAt || new Date().toISOString()),
-    metadata:
-      message.metadata && typeof message.metadata === 'object'
-        ? {
-            provider: message.metadata.provider,
-            model: message.metadata.model,
-          }
-        : undefined,
-  };
-}
-
-function improvePromptDraft(raw: string): string {
-  const draft = raw.trim();
-  if (!draft) return raw;
-
-  return [
-    'Please help with the following request.',
-    '',
-    `Task: ${draft}`,
-    'Context: This request is from the Soothsayer web app chat.',
-    'Constraints: Be practical, accurate, and concise. If assumptions are made, state them clearly.',
-    'Output format: Provide a direct answer first, then numbered next steps.',
-  ].join('\n');
 }
 
 export function ChatPage() {
@@ -146,29 +82,16 @@ export function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(routeConversationId || null);
-  const [showModelSelector, setShowModelSelector] = useState(false);
-  const [showSystemInstructions, setShowSystemInstructions] = useState(false);
-  const [systemInstructions, setSystemInstructions] = useState('');
+  const [showSystemPanel, setShowSystemPanel] = useState(false);
+  const [isRefining, setIsRefining] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(false);
-  const [isParsingFile, setIsParsingFile] = useState(false);
-  const [attachedFile, setAttachedFile] = useState<{
-    fileName: string;
-    text: string;
-    truncated?: boolean;
-  } | null>(null);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const modelMenuRef = useRef<HTMLDivElement>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const isSendingRef = useRef(false);
-  const loadRequestIdRef = useRef(0);
-  const { currentPersona, setCurrentPersona } = usePersonaStore();
-  const { currentWorkspace, setCurrentWorkspace } = useWorkspaceStore();
-  const { activeProvider, activeModel, providers, setActiveModel } = useAIProviderStore();
-
-  const activeProviderConfig = providers.find((p) => p.id === activeProvider);
-  const suggestedPrompts = useMemo(() => getPersonaSuggestedPrompts(currentPersona), [currentPersona]);
+  
+  const { currentPersona, personas: allPersonas } = usePersonaStore();
+  const { currentWorkspace } = useWorkspaceStore();
+  const { activeProvider, activeModel } = useAIProviderStore();
 
   useEffect(() => {
     setActiveConversationId(routeConversationId || null);
@@ -179,71 +102,24 @@ export function ChatPage() {
   }, [messages]);
 
   useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  useEffect(() => {
-    const onPointerDown = (event: MouseEvent) => {
-      if (!modelMenuRef.current) return;
-      if (!modelMenuRef.current.contains(event.target as Node)) {
-        setShowModelSelector(false);
-      }
-    };
-    document.addEventListener('mousedown', onPointerDown);
-    return () => document.removeEventListener('mousedown', onPointerDown);
-  }, []);
-
-  useEffect(() => {
-    const stored = localStorage.getItem('soothsayer-chat-system-instructions') || '';
-    setSystemInstructions(stored);
-  }, []);
-
-  useEffect(
-    () => () => {
-      abortControllerRef.current?.abort();
-    },
-    [],
-  );
-
-  useEffect(() => {
-    localStorage.setItem('soothsayer-chat-system-instructions', systemInstructions);
-  }, [systemInstructions]);
-
-  useEffect(() => {
     async function loadConversation() {
-      const requestId = ++loadRequestIdRef.current;
       if (!activeConversationId) {
         setMessages([]);
         return;
       }
-
       setIsBootstrapping(true);
       try {
         const response = await apiHelpers.getConversation(activeConversationId);
-        if (requestId !== loadRequestIdRef.current) {
-          return;
-        }
-        const conversation = response.data as any;
-        const loadedMessages: Message[] = (conversation.messages || []).map(mapApiMessageToUi);
-        setMessages((prev) => {
-          const optimisticPending = prev.filter(
-            (m) => m.id.startsWith('temp-user-') || m.id.startsWith('temp-assistant-'),
-          );
-          const merged = [...loadedMessages];
-          optimisticPending.forEach((m) => {
-            if (!merged.some((existing) => existing.id === m.id)) {
-              merged.push(m);
-            }
-          });
-
-          if (merged.length === 0 && optimisticPending.length > 0) {
-            return prev;
-          }
-          return merged;
-        });
+        const loadedMessages: Message[] = (response.data.messages || []).map((m: any) => ({
+          id: String(m.id),
+          role: m.role as any,
+          content: String(m.content || ''),
+          createdAt: String(m.createdAt || new Date().toISOString()),
+          metadata: m.metadata,
+        }));
+        setMessages(loadedMessages);
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Failed to load conversation';
-        toast.error(errorMessage);
+        toast.error('Sync failed');
       } finally {
         setIsBootstrapping(false);
       }
@@ -251,141 +127,12 @@ export function ChatPage() {
     loadConversation();
   }, [activeConversationId]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(e.target.value);
-    e.target.style.height = 'auto';
-    e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
-  };
-
-  const ensureWorkspaceId = async (): Promise<string> => {
-    if (currentWorkspace?.id) {
-      return currentWorkspace.id;
-    }
-
-    const response = await apiHelpers.getWorkspaces();
-    const memberships = (response.data || []) as any[];
-    const first = memberships[0];
-    const workspace = first?.workspace || first;
-
-    if (!workspace?.id) {
-      throw new Error('No workspace found. Create a workspace first.');
-    }
-
-    setCurrentWorkspace(workspace);
-    return workspace.id as string;
-  };
-
-  const ensurePersona = async (): Promise<{ id: string; name: string }> => {
-    if (currentPersona?.id) {
-      return { id: currentPersona.id, name: currentPersona.name };
-    }
-
-    const response = await apiHelpers.getPersonas({ page: 1, limit: 20, includeBuiltIn: true, includeCustom: true });
-    const payload = response.data as any;
-    const firstPersona = Array.isArray(payload?.personas) ? payload.personas[0] : null;
-
-    if (!firstPersona?.id) {
-      throw new Error('No persona found. Create or import a persona first.');
-    }
-
-    let personaDetails: any = null;
-    try {
-      const detailsResponse = await apiHelpers.getPersona(firstPersona.id);
-      personaDetails = detailsResponse.data;
-    } catch {
-      personaDetails = null;
-    }
-
-    const config = personaDetails?.config && typeof personaDetails.config === 'object' ? personaDetails.config : {};
-    const toolPreferences = Array.isArray((config as any).toolPreferences) ? (config as any).toolPreferences : [];
-
-    setCurrentPersona({
-      id: firstPersona.id,
-      name: firstPersona.name,
-      slug: firstPersona.slug || firstPersona.name?.toLowerCase().replace(/\s+/g, '-') || 'persona',
-      category: firstPersona.category || 'General',
-      description: firstPersona.description || '',
-      icon: '🤖',
-      color: 'bg-primary',
-      systemPrompt: '',
-      temperature: 0.7,
-      maxTokens: 4096,
-      topP: 1,
-      capabilities: Array.isArray((config as any).expertiseTags) ? (config as any).expertiseTags : [],
-      preferredTools: toolPreferences.map((tool: any) => String(tool?.toolId || '')).filter(Boolean),
-      restrictions: [],
-      responseStyle: { tone: 'friendly', verbosity: 'balanced', formatting: ['markdown'] },
-      isDefault: false,
-      isCustom: true,
-      version: firstPersona.version || 1,
-    });
-
-    return { id: firstPersona.id, name: firstPersona.name };
-  };
-
-  const handleImprovePrompt = () => {
-    if (!input.trim()) {
-      toast.error('Type a draft prompt first');
-      return;
-    }
-    const improved = improvePromptDraft(input);
-    setInput(improved);
-    if (inputRef.current) {
-      inputRef.current.style.height = 'auto';
-      inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 200) + 'px';
-    }
-    toast.success('Prompt improved');
-  };
-
-  const handleAttachClick = () => {
-    if (isLoading || isBootstrapping || isParsingFile) return;
-    fileInputRef.current?.click();
-  };
-
-  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setIsParsingFile(true);
-    try {
-      const workspaceId = currentWorkspace?.id || (await ensureWorkspaceId());
-      const response = await apiHelpers.uploadFile(workspaceId, file);
-      const parsed = response.data as any;
-      const text = String(parsed?.text || '').trim();
-      if (!text) {
-        throw new Error('No text extracted from file');
-      }
-
-      setAttachedFile({
-        fileName: String(parsed?.fileName || file.name),
-        text,
-        truncated: Boolean(parsed?.truncated),
-      });
-      toast.success(`Attached ${file.name}`);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to parse file';
-      toast.error(errorMessage);
-    } finally {
-      setIsParsingFile(false);
-      e.target.value = '';
-    }
-  };
-
-  const handleStopGeneration = () => {
-    if (!isLoading) return;
-    abortControllerRef.current?.abort();
-    abortControllerRef.current = null;
-    setIsLoading(false);
-    toast.message('Generation stopped');
-  };
-
-  const handleSend = async () => {
-    const text = input.trim();
-    if (!text || isLoading || isBootstrapping || isSendingRef.current) return;
-    isSendingRef.current = true;
+  const handleSend = async (overrideText?: string) => {
+    const text = (overrideText || input).trim();
+    if (!text || isLoading || isBootstrapping) return;
 
     const optimisticUserMessage: Message = {
-      id: `temp-user-${Date.now()}`,
+      id: `temp-${Date.now()}`,
       role: 'user',
       content: text,
       createdAt: new Date().toISOString(),
@@ -393,408 +140,263 @@ export function ChatPage() {
 
     setMessages((prev) => [...prev, optimisticUserMessage]);
     setInput('');
-    if (inputRef.current) {
-      inputRef.current.style.height = 'auto';
-    }
+    if (inputRef.current) inputRef.current.style.height = 'auto';
     setIsLoading(true);
-    const abortController = new AbortController();
-    abortControllerRef.current = abortController;
 
     try {
       let conversationId = activeConversationId;
-      const workspaceId = await ensureWorkspaceId();
-      const persona = await ensurePersona();
-
       if (!conversationId) {
         const createResponse = await apiHelpers.createConversation({
-          workspaceId,
-          personaId: persona.id,
-          title: text.slice(0, 80),
+          workspaceId: currentWorkspace?.id || 'default',
+          personaId: currentPersona?.id || 'standard',
+          title: text.slice(0, 60),
         });
-        const createdConversation = createResponse.data as any;
-        conversationId = createdConversation.id as string;
+        conversationId = createResponse.data.id;
         setActiveConversationId(conversationId);
         navigate(`/chat/${conversationId}`, { replace: true });
       }
 
-      const sendResponse = await apiHelpers.sendMessage(conversationId, {
+      const response = await apiHelpers.sendMessage(conversationId!, {
         content: text,
         provider: activeProvider,
         model: activeModel,
-        systemPrompt: systemInstructions.trim() || undefined,
-        fileContext: attachedFile?.text,
-        fileName: attachedFile?.fileName,
-      }, {
-        signal: abortController.signal,
       });
-      const payload = sendResponse.data as any;
-      const userMessage = payload?.userMessage;
-      const assistantMessage = payload?.assistantMessage;
-
-      if (userMessage || assistantMessage) {
-        setMessages((prev) => {
-          const withoutTemp = prev.filter((m) => m.id !== optimisticUserMessage.id);
-          const next = [...withoutTemp];
-
-          if (userMessage) {
-            const mappedUser = mapApiMessageToUi(userMessage);
-            const existingUserIdx = next.findIndex((m) => m.id === mappedUser.id);
-            if (existingUserIdx >= 0) {
-              next[existingUserIdx] = mappedUser;
-            } else {
-              next.push(mappedUser);
-            }
-          } else if (!withoutTemp.some((m) => m.id === optimisticUserMessage.id)) {
-            next.push(optimisticUserMessage);
-          }
-
-          if (assistantMessage) {
-            const mappedAssistant = mapApiMessageToUi(assistantMessage);
-            const existingAssistantIdx = next.findIndex((m) => m.id === mappedAssistant.id);
-            if (existingAssistantIdx >= 0) {
-              next[existingAssistantIdx] = mappedAssistant;
-            } else {
-              next.push(mappedAssistant);
-            }
-          }
-
-          return next;
-        });
-      } else {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `temp-assistant-${Date.now()}`,
-            role: 'assistant',
-            content: 'Message received. Assistant response is not available yet.',
-            createdAt: new Date().toISOString(),
-          },
-        ]);
+      
+      if (response.data.assistantMessage) {
+        const mapped: Message = {
+          id: String(response.data.assistantMessage.id),
+          role: 'assistant',
+          content: String(response.data.assistantMessage.content),
+          createdAt: new Date().toISOString(),
+          metadata: response.data.assistantMessage.metadata,
+        };
+        setMessages((prev) => [...prev.filter(m => m.id !== optimisticUserMessage.id), optimisticUserMessage, mapped]);
       }
-      setAttachedFile(null);
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to send message';
-      if (errorMessage.toLowerCase().includes('canceled') || errorMessage.toLowerCase().includes('abort')) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `temp-assistant-stop-${Date.now()}`,
-            role: 'assistant',
-            content: 'Generation stopped.',
-            createdAt: new Date().toISOString(),
-          },
-        ]);
-      } else {
-        toast.error(errorMessage);
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `temp-assistant-error-${Date.now()}`,
-            role: 'assistant',
-            content: `Request failed: ${errorMessage}`,
-            createdAt: new Date().toISOString(),
-          },
-        ]);
-      }
+      toast.error('Node failure');
     } finally {
-      abortControllerRef.current = null;
       setIsLoading(false);
-      isSendingRef.current = false;
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    // Prevent duplicate sends while IME composition is in progress.
-    const nativeEvent = e.nativeEvent as KeyboardEvent & { isComposing?: boolean };
-    if (nativeEvent.isComposing) return;
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
-
-  const copyToClipboard = (content: string) => {
-    navigator.clipboard.writeText(content);
-    toast.success('Copied to clipboard');
-  };
-
-  const regenerateMessage = () => {
-    if (!isLoading) {
-      handleSend();
+  const refinePrompt = async () => {
+    if (!input.trim() || isRefining) return;
+    setIsRefining(true);
+    try {
+      await new Promise(r => setTimeout(r, 800));
+      const refined = `[High-Fidelity Requirement] ${input}\n\nPlease ensure full context adherence and provide deterministic output.`;
+      setInput(refined);
+      toast.success('Prompt optimized');
+    } catch (error) {
+      toast.error('Refinement fault');
+    } finally {
+      setIsRefining(false);
     }
   };
 
   return (
-    <div className="flex h-full flex-col bg-gradient-to-b from-background to-secondary/20">
-      <div className="relative z-30 flex items-center justify-between border-b border-border bg-card/90 backdrop-blur-sm px-4 py-2">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-2xl">{activeProviderConfig?.icon}</span>
-            <div className="min-w-0">
-              <div className="text-sm font-medium">{activeProviderConfig?.name}</div>
-              <div className="text-xs text-muted-foreground truncate max-w-[260px]" title={activeModel}>
-                {activeProviderConfig?.models.find((m) => m.id === activeModel)?.name || activeModel}
-              </div>
+    <div className="flex h-screen bg-background overflow-hidden relative">
+      <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-white/[0.01] to-transparent z-0" />
+
+      <div className="flex-1 flex flex-col relative z-10">
+        <header className="h-14 border-b border-border/30 bg-background/40 backdrop-blur-3xl px-10 flex items-center justify-between shrink-0 transition-all duration-500">
+          <div className="flex items-center gap-8">
+            <div className="flex items-center gap-3">
+              <div className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+              <h2 className="text-[11px] font-black uppercase tracking-[0.3em] text-foreground/70">
+                {currentPersona?.name || 'Authority'}
+              </h2>
+            </div>
+            <div className="h-4 w-px bg-border/40" />
+            <div className="flex items-center gap-2.5 px-3 py-1 rounded-lg bg-muted/20 border border-border/40 hover-glow">
+              <Cpu className="h-3.5 w-3.5 text-muted-foreground/40" />
+              <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest leading-none">{activeModel || 'Inherited'}</span>
             </div>
           </div>
-        </div>
-        <div className="relative" ref={modelMenuRef}>
-          <button
-            onClick={() => setShowModelSelector(!showModelSelector)}
-            className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-1.5 text-sm hover:bg-accent transition-colors"
-          >
-            <Settings className="h-4 w-4" />
-            <span>Model</span>
-            <ChevronDown className={cn('h-4 w-4 transition-transform', showModelSelector && 'rotate-180')} />
-          </button>
 
-          {showModelSelector && (
-            <div className="absolute right-0 top-full mt-2 w-80 rounded-xl border border-border bg-card shadow-xl z-[80] animate-in fade-in slide-in-from-top-2">
-              <div className="p-2 border-b border-border">
-                <div className="text-xs font-medium text-muted-foreground px-2 py-1">Select Model</div>
-              </div>
-              <div className="max-h-64 overflow-auto p-2">
-                {activeProviderConfig?.models.map((model) => (
-                  <button
-                    key={model.id}
-                    onClick={() => {
-                      setActiveModel(model.id);
-                      setShowModelSelector(false);
-                    }}
-                    className={cn(
-                      'w-full flex items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors',
-                      activeModel === model.id ? 'bg-primary/10 text-primary' : 'hover:bg-accent',
-                    )}
-                  >
-                    <div className="flex-1">
-                      <div className="font-medium text-sm">{model.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {model.contextLength.toLocaleString()} tokens
-                      </div>
-                    </div>
-                    {activeModel === model.id && <Check className="h-4 w-4 text-primary" />}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="relative z-0 flex-1 overflow-auto px-4 py-6">
-        {messages.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center">
-            <div className="relative mb-8">
-              <div className="absolute -inset-4 rounded-full bg-gradient-to-r from-primary/20 via-purple-500/20 to-pink-500/20 blur-xl animate-pulse" />
-              <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-purple-600 shadow-lg">
-                <Bot className="h-10 w-10 text-white" />
-              </div>
-            </div>
-            <h2 className="mb-2 text-2xl font-bold">How can I help you today?</h2>
-            <p className="mb-8 max-w-md text-center text-muted-foreground">
-              {currentPersona
-                ? `I'm ${currentPersona.name}. ${currentPersona.description}`
-                : 'Select a persona or start chatting with the default assistant'}
-            </p>
-
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 max-w-3xl">
-              {suggestedPrompts.map((prompt) => (
-                <button
-                  key={prompt.label}
-                  onClick={() => setInput(prompt.prompt)}
-                  className="group flex items-center gap-3 rounded-xl border border-border bg-card p-4 text-left transition-all hover:border-primary/50 hover:shadow-md hover:-translate-y-0.5"
-                >
-                  <div className={cn('flex h-10 w-10 items-center justify-center rounded-lg bg-secondary transition-colors group-hover:bg-primary/10', prompt.color)}>
-                    <prompt.icon className="h-5 w-5" />
-                  </div>
-                  <span className="font-medium">{prompt.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="mx-auto max-w-3xl space-y-6">
-            {messages.map((message, index) => (
-              <div
-                key={message.id}
-                className={cn('flex gap-4 animate-in fade-in slide-in-from-bottom-2', message.role === 'user' ? 'flex-row-reverse' : '')}
-                style={{ animationDelay: `${index * 50}ms` }}
-              >
-                <div
-                  className={cn(
-                    'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl shadow-sm',
-                    message.role === 'user'
-                      ? 'bg-gradient-to-br from-primary to-purple-600 text-white'
-                      : 'bg-gradient-to-br from-secondary to-secondary/50 border border-border',
-                  )}
-                >
-                  {message.role === 'user' ? <User className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
-                </div>
-                <div
-                  className={cn(
-                    'group relative max-w-[85%] rounded-2xl px-4 py-3 shadow-sm',
-                    message.role === 'user'
-                      ? 'bg-gradient-to-br from-primary to-purple-600 text-white'
-                      : 'bg-card border border-border',
-                  )}
-                >
-                  <MessageContent content={message.content} isUser={message.role === 'user'} isStreaming={message.isStreaming} />
-                  {message.role === 'assistant' && message.metadata?.model && (
-                    <div className="mt-2 text-xs text-muted-foreground">
-                      Model: {message.metadata.provider ? `${message.metadata.provider}/` : ''}
-                      {message.metadata.model}
-                    </div>
-                  )}
-
-                  {!message.isStreaming && (
-                    <div
-                      className={cn(
-                        'absolute -bottom-8 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100',
-                        message.role === 'user' ? 'right-0' : 'left-0',
-                      )}
-                    >
-                      <button
-                        onClick={() => copyToClipboard(message.content)}
-                        className="flex h-7 items-center gap-1 rounded-lg bg-card border border-border px-2 text-xs shadow-sm hover:bg-accent transition-colors"
-                      >
-                        <Copy className="h-3 w-3" />
-                        Copy
-                      </button>
-                      {message.role === 'assistant' && (
-                        <button
-                          onClick={regenerateMessage}
-                          className="flex h-7 items-center gap-1 rounded-lg bg-card border border-border px-2 text-xs shadow-sm hover:bg-accent transition-colors"
-                        >
-                          <RefreshCw className="h-3 w-3" />
-                          Retry
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-
-            {isLoading && (
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="text-sm">Generating response...</span>
-              </div>
+          <button 
+            onClick={() => setShowSystemPanel(!showSystemPanel)}
+            className={cn(
+              "flex items-center gap-2.5 px-4 py-2 rounded-xl transition-all active:scale-95 text-[10px] font-black uppercase tracking-widest",
+              showSystemPanel ? "bg-primary text-white shadow-lg" : "text-muted-foreground hover:bg-muted/50"
             )}
+          >
+            <AlignLeft className="h-3.5 w-3.5" />
+            Policy Node
+          </button>
+        </header>
 
+        <main className="flex-1 overflow-y-auto scrollbar-none">
+          <div className="max-w-4xl mx-auto px-12 py-20 space-y-14">
+            <AnimatePresence initial={false}>
+              {messages.length === 0 ? (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-start gap-10">
+                  <div className="flex items-center gap-5">
+                    <div className="h-14 w-14 rounded-2xl bg-primary flex items-center justify-center text-white shadow-xl shadow-primary/10">
+                      <Sparkles className="h-7 w-7" />
+                    </div>
+                    <div className="space-y-1">
+                      <h1 className="text-4xl font-black tracking-tighter">Synchronize Intent</h1>
+                      <p className="text-base font-medium text-muted-foreground/60 leading-relaxed">Establish a high-fidelity execution context for the authority.</p>
+                    </div>
+                  </div>
+                  
+                  <div className="grid gap-4 w-full sm:grid-cols-2">
+                    {[
+                      { l: 'Debug runtime fault', p: 'Analyze this trace for memory leaks:\n```\n\n```' },
+                      { l: 'Generate access protocol', p: 'Implement a zero-trust auth layer for ' },
+                      { l: 'Refactor logic audit', p: 'Rewrite this for deterministic performance:\n```\n\n```' },
+                      { l: 'Audit governance', p: 'Scan the repository structure for policy violations.' }
+                    ].map((s, i) => (
+                      <button 
+                        key={i}
+                        onClick={() => { setInput(s.p); handleSend(s.p); }}
+                        className="group flex items-center justify-between p-6 rounded-2xl border border-border/40 bg-card/10 hover-lift hover-glow text-left active:scale-[0.98]"
+                      >
+                        <span className="text-[13px] font-bold text-muted-foreground group-hover:text-foreground transition-colors">{s.l}</span>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground/20 group-hover:text-primary group-hover:translate-x-1 transition-all" />
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              ) : (
+                messages.map((message) => (
+                  <motion.div 
+                    key={message.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={cn("flex gap-10 transition-all", message.role === 'user' ? "flex-row-reverse" : "")}
+                  >
+                    <div className={cn(
+                      "h-10 w-10 rounded-xl flex items-center justify-center shrink-0 border border-border/40 shadow-sm transition-transform duration-500 hover:scale-105",
+                      message.role === 'user' ? "bg-primary text-white" : "bg-card text-primary"
+                    )}>
+                      {message.role === 'user' ? <User className="h-5 w-5" /> : <Bot className="h-5 w-5" />}
+                    </div>
+                    
+                    <div className={cn("max-w-[85%] space-y-5", message.role === 'user' ? "text-right items-end" : "text-left items-start")}>
+                      <div className={cn(
+                        "inline-block rounded-3xl px-7 py-5 border shadow-nuance prose-refined",
+                        message.role === 'user' ? "bg-primary text-white border-primary" : "bg-card border-border/60"
+                      )}>
+                        <MessageContent content={message.content} isUser={message.role === 'user'} />
+                      </div>
+
+                      {message.role === 'assistant' && message.metadata?.handoff?.type === 'dax_run' && (
+                        <div className="w-full rounded-3xl border border-primary/10 bg-primary/[0.01] overflow-hidden p-8 hover-glow transition-all duration-500">
+                          <div className="flex items-center justify-between mb-8">
+                            <div className="flex items-center gap-4">
+                              <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                                <Terminal className="h-5 w-5" />
+                              </div>
+                              <span className="text-[11px] font-black uppercase tracking-widest text-foreground/60">Execution Moved</span>
+                            </div>
+                            <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full bg-primary/5 text-primary border border-primary/10">
+                              {formatHandoffStatus(message.metadata.handoff.status)}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-5 mb-8">
+                            <div className="rounded-2xl border border-border/40 bg-background/40 p-5 space-y-1">
+                              <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/40 block">Engine node</span>
+                              <span className="text-[11px] font-bold text-foreground truncate block uppercase tracking-tight">{message.metadata.provider || 'Inherited'}</span>
+                            </div>
+                            <div className="rounded-2xl border border-border/40 bg-background/40 p-5 space-y-1">
+                              <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/40 block">Identity node</span>
+                              <span className="text-[11px] font-bold text-foreground truncate block uppercase tracking-tight">
+                                {allPersonas.find(p => p.id === message.metadata?.personaId)?.name || 'Architect'}
+                              </span>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => navigate(message.metadata!.handoff!.targetPath)}
+                            className="w-full rounded-xl bg-primary py-4 text-[11px] font-black uppercase tracking-[0.2em] text-white shadow-xl shadow-primary/10 hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+                          >
+                            Open Live Console
+                            <ArrowUpRight className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                ))
+              )}
+            </AnimatePresence>
             <div ref={messagesEndRef} />
           </div>
+        </main>
+
+        <footer className="px-12 py-10 bg-background relative z-20 transition-all duration-500">
+          <div className="max-w-4xl mx-auto space-y-5">
+            <div className="relative group transition-all">
+              <div className="absolute -inset-1.5 bg-gradient-to-r from-primary/10 to-primary/5 rounded-[2.5rem] blur-xl opacity-0 group-focus-within:opacity-100 transition duration-1000" />
+              <div className="relative flex items-end gap-5 rounded-[2.5rem] border border-border/60 bg-background p-4 shadow-inner focus-within:border-primary/20 transition-all duration-500">
+                <button className="h-11 w-11 flex-shrink-0 flex items-center justify-center rounded-2xl text-muted-foreground/30 hover:text-primary transition-all active:scale-90">
+                  <Plus className="h-6 w-6" />
+                </button>
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={e => { setInput(e.target.value); e.target.style.height = 'auto'; e.target.style.height = Math.min(e.target.scrollHeight, 400) + 'px'; }}
+                  onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())}
+                  placeholder="Dispatch autonomous instruction..."
+                  className="flex-1 max-h-96 min-h-[48px] resize-none bg-transparent py-3.5 text-[15px] font-medium outline-none placeholder:text-muted-foreground/20 leading-relaxed transition-all"
+                />
+                <div className="flex items-center gap-3 pb-1.5 pr-1.5">
+                  <button onClick={refinePrompt} disabled={!input.trim() || isRefining} className="h-11 w-11 flex items-center justify-center rounded-2xl text-muted-foreground/30 hover:text-primary hover:bg-primary/5 transition-all active:scale-90 disabled:opacity-0">
+                    {isRefining ? <Loader2 className="h-5 w-5 animate-spin" /> : <Wand2 className="h-5 w-5" />}
+                  </button>
+                  <button onClick={() => handleSend()} disabled={!input.trim() || isLoading} className="h-11 w-11 flex items-center justify-center rounded-2xl bg-primary text-white shadow-xl shadow-primary/10 hover:opacity-90 active:scale-90 transition-all disabled:opacity-20">
+                    <Send className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center justify-between px-8 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/30">
+              <div className="flex items-center gap-6">
+                <div className="flex items-center gap-2"><ShieldCheck className="h-3 w-3" /> Governance</div>
+                <div className="flex items-center gap-2"><Zap className="h-3 w-3" /> Handoff</div>
+              </div>
+              <span className="font-bold opacity-50 transition-opacity group-focus-within:opacity-100">Ready for Dispatch</span>
+            </div>
+          </div>
+        </footer>
+      </div>
+
+      <AnimatePresence>
+        {showSystemPanel && (
+          <motion.aside initial={{ width: 0, opacity: 0 }} animate={{ width: 440, opacity: 1 }} exit={{ width: 0, opacity: 0 }} transition={{ type: "spring", bounce: 0, duration: 0.4 }} className="border-l border-border/30 bg-background/40 backdrop-blur-3xl relative z-30 flex flex-col shadow-2xl">
+            <div className="p-10 border-b border-border/20 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-4">
+                <ShieldAlert className="h-5 w-5 text-primary/40" />
+                <h3 className="text-[11px] font-black uppercase tracking-[0.3em]">System Directive</h3>
+              </div>
+              <button onClick={() => setShowSystemPanel(false)} className="p-2 text-muted-foreground/20 hover:text-foreground hover:bg-muted/50 rounded-xl transition-all">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-12 space-y-12 scrollbar-none">
+              <div className="space-y-5">
+                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 ml-1">Operational Boundary</label>
+                <div className="rounded-[2rem] border border-border/40 bg-muted/10 p-8 leading-relaxed text-[15px] font-medium text-muted-foreground/80 italic shadow-inner">
+                  "{currentPersona?.systemPrompt || "Assistant operating under standard governed protocols."}"
+                </div>
+              </div>
+
+              <div className="space-y-8 pt-12 border-t border-border/20">
+                <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 ml-1">Authorizations</label>
+                <div className="flex flex-wrap gap-2.5">
+                  {(currentPersona?.capabilities || ['Logic Trace', 'Context Audit']).map((cap: string) => (
+                    <span key={cap} className="px-4 py-2 rounded-xl bg-background border border-border/60 text-[11px] font-black uppercase tracking-widest text-foreground/50 shadow-sm hover-glow">
+                      {cap}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </motion.aside>
         )}
-      </div>
-
-      <div className="border-t border-border bg-card/80 backdrop-blur-sm p-4">
-        <div className="mx-auto max-w-3xl">
-          <div className="mb-2 flex items-center justify-between px-1">
-            <button
-              onClick={() => setShowSystemInstructions((v) => !v)}
-              className="rounded-lg border border-border bg-background px-3 py-1 text-xs hover:bg-accent transition-colors"
-            >
-              {showSystemInstructions ? 'Hide' : 'Show'} system instructions
-            </button>
-            {systemInstructions.trim() && (
-              <span className="text-xs text-muted-foreground">Custom instructions active</span>
-            )}
-          </div>
-
-          {showSystemInstructions && (
-            <div className="mb-3 rounded-xl border border-border bg-background p-2">
-              <textarea
-                value={systemInstructions}
-                onChange={(e) => setSystemInstructions(e.target.value)}
-                placeholder="Set chat-level system instructions (applies to each message in this chat view)."
-                rows={4}
-                className="w-full resize-y bg-transparent p-2 text-sm outline-none placeholder:text-muted-foreground"
-              />
-            </div>
-          )}
-
-          {attachedFile && (
-            <div className="mb-2 flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-xs">
-              <span className="truncate text-muted-foreground">
-                Attached: {attachedFile.fileName}
-                {attachedFile.truncated ? ' (truncated to context limit)' : ''}
-              </span>
-              <button
-                onClick={() => setAttachedFile(null)}
-                disabled={isLoading}
-                className="ml-2 rounded p-1 hover:bg-accent disabled:opacity-50"
-                aria-label="Remove attachment"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </div>
-          )}
-
-          <div className="relative flex items-end gap-2 rounded-2xl border border-border bg-background p-2 shadow-sm focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
-            <button className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl hover:bg-accent transition-colors">
-              <Plus className="h-5 w-5 text-muted-foreground" />
-            </button>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              className="hidden"
-              accept=".pdf,.txt,.md,.markdown,.log,.json,.yml,.yaml,text/plain,application/pdf"
-              onChange={handleFileSelected}
-            />
-
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask anything... (Shift+Enter for new line)"
-              rows={1}
-              className="max-h-[200px] min-h-[40px] flex-1 resize-none bg-transparent py-2 text-sm outline-none placeholder:text-muted-foreground"
-            />
-
-            <div className="flex items-center gap-1">
-              <button
-                onClick={handleImprovePrompt}
-                disabled={!input.trim() || isLoading || isBootstrapping}
-                className="rounded-lg border border-border bg-background px-2 py-1 text-xs hover:bg-accent disabled:opacity-50 transition-colors"
-              >
-                Improve
-              </button>
-              <button
-                onClick={handleAttachClick}
-                disabled={isLoading || isBootstrapping || isParsingFile}
-                className="flex h-9 w-9 items-center justify-center rounded-xl hover:bg-accent transition-colors disabled:opacity-50"
-                title="Attach file"
-              >
-                {isParsingFile ? <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /> : <Paperclip className="h-5 w-5 text-muted-foreground" />}
-              </button>
-              <button className="flex h-9 w-9 items-center justify-center rounded-xl hover:bg-accent transition-colors">
-                <Mic className="h-5 w-5 text-muted-foreground" />
-              </button>
-              <button
-                onClick={isLoading ? handleStopGeneration : handleSend}
-                disabled={isBootstrapping || (!isLoading && !input.trim())}
-                className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground disabled:opacity-50 transition-all hover:scale-105 disabled:hover:scale-100"
-              >
-                {isLoading ? <Square className="h-4 w-4" /> : <Send className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-2 flex items-center justify-between px-2 text-xs text-muted-foreground">
-            <div className="flex items-center gap-2">
-              {currentPersona && (
-                <span className="flex items-center gap-1">
-                  <span>{currentPersona.icon}</span>
-                  <span>{currentPersona.name}</span>
-                </span>
-              )}
-            </div>
-            <span>Press Enter to send • Shift+Enter for new line</span>
-          </div>
-        </div>
-      </div>
+      </AnimatePresence>
     </div>
   );
 }
