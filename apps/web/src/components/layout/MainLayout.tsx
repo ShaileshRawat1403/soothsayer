@@ -23,7 +23,10 @@ import {
   Plus,
   Command,
   Monitor,
-  Sparkles
+  Sparkles,
+  Bot,
+  ChevronDown,
+  CheckCircle
 } from 'lucide-react';
 import { useTheme } from '@/components/common/ThemeProvider';
 import { motion, AnimatePresence } from 'framer-motion';
