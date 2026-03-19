@@ -338,7 +338,11 @@ export function RunPage() {
 
       <div className="grid gap-10 xl:grid-cols-[1.6fr_1fr]">
         <div className="flex flex-col gap-10 min-h-[700px]">
-          <RunTimeline events={events} activeApprovalId={activeApproval?.approvalId} />
+          <RunTimeline 
+            events={events} 
+            activeApprovalId={activeApproval?.approvalId} 
+            highlightedEventId={searchParams.get('highlight')}
+          />
         </div>
         
         <div className="flex flex-col gap-10">

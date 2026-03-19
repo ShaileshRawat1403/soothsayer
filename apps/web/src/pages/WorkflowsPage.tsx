@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils';
 import { api, apiHelpers } from '@/lib/api';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { toast } from 'sonner';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus,
   Play,
@@ -17,6 +18,11 @@ import {
   Save,
   Trash2,
   ArrowUpRight,
+  Workflow as WorkflowIcon,
+  CircleDashed,
+  Settings2,
+  Activity,
+  Layers
 } from 'lucide-react';
 
 type WorkflowStatus = 'active' | 'paused' | 'draft' | 'archived';
@@ -417,100 +423,123 @@ export function WorkflowsPage() {
   };
 
   return (
-    <div className="flex h-full">
-      <div className="flex w-96 flex-col border-r border-border">
-        <div className="border-b border-border p-4">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="text-lg font-semibold">Workflows</h2>
-            <div className="flex gap-2">
+    <div className="flex h-[calc(100vh-4rem)] bg-background">
+      {/* Sidebar: Workflow List */}
+      <div className="flex w-80 flex-col border-r border-border bg-card z-10 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]">
+        <div className="p-6 border-b border-border bg-muted/20">
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-2">
+                <WorkflowIcon className="h-4 w-4" />
+                Pipelines
+              </h2>
               <button
                 onClick={createWorkflow}
-                className="flex h-8 items-center gap-1.5 rounded-md border border-input px-3 text-sm hover:bg-accent"
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground hover:scale-105 transition-all shadow-md shadow-primary/20"
+                title="New Workflow"
               >
                 <Plus className="h-4 w-4" />
-                New
-              </button>
-              <button
-                onClick={bootstrapTemplates}
-                className="flex h-8 items-center gap-1.5 rounded-md bg-primary px-3 text-sm text-primary-foreground"
-              >
-                <Plus className="h-4 w-4" />
-                Templates
               </button>
             </div>
-          </div>
-          <div className="mt-4 flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search workflows..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-9 w-full rounded-md border border-input bg-background pl-9 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              />
+            
+            <div className="flex flex-col gap-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Filter workflows..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-9 w-full rounded-xl border border-border bg-background pl-9 pr-4 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                />
+              </div>
+              <div className="flex gap-2">
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="h-8 flex-1 rounded-lg border border-border bg-background px-3 text-xs font-bold uppercase tracking-wider text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
+                >
+                  <option value="all">All States</option>
+                  <option value="active">Active</option>
+                  <option value="paused">Paused</option>
+                  <option value="draft">Draft</option>
+                  <option value="archived">Archived</option>
+                </select>
+                <button
+                  onClick={bootstrapTemplates}
+                  className="h-8 px-3 rounded-lg bg-secondary text-[10px] font-bold uppercase tracking-widest text-muted-foreground hover:bg-muted transition-colors"
+                >
+                  Templates
+                </button>
+              </div>
             </div>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              <option value="all">All</option>
-              <option value="active">Active</option>
-              <option value="paused">Paused</option>
-              <option value="draft">Draft</option>
-              <option value="archived">Archived</option>
-            </select>
           </div>
         </div>
 
-        <div className="flex-1 overflow-auto">
-          {isLoading && <div className="p-4 text-sm text-muted-foreground">Loading workflows...</div>}
+        <div className="flex-1 overflow-auto p-3 space-y-2 scrollbar-none bg-muted/[0.02]">
+          {isLoading && (
+            <div className="p-8 text-center text-sm font-medium text-muted-foreground animate-pulse">
+              Synchronizing...
+            </div>
+          )}
           {!isLoading && filteredWorkflows.length === 0 && (
-            <div className="p-4 text-sm text-muted-foreground">
-              No workflows found. Click <span className="font-medium">New</span> to create one.
+            <div className="p-8 text-center flex flex-col items-center gap-3">
+              <CircleDashed className="h-8 w-8 text-muted-foreground/40" />
+              <span className="text-xs font-medium text-muted-foreground">No pipelines matched.</span>
             </div>
           )}
           {filteredWorkflows.map((workflow) => {
             const TriggerIcon = getTriggerIcon(workflow.trigger);
+            const isSelected = selectedWorkflowId === workflow.id;
+            
             return (
               <button
                 key={workflow.id}
                 onClick={() => setSelectedWorkflowId(workflow.id)}
                 className={cn(
-                  'w-full border-b border-border p-4 text-left transition-colors hover:bg-accent',
-                  selectedWorkflowId === workflow.id && 'bg-accent',
+                  'w-full text-left p-4 rounded-2xl transition-all duration-200 border',
+                  isSelected
+                    ? 'bg-background border-primary/20 shadow-apple ring-1 ring-primary/10'
+                    : 'bg-transparent border-transparent hover:bg-muted/50 hover:border-border/50'
                 )}
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">{workflow.name}</span>
-                      <span
-                        className={cn(
-                          'rounded-full px-2 py-0.5 text-xs',
-                          workflow.status === 'active' &&
-                            'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-                          workflow.status === 'paused' &&
-                            'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-                          workflow.status === 'draft' &&
-                            'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400',
-                        )}
-                      >
-                        {workflow.status}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-sm text-muted-foreground line-clamp-1">{workflow.description}</p>
-                    <div className="mt-2 flex items-center gap-3 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <TriggerIcon className="h-3 w-3" />
-                        {workflow.trigger}
-                      </span>
-                      <span>{workflow.steps.length} steps</span>
-                      <span>{workflow.runCount} runs</span>
-                    </div>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className={cn(
+                      "font-bold text-sm truncate",
+                      isSelected ? "text-primary" : "text-foreground"
+                    )}>
+                      {workflow.name}
+                    </span>
+                    <span
+                      className={cn(
+                        'flex-shrink-0 rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-widest border',
+                        workflow.status === 'active' && 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
+                        workflow.status === 'paused' && 'bg-amber-500/10 text-amber-600 border-amber-500/20',
+                        workflow.status === 'draft' && 'bg-muted text-muted-foreground border-border',
+                        workflow.status === 'archived' && 'bg-rose-500/10 text-rose-600 border-rose-500/20'
+                      )}
+                    >
+                      {workflow.status}
+                    </span>
                   </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  <p className="text-[11px] font-medium text-muted-foreground line-clamp-2 leading-relaxed">
+                    {workflow.description || 'No description provided.'}
+                  </p>
+                  <div className="mt-2 flex items-center gap-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
+                    <span className="flex items-center gap-1 bg-secondary px-1.5 py-0.5 rounded-md text-muted-foreground">
+                      <TriggerIcon className="h-3 w-3" />
+                      {workflow.trigger}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Layers className="h-3 w-3" />
+                      {workflow.steps.length}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Activity className="h-3 w-3" />
+                      {workflow.runCount}
+                    </span>
+                  </div>
                 </div>
               </button>
             );
@@ -518,286 +547,334 @@ export function WorkflowsPage() {
         </div>
       </div>
 
-      <div className="flex-1">
+      {/* Main Editor Area */}
+      <div className="flex-1 flex flex-col bg-muted/[0.02]">
         {selectedWorkflow ? (
-          <div className="h-full overflow-auto">
-            <div className="flex items-center justify-between border-b border-border p-4">
-              <div>
-                <h3 className="text-xl font-semibold">{selectedWorkflow.name}</h3>
-                <p className="text-sm text-muted-foreground">Workflow Step Editor</p>
+          <div className="flex flex-col h-full">
+            {/* Editor Header */}
+            <div className="flex items-center justify-between border-b border-border bg-background px-8 py-5 shadow-sm z-10">
+              <div className="flex items-center gap-4">
+                <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                  <GitBranch className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold tracking-tight text-foreground">{selectedWorkflow.name}</h3>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mt-0.5">Pipeline Definition</p>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
+              
+              <div className="flex items-center gap-3 bg-secondary/50 p-1.5 rounded-full border border-border/50">
                 {selectedWorkflow.status === 'active' ? (
                   <button
                     onClick={() => updateWorkflowStatus(selectedWorkflow, 'paused')}
-                    className="flex h-9 items-center gap-2 rounded-md border border-input px-4 text-sm hover:bg-accent"
+                    className="flex h-9 items-center gap-2 rounded-full px-5 text-xs font-bold uppercase tracking-wider text-amber-600 hover:bg-amber-500/10 transition-colors"
                   >
-                    <Pause className="h-4 w-4" />
+                    <Pause className="h-3.5 w-3.5 fill-current" />
                     Pause
                   </button>
                 ) : (
                   <button
                     onClick={() => updateWorkflowStatus(selectedWorkflow, 'active')}
-                    className="flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-sm text-primary-foreground"
+                    className="flex h-9 items-center gap-2 rounded-full px-5 text-xs font-bold uppercase tracking-wider text-emerald-600 hover:bg-emerald-500/10 transition-colors"
                   >
-                    <Play className="h-4 w-4" />
+                    <Play className="h-3.5 w-3.5 fill-current" />
                     Activate
                   </button>
                 )}
+                <div className="w-px h-6 bg-border mx-1" />
                 <button
                   onClick={() => runWorkflowNow(selectedWorkflow)}
-                  className="flex h-9 items-center gap-2 rounded-md border border-input px-4 text-sm hover:bg-accent"
+                  className="flex h-9 items-center gap-2 rounded-full px-5 text-xs font-bold uppercase tracking-wider text-primary hover:bg-primary/10 transition-colors"
                 >
-                  <Play className="h-4 w-4" />
-                  Run Now
+                  <Play className="h-3.5 w-3.5" />
+                  Execute
                 </button>
                 <button
                   onClick={saveEditor}
                   disabled={isSaving}
-                  className="flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-sm text-primary-foreground disabled:opacity-50"
+                  className="flex h-9 items-center gap-2 rounded-full bg-primary px-6 text-xs font-bold uppercase tracking-wider text-primary-foreground shadow-sm hover:opacity-90 transition-opacity disabled:opacity-50"
                 >
-                  <Save className="h-4 w-4" />
-                  {isSaving ? 'Saving...' : 'Save'}
-                </button>
-                <button className="flex h-9 w-9 items-center justify-center rounded-md border border-input hover:bg-accent">
-                  <MoreHorizontal className="h-4 w-4" />
+                  <Save className="h-3.5 w-3.5" />
+                  {isSaving ? 'Saving' : 'Commit'}
                 </button>
               </div>
             </div>
 
-            <div className="space-y-4 p-4">
-              {latestRunReference?.workflowId === selectedWorkflow.id ? (
-                <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-medium text-foreground">
-                        Latest workflow execution delegated to DAX
-                      </div>
-                      <div className="mt-1 text-sm text-muted-foreground">
-                        Run ID:
-                        <span className="ml-2 font-mono text-xs text-foreground">
-                          {latestRunReference.daxRunId}
-                        </span>
-                      </div>
-                      <div className="mt-1 text-sm text-muted-foreground">
-                        Target:
-                        <span className="ml-2 text-foreground">
-                          {latestRunReference.repoPath || 'Default DAX target (cwd)'}
-                        </span>
-                      </div>
-                    </div>
-                    <Link
-                      to={`/runs/${latestRunReference.daxRunId}${
-                        latestRunReference.repoPath || latestRunReference.targetMode
-                          ? `?${new URLSearchParams({
-                              targetMode: latestRunReference.targetMode || 'default_cwd',
-                              ...(latestRunReference.repoPath
-                                ? { repoPath: latestRunReference.repoPath }
-                                : {}),
-                            }).toString()}`
-                          : ''
-                      }`}
-                      className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+            {/* Editor Content */}
+            <div className="flex-1 overflow-auto p-8 scrollbar-thin">
+              <div className="max-w-4xl mx-auto space-y-8 pb-20">
+                
+                <AnimatePresence>
+                  {latestRunReference?.workflowId === selectedWorkflow.id && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="card-professional border-primary/20 bg-primary/[0.02] p-6 shadow-sm flex items-center justify-between"
                     >
-                      Open live run
-                      <ArrowUpRight className="h-4 w-4" />
-                    </Link>
+                      <div className="flex items-center gap-4">
+                        <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center text-white shadow-lg shadow-primary/20">
+                          <Activity className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-bold text-foreground">Governed Execution Dispatched</h4>
+                          <div className="flex items-center gap-3 mt-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                            <span>ID: <span className="text-primary">{latestRunReference.daxRunId.substring(0, 12)}</span></span>
+                            <span>Target: {latestRunReference.repoPath || 'Instance CWD'}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <Link
+                        to={`/runs/${latestRunReference.daxRunId}${
+                          latestRunReference.repoPath || latestRunReference.targetMode
+                            ? `?${new URLSearchParams({
+                                targetMode: latestRunReference.targetMode || 'default_cwd',
+                                ...(latestRunReference.repoPath
+                                  ? { repoPath: latestRunReference.repoPath }
+                                  : {}),
+                              }).toString()}`
+                            : ''
+                        }`}
+                        className="button-professional bg-primary text-primary-foreground shadow-md shadow-primary/20 flex items-center gap-2"
+                      >
+                        Monitor Trace
+                        <ArrowUpRight className="h-4 w-4" />
+                      </Link>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <div className="card-professional p-8 space-y-6 bg-background">
+                  <h3 className="text-sm font-black uppercase tracking-[0.2em] text-muted-foreground border-b border-border/50 pb-4">Configuration</h3>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Pipeline Name</label>
+                      <input
+                        value={editor.name}
+                        onChange={(e) => setEditor((prev) => ({ ...prev, name: e.target.value }))}
+                        className="h-12 w-full rounded-2xl border border-border bg-muted/20 px-4 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Lifecycle State</label>
+                      <select
+                        value={editor.status}
+                        onChange={(e) => setEditor((prev) => ({ ...prev, status: e.target.value as WorkflowStatus }))}
+                        className="h-12 w-full rounded-2xl border border-border bg-muted/20 px-4 text-sm font-bold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
+                      >
+                        <option value="draft">Draft</option>
+                        <option value="active">Active</option>
+                        <option value="paused">Paused</option>
+                        <option value="archived">Archived</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr] gap-6">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Description</label>
+                      <input
+                        value={editor.description}
+                        onChange={(e) => setEditor((prev) => ({ ...prev, description: e.target.value }))}
+                        className="h-12 w-full rounded-2xl border border-border bg-muted/20 px-4 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-muted-foreground ml-1">Trigger Event</label>
+                      <select
+                        value={editor.trigger}
+                        onChange={(e) => setEditor((prev) => ({ ...prev, trigger: e.target.value as WorkflowTrigger }))}
+                        className="h-12 w-full rounded-2xl border border-border bg-muted/20 px-4 text-sm font-bold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all appearance-none"
+                      >
+                        <option value="manual">Manual Execution</option>
+                        <option value="scheduled">Time Scheduled</option>
+                        <option value="webhook">External Webhook</option>
+                      </select>
+                    </div>
                   </div>
                 </div>
-              ) : null}
 
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <div className="md:col-span-2">
-                  <label className="mb-1 block text-xs text-muted-foreground">Name</label>
-                  <input
-                    value={editor.name}
-                    onChange={(e) => setEditor((prev) => ({ ...prev, name: e.target.value }))}
-                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs text-muted-foreground">Status</label>
-                  <select
-                    value={editor.status}
-                    onChange={(e) =>
-                      setEditor((prev) => ({ ...prev, status: e.target.value as WorkflowStatus }))
-                    }
-                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="draft">draft</option>
-                    <option value="active">active</option>
-                    <option value="paused">paused</option>
-                    <option value="archived">archived</option>
-                  </select>
-                </div>
-              </div>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-black uppercase tracking-[0.2em] text-muted-foreground ml-2">Execution Sequence</h3>
+                    <button
+                      onClick={addStep}
+                      className="flex items-center gap-2 rounded-full border border-border bg-background px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-foreground hover:bg-muted transition-all active:scale-95 shadow-sm"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Append Step
+                    </button>
+                  </div>
 
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <div className="md:col-span-2">
-                  <label className="mb-1 block text-xs text-muted-foreground">Description</label>
-                  <input
-                    value={editor.description}
-                    onChange={(e) => setEditor((prev) => ({ ...prev, description: e.target.value }))}
-                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs text-muted-foreground">Trigger</label>
-                  <select
-                    value={editor.trigger}
-                    onChange={(e) =>
-                      setEditor((prev) => ({ ...prev, trigger: e.target.value as WorkflowTrigger }))
-                    }
-                    className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="manual">manual</option>
-                    <option value="scheduled">scheduled</option>
-                    <option value="webhook">webhook</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-border p-3">
-                <div className="mb-3 flex items-center justify-between">
-                  <h4 className="font-medium">Steps</h4>
-                  <button
-                    onClick={addStep}
-                    className="flex h-8 items-center gap-1 rounded-md border border-input px-3 text-sm hover:bg-accent"
-                  >
-                    <Plus className="h-3 w-3" />
-                    Add Step
-                  </button>
-                </div>
-
-                <div className="space-y-2">
-                  {editor.steps.map((step, idx) => (
-                    <div key={`${step.id}-${idx}`} className="grid grid-cols-12 gap-2 rounded-md border border-border p-2">
-                      <input
-                        value={step.name}
-                        onChange={(e) => updateStep(idx, { name: e.target.value })}
-                        placeholder="Step name"
-                        className="col-span-4 h-8 rounded border border-input bg-background px-2 text-sm"
-                      />
-                      <select
-                        value={step.type}
-                        onChange={(e) =>
-                          updateStep(idx, {
-                            type: e.target.value as WorkflowStepType,
-                            ...(e.target.value === 'dax_run'
-                              ? {
-                                  risk: 'execute',
-                                  task: '',
-                                }
-                              : {}),
-                          })
-                        }
-                        className="col-span-3 h-8 rounded border border-input bg-background px-2 text-sm"
+                  <div className="space-y-4">
+                    {editor.steps.map((step, idx) => (
+                      <motion.div 
+                        key={`${step.id}-${idx}`}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="card-professional bg-background p-6 border-border/60 hover:border-primary/30 transition-all"
                       >
-                        <option value="task">task</option>
-                        <option value="read">read</option>
-                        <option value="analysis">analysis</option>
-                        <option value="write">write</option>
-                        <option value="validation">validation</option>
-                        <option value="notification">notification</option>
-                        <option value="dax_run">dax_run</option>
-                      </select>
-                      <select
-                        value={step.risk}
-                        onChange={(e) => updateStep(idx, { risk: e.target.value as StepRisk })}
-                        className="col-span-2 h-8 rounded border border-input bg-background px-2 text-sm"
-                      >
-                        <option value="read">read</option>
-                        <option value="write">write</option>
-                        <option value="execute">execute</option>
-                      </select>
-                      <input
-                        value={step.type === 'dax_run' ? step.input || '' : step.task || ''}
-                        onChange={(e) =>
-                          updateStep(
-                            idx,
-                            step.type === 'dax_run'
-                              ? { input: e.target.value }
-                              : { task: e.target.value },
-                          )
-                        }
-                        placeholder={step.type === 'dax_run' ? 'Instruction' : 'Task (optional)'}
-                        className="col-span-2 h-8 rounded border border-input bg-background px-2 text-sm"
-                      />
-                      <button
-                        onClick={() => removeStep(idx)}
-                        className="col-span-1 flex h-8 items-center justify-center rounded border border-input hover:bg-accent"
-                        title="Remove step"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-
-                      {step.type === 'dax_run' ? (
-                        <>
-                          <input
-                            value={step.personaPreset?.personaId || ''}
-                            onChange={(e) =>
-                              updateStep(idx, {
-                                personaPreset: {
-                                  personaId: e.target.value,
-                                  approvalMode: step.personaPreset?.approvalMode,
-                                  riskLevel: step.personaPreset?.riskLevel,
-                                },
-                              })
-                            }
-                            placeholder="Persona ID"
-                            className="col-span-4 h-8 rounded border border-input bg-background px-2 text-sm"
-                          />
-                          <select
-                            value={step.personaPreset?.approvalMode || 'balanced'}
-                            onChange={(e) =>
-                              updateStep(idx, {
-                                personaPreset: {
-                                  personaId: step.personaPreset?.personaId || '',
-                                  approvalMode: e.target.value as DaxApprovalMode,
-                                  riskLevel: step.personaPreset?.riskLevel,
-                                },
-                              })
-                            }
-                            className="col-span-3 h-8 rounded border border-input bg-background px-2 text-sm"
+                        <div className="flex items-start justify-between gap-4 mb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary text-[10px] font-black text-muted-foreground">
+                              {idx + 1}
+                            </div>
+                            <input
+                              value={step.name}
+                              onChange={(e) => updateStep(idx, { name: e.target.value })}
+                              placeholder="Action Title"
+                              className="h-9 w-64 rounded-xl border border-transparent bg-transparent px-3 text-sm font-bold focus:border-border focus:bg-muted/20 focus:outline-none transition-all placeholder:text-muted-foreground/40"
+                            />
+                          </div>
+                          <button
+                            onClick={() => removeStep(idx)}
+                            className="flex h-8 w-8 items-center justify-center rounded-full text-muted-foreground hover:bg-rose-500/10 hover:text-rose-500 transition-colors"
+                            title="Remove Step"
                           >
-                            <option value="strict">strict approval</option>
-                            <option value="balanced">balanced approval</option>
-                            <option value="relaxed">relaxed approval</option>
-                          </select>
-                          <select
-                            value={step.personaPreset?.riskLevel || 'medium'}
-                            onChange={(e) =>
-                              updateStep(idx, {
-                                personaPreset: {
-                                  personaId: step.personaPreset?.personaId || '',
-                                  approvalMode: step.personaPreset?.approvalMode,
-                                  riskLevel: e.target.value as DaxRiskLevel,
-                                },
-                              })
-                            }
-                            className="col-span-4 h-8 rounded border border-input bg-background px-2 text-sm"
-                          >
-                            <option value="low">low risk</option>
-                            <option value="medium">medium risk</option>
-                            <option value="high">high risk</option>
-                            <option value="critical">critical risk</option>
-                          </select>
-                          <div className="col-span-1" />
-                        </>
-                      ) : null}
-                    </div>
-                  ))}
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-12 gap-4 pl-11">
+                          <div className="col-span-4 space-y-1.5">
+                            <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground ml-1">Operation Type</span>
+                            <select
+                              value={step.type}
+                              onChange={(e) =>
+                                updateStep(idx, {
+                                  type: e.target.value as WorkflowStepType,
+                                  ...(e.target.value === 'dax_run'
+                                    ? { risk: 'execute', task: '' }
+                                    : {}),
+                                })
+                              }
+                              className="h-10 w-full rounded-xl border border-border bg-muted/20 px-3 text-xs font-bold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none"
+                            >
+                              <option value="task">Basic Task</option>
+                              <option value="read">Read Data</option>
+                              <option value="analysis">Deep Analysis</option>
+                              <option value="write">Write Output</option>
+                              <option value="validation">Validation Rule</option>
+                              <option value="notification">Send Alert</option>
+                              <option value="dax_run">DAX Authority Run</option>
+                            </select>
+                          </div>
+                          
+                          <div className="col-span-3 space-y-1.5">
+                            <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground ml-1">Risk Context</span>
+                            <select
+                              value={step.risk}
+                              onChange={(e) => updateStep(idx, { risk: e.target.value as StepRisk })}
+                              className="h-10 w-full rounded-xl border border-border bg-muted/20 px-3 text-xs font-bold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none"
+                            >
+                              <option value="read">Safe (Read)</option>
+                              <option value="write">Moderate (Write)</option>
+                              <option value="execute">Elevated (Execute)</option>
+                            </select>
+                          </div>
+
+                          <div className="col-span-5 space-y-1.5">
+                            <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground ml-1">Payload / Instruction</span>
+                            <input
+                              value={step.type === 'dax_run' ? step.input || '' : step.task || ''}
+                              onChange={(e) =>
+                                updateStep(
+                                  idx,
+                                  step.type === 'dax_run'
+                                    ? { input: e.target.value }
+                                    : { task: e.target.value },
+                                )
+                              }
+                              placeholder={step.type === 'dax_run' ? 'Provide intent to the authority...' : 'Define specific task parameters...'}
+                              className="h-10 w-full rounded-xl border border-border bg-muted/20 px-4 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all placeholder:text-muted-foreground/50"
+                            />
+                          </div>
+
+                          {step.type === 'dax_run' && (
+                            <motion.div 
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              className="col-span-12 mt-2 pt-4 border-t border-border/50 grid grid-cols-12 gap-4"
+                            >
+                              <div className="col-span-12 mb-1">
+                                <span className="inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-primary">
+                                  <Settings2 className="h-3 w-3" />
+                                  Authority Configuration
+                                </span>
+                              </div>
+                              <div className="col-span-4">
+                                <input
+                                  value={step.personaPreset?.personaId || ''}
+                                  onChange={(e) =>
+                                    updateStep(idx, {
+                                      personaPreset: {
+                                        personaId: e.target.value,
+                                        approvalMode: step.personaPreset?.approvalMode,
+                                        riskLevel: step.personaPreset?.riskLevel,
+                                      },
+                                    })
+                                  }
+                                  placeholder="Override Persona ID (Optional)"
+                                  className="h-10 w-full rounded-xl border border-border bg-background px-4 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                                />
+                              </div>
+                              <div className="col-span-4">
+                                <select
+                                  value={step.personaPreset?.approvalMode || 'balanced'}
+                                  onChange={(e) =>
+                                    updateStep(idx, {
+                                      personaPreset: {
+                                        personaId: step.personaPreset?.personaId || '',
+                                        approvalMode: e.target.value as DaxApprovalMode,
+                                        riskLevel: step.personaPreset?.riskLevel,
+                                      },
+                                    })
+                                  }
+                                  className="h-10 w-full rounded-xl border border-border bg-background px-4 text-xs font-bold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none"
+                                >
+                                  <option value="strict">Strict Policy</option>
+                                  <option value="balanced">Balanced Policy</option>
+                                  <option value="relaxed">Relaxed Policy</option>
+                                </select>
+                              </div>
+                              <div className="col-span-4">
+                                <select
+                                  value={step.personaPreset?.riskLevel || 'medium'}
+                                  onChange={(e) =>
+                                    updateStep(idx, {
+                                      personaPreset: {
+                                        personaId: step.personaPreset?.personaId || '',
+                                        approvalMode: step.personaPreset?.approvalMode,
+                                        riskLevel: e.target.value as DaxRiskLevel,
+                                      },
+                                    })
+                                  }
+                                  className="h-10 w-full rounded-xl border border-border bg-background px-4 text-xs font-bold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none"
+                                >
+                                  <option value="low">Low Risk Tolerance</option>
+                                  <option value="medium">Medium Risk Tolerance</option>
+                                  <option value="high">High Risk Tolerance</option>
+                                  <option value="critical">Critical Risk Tolerance</option>
+                                </select>
+                              </div>
+                            </motion.div>
+                          )}
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         ) : (
-          <div className="flex h-full flex-col items-center justify-center">
-            <GitBranch className="mb-4 h-16 w-16 text-muted-foreground" />
-            <h3 className="text-lg font-medium">Create or Select a Workflow</h3>
-            <p className="mt-2 max-w-md text-center text-sm text-muted-foreground">
-              Use <span className="font-medium">New</span> for a blank workflow or
-              <span className="font-medium"> Templates</span> for starter flows, then edit steps and save.
+          <div className="flex h-full flex-col items-center justify-center text-center p-8">
+            <div className="rounded-[2.5rem] bg-secondary p-8 mb-6 shadow-apple">
+              <GitBranch className="h-16 w-16 text-muted-foreground/40" />
+            </div>
+            <h3 className="text-2xl font-bold tracking-tight text-foreground">Select a Pipeline</h3>
+            <p className="mt-3 max-w-md text-sm font-medium leading-relaxed text-muted-foreground">
+              Choose an existing workflow from the sidebar or define a new automated sequence to govern your workspace operations.
             </p>
           </div>
         )}
