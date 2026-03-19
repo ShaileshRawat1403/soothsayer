@@ -8,12 +8,15 @@ This note captures the current runtime assumptions, supported behavior, and know
 - Soothsayer is a guarded proxy and browser control surface for DAX runs.
 - `DAX_BASE_URL` must point at a live DAX server.
 - The current proof used an unsecured local DAX server. If DAX server auth is enabled, Soothsayer must support the upstream auth posture or the test environment must disable it.
-- Repo targeting may still rely on the DAX server cwd unless directory propagation is added explicitly. The milestone proof was valid under a documented cwd assumption.
+- `intent.repoPath` is the execution target when Soothsayer knows the target repo/workspace. `metadata.workspaceId` and `metadata.projectId` remain context only.
+- If `intent.repoPath` is missing, Soothsayer now falls back explicitly to the DAX server cwd and annotates that as `default_cwd` targeting rather than silently relying on it.
 - SSE behavior depends on live runtime transport. Local proof passed with backend-proxied SSE and fetch-based browser streaming.
 
 ## Supported Now
 
 - Launch a DAX run from `/runs/new`
+- Launch a DAX run from chat handoff with explicit target propagation when workspace context is known
+- Launch a DAX run from workflow `dax_run` with explicit target propagation when workflow context is known
 - Load a run snapshot from `/runs/:id`
 - Observe live events in the browser
 - Resolve approvals from the run page
@@ -32,9 +35,8 @@ This note captures the current runtime assumptions, supported behavior, and know
 ## Known Gaps
 
 - Automatic reconnect and retry/backoff for interrupted event streams
-- Explicit repo targeting from Soothsayer when DAX cwd is not the intended workspace
+- Explicit repo targeting still falls back to DAX cwd in legacy/dev flows when no repo context is available
 - Rich natural-language run summary text
-- Workflows are not DAX-backed yet
 - Frontend/backend mirrored DAX DTOs are temporary and should move to a shared/generated contract later
 
 ## Phase 2 Focus

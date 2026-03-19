@@ -241,7 +241,12 @@ export class WorkflowsService {
   async run(
     id: string,
     userId: string,
-    options: { inputs?: Record<string, unknown>; projectId?: string; conversationId?: string },
+    options: {
+      inputs?: Record<string, unknown>;
+      projectId?: string;
+      conversationId?: string;
+      repoPath?: string;
+    },
   ) {
     const workflow = await this.prisma.workflow.findUnique({
       where: { id },
@@ -299,6 +304,7 @@ export class WorkflowsService {
             userId,
             workflow,
             projectId: options.projectId,
+            repoPath: typeof options.repoPath === 'string' ? options.repoPath : undefined,
             workflowRunId: run.id,
             workflowStepRunId: createdStep.id,
             stepId,
@@ -313,6 +319,7 @@ export class WorkflowsService {
             runId: daxResult.runId,
             status: daxResult.status,
             outcome: daxResult.summary.outcome?.result || daxResult.summary.status,
+            targeting: daxResult.targeting,
           });
           continue;
         }
@@ -505,25 +512,43 @@ export class WorkflowsService {
       id: string;
       workspaceId: string;
       slug: string;
+      workspace?: {
+        settings?: unknown;
+      };
     };
     projectId?: string;
+    repoPath?: string;
     workflowRunId: string;
     workflowStepRunId: string;
     stepId: string;
     stepName: string;
     step: Record<string, any>;
     stepStartedAt: number;
-  }): Promise<{ runId: string; status: DaxRunStatus; summary: DaxRunSummary }> {
+  }): Promise<{
+    runId: string;
+    status: DaxRunStatus;
+    summary: DaxRunSummary;
+    targeting: {
+      mode: 'explicit_repo_path' | 'default_cwd';
+      repoPath?: string;
+    };
+  }> {
     const input = typeof params.step.input === 'string' ? params.step.input.trim() : '';
     if (!input) {
       throw new BadRequestException(`Workflow step "${params.stepName}" requires a DAX input`);
     }
 
     const personaPreset = this.normalizeDaxPersonaPreset(params.step.personaPreset);
+    const repoPath = await this.resolveWorkflowRepoPath(
+      params.repoPath,
+      params.workflow.workspace?.settings,
+      params.projectId,
+    );
     const createPayload: DaxCreateRunRequest = {
       intent: {
         input,
         kind: 'workflow_step',
+        ...(repoPath ? { repoPath } : {}),
       },
       ...(personaPreset ? { personaPreset } : {}),
       metadata: {
@@ -531,6 +556,14 @@ export class WorkflowsService {
         workspaceId: params.workflow.workspaceId,
         projectId: params.projectId || undefined,
         workflowId: params.workflow.id,
+        targeting: repoPath
+          ? {
+              mode: 'explicit_repo_path',
+              repoPath,
+            }
+          : {
+              mode: 'default_cwd',
+            },
       },
     };
 
@@ -545,12 +578,21 @@ export class WorkflowsService {
       data: {
         inputs: {
           input,
+          ...(repoPath ? { repoPath } : {}),
           ...(personaPreset ? { personaPreset } : {}),
         } as any,
         outputs: {
           delegated: true,
           runId: createdRun.runId,
           status: createdRun.status,
+          targeting: repoPath
+            ? {
+                mode: 'explicit_repo_path',
+                repoPath,
+              }
+            : {
+                mode: 'default_cwd',
+              },
         } as any,
         logs: initialLogs,
       },
@@ -569,6 +611,14 @@ export class WorkflowsService {
               stepName: params.stepName,
               runId: createdRun.runId,
               status: createdRun.status,
+              targeting: repoPath
+                ? {
+                    mode: 'explicit_repo_path',
+                    repoPath,
+                  }
+                : {
+                    mode: 'default_cwd',
+                  },
             },
           ],
         } as any,
@@ -583,7 +633,17 @@ export class WorkflowsService {
     });
 
     if (terminal.status === 'completed') {
-      return terminal;
+      return {
+        ...terminal,
+        targeting: repoPath
+          ? {
+              mode: 'explicit_repo_path',
+              repoPath,
+            }
+          : {
+              mode: 'default_cwd',
+            },
+      };
     }
 
     throw new Error(
@@ -618,6 +678,55 @@ export class WorkflowsService {
         ? { riskLevel: raw.riskLevel as DaxPersonaPreset['riskLevel'] }
         : {}),
     };
+  }
+
+  private async resolveWorkflowRepoPath(
+    runtimeRepoPath: string | undefined,
+    workspaceSettings: unknown,
+    projectId?: string,
+  ): Promise<string | undefined> {
+    if (typeof runtimeRepoPath === 'string' && runtimeRepoPath.trim()) {
+      return runtimeRepoPath.trim();
+    }
+
+    if (projectId) {
+      const project = await this.prisma.project.findUnique({
+        where: { id: projectId },
+        select: {
+          rootPath: true,
+          settings: true,
+        },
+      });
+
+      const projectRepoPath =
+        (typeof project?.rootPath === 'string' && project.rootPath.trim()
+          ? project.rootPath.trim()
+          : undefined) || this.extractRepoPathFromSettings(project?.settings);
+
+      if (projectRepoPath) {
+        return projectRepoPath;
+      }
+    }
+
+    return this.extractRepoPathFromSettings(workspaceSettings);
+  }
+
+  private extractRepoPathFromSettings(settings: unknown): string | undefined {
+    if (!settings || typeof settings !== 'object') {
+      return undefined;
+    }
+
+    const raw = settings as Record<string, unknown>;
+    const candidates = ['repoPath', 'defaultRepoPath', 'targetRepoPath'] as const;
+
+    for (const key of candidates) {
+      const value = raw[key];
+      if (typeof value === 'string' && value.trim()) {
+        return value.trim();
+      }
+    }
+
+    return undefined;
   }
 
   private async waitForDaxTerminal(

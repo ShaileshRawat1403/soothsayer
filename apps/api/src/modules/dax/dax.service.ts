@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   BadGatewayException,
   GatewayTimeoutException,
   Injectable,
@@ -8,12 +9,16 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type {
   DaxApprovalsResponse,
   DaxArtifactRecord,
   DaxCreateRunRequest,
   DaxCreateRunResponse,
+  DaxHealthResponse,
+  DaxRunOverviewResponse,
   DaxResolveApprovalRequest,
   DaxResolveApprovalResponse,
   DaxRunSnapshot,
@@ -27,14 +32,37 @@ export class DaxService {
   constructor(private readonly configService: ConfigService) {}
 
   async createRun(user: CurrentUser, payload: DaxCreateRunRequest): Promise<DaxCreateRunResponse> {
+    const normalizedRepoPath = this.normalizeRepoPath(payload.intent.repoPath);
+    const targetingMode = normalizedRepoPath ? 'explicit_repo_path' : 'default_cwd';
+
+    if (!normalizedRepoPath) {
+      this.logger.warn(
+        `Creating DAX run without explicit repoPath; falling back to DAX cwd (user=${user.id})`,
+      );
+    }
+
+    const headers = new Headers();
+    if (normalizedRepoPath) {
+      headers.set('x-dax-directory', encodeURIComponent(normalizedRepoPath));
+    }
+
     return this.requestJson<DaxCreateRunResponse>('/runs', {
       method: 'POST',
+      headers,
       body: JSON.stringify({
         ...payload,
+        intent: {
+          ...payload.intent,
+          ...(normalizedRepoPath ? { repoPath: normalizedRepoPath } : {}),
+        },
         metadata: {
           ...payload.metadata,
           initiatedBy: payload.metadata?.initiatedBy ?? user.id,
           source: 'soothsayer',
+          targeting: {
+            mode: targetingMode,
+            ...(normalizedRepoPath ? { repoPath: normalizedRepoPath } : {}),
+          },
         },
       }),
     });
@@ -68,6 +96,28 @@ export class DaxService {
 
   async getArtifacts(runId: string): Promise<DaxArtifactRecord[]> {
     return this.requestJson<DaxArtifactRecord[]>(`/runs/${encodeURIComponent(runId)}/artifacts`);
+  }
+
+  async getHealth(): Promise<DaxHealthResponse> {
+    const response = await this.requestJson<{ healthy: true; version: string }>(`/global/health`);
+    return {
+      healthy: true,
+      version: response.version,
+      baseUrl: this.configService.get<string>('DAX_BASE_URL'),
+      checkedAt: new Date().toISOString(),
+    };
+  }
+
+  async getOverview(repoPath?: string): Promise<DaxRunOverviewResponse> {
+    const normalizedRepoPath = this.normalizeRepoPath(repoPath);
+    const headers = new Headers();
+    if (normalizedRepoPath) {
+      headers.set('x-dax-directory', encodeURIComponent(normalizedRepoPath));
+    }
+
+    return this.requestJson<DaxRunOverviewResponse>('/runs/overview', {
+      headers,
+    });
   }
 
   async getEventStream(runId: string, cursor?: string): Promise<Response> {
@@ -161,6 +211,32 @@ export class DaxService {
 
   private ensureTrailingSlash(value: string): string {
     return value.endsWith('/') ? value : `${value}/`;
+  }
+
+  private normalizeRepoPath(repoPath?: string): string | undefined {
+    if (!repoPath) {
+      return undefined;
+    }
+
+    const trimmed = repoPath.trim();
+    if (!trimmed) {
+      return undefined;
+    }
+
+    const decoded = (() => {
+      try {
+        return decodeURIComponent(trimmed);
+      } catch {
+        return trimmed;
+      }
+    })();
+
+    const normalized = path.resolve(decoded);
+    if (!existsSync(normalized)) {
+      throw new BadRequestException(`repoPath does not exist: ${normalized}`);
+    }
+
+    return path.normalize(normalized);
   }
 
   private async readErrorMessage(response: Response): Promise<string> {

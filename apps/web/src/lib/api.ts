@@ -5,6 +5,8 @@ import type {
   DaxArtifactRecord,
   DaxCreateRunRequest,
   DaxCreateRunResponse,
+  DaxHealthResponse,
+  DaxRunOverviewResponse,
   DaxResolveApprovalRequest,
   DaxRunEvent,
   DaxRunSnapshot,
@@ -284,7 +286,13 @@ export const apiHelpers = {
   getConversations: (workspaceId: string) =>
     api.get('/chat/conversations', { params: { workspaceId } }),
   getConversation: (id: string) => api.get(`/chat/conversations/${id}`),
-  createConversation: (data: { workspaceId: string; title?: string; personaId: string }) =>
+  createConversation: (data: {
+    workspaceId: string;
+    title?: string;
+    personaId: string;
+    projectId?: string;
+    repoPath?: string;
+  }) =>
     api.post('/chat/conversations', data),
   deleteConversation: (id: string) => api.delete(`/chat/conversations/${id}`),
   
@@ -404,6 +412,11 @@ export const apiHelpers = {
   },
 
   // DAX
+  getDaxHealth: () => api.get<DaxHealthResponse>('/dax/health'),
+  getDaxOverview: (repoPath?: string) =>
+    api.get<DaxRunOverviewResponse>('/dax/overview', {
+      params: repoPath ? { repoPath } : undefined,
+    }),
   createDaxRun: (payload: DaxCreateRunRequest) =>
     api.post<DaxCreateRunResponse>('/dax/runs', payload),
   getDaxRun: (runId: string) => api.get<DaxRunSnapshot>(`/dax/runs/${runId}`),

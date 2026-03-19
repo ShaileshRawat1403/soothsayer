@@ -30,6 +30,8 @@ export type DaxRunEventType =
 export interface DaxRunIntent {
   input: string;
   kind?: 'general' | 'analysis' | 'edit' | 'workflow_step';
+  // Execution target. When present, Soothsayer should normalize and pass this
+  // through to DAX as the explicit workspace/repo directory for the run.
   repoPath?: string;
   branch?: string;
   metadata?: Record<string, string | number | boolean | null>;
@@ -56,10 +58,15 @@ export interface DaxCreateRunRequest {
   metadata?: {
     initiatedBy?: string;
     source?: 'soothsayer';
+    // Context only. These do not replace intent.repoPath as the execution target.
     workspaceId?: string;
     projectId?: string;
     chatId?: string;
     workflowId?: string;
+    targeting?: {
+      mode: 'explicit_repo_path' | 'default_cwd';
+      repoPath?: string;
+    };
   };
 }
 
@@ -195,6 +202,59 @@ export interface DaxRunSummary {
     summaryText?: string;
     result?: 'success' | 'failure' | 'partial';
   };
+}
+
+export interface DaxHealthResponse {
+  healthy: true;
+  version: string;
+  baseUrl?: string;
+  checkedAt: string;
+}
+
+export type DaxRunSourceSurface = 'chat' | 'workflow' | 'direct' | 'unknown';
+
+export interface DaxRunTargetingSummary {
+  mode: 'explicit_repo_path' | 'default_cwd';
+  repoPath?: string;
+}
+
+export interface DaxRunListItem {
+  runId: string;
+  title?: string;
+  status: DaxRunStatus;
+  sourceSystem?: DaxSourceSystem;
+  sourceSurface: DaxRunSourceSurface;
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string;
+  completedAt?: string;
+  currentStep?: DaxRunCurrentStep;
+  pendingApprovalCount: number;
+  targeting?: DaxRunTargetingSummary;
+  workspaceId?: string;
+  projectId?: string;
+  chatId?: string;
+  workflowId?: string;
+}
+
+export interface DaxPendingApprovalSummary {
+  approvalId: string;
+  runId: string;
+  type: 'file_write' | 'command_execute' | 'patch_apply' | 'tool_use';
+  risk: DaxRiskLevel;
+  title: string;
+  reason: string;
+  createdAt: string;
+  targeting?: DaxRunTargetingSummary;
+  sourceSurface: DaxRunSourceSurface;
+  workspaceId?: string;
+  projectId?: string;
+}
+
+export interface DaxRunOverviewResponse {
+  activeRuns: DaxRunListItem[];
+  recentRuns: DaxRunListItem[];
+  pendingApprovals: DaxPendingApprovalSummary[];
 }
 
 export interface DaxRunEvent {

@@ -1,7 +1,9 @@
 import { expect, test } from '@playwright/test';
 
+const WORKSPACE_REPO_PATH = '/Users/ananyalayek/soothsayer';
+
 async function seedClientState(page: Parameters<typeof test>[0]['page']) {
-  await page.addInitScript(() => {
+  await page.addInitScript((repoPath) => {
     localStorage.setItem('soothsayer-onboarding-complete', 'true');
     localStorage.setItem(
       'soothsayer-ai-providers',
@@ -13,7 +15,24 @@ async function seedClientState(page: Parameters<typeof test>[0]['page']) {
         version: 0,
       }),
     );
-  });
+    localStorage.setItem(
+      'soothsayer-workspace',
+      JSON.stringify({
+        state: {
+          currentWorkspace: {
+            id: 'cmm5xj5n5000555ec6s36j30i',
+            name: 'Default Workspace',
+            slug: 'default-workspace',
+            settings: {
+              defaultRepoPath: repoPath,
+            },
+          },
+          currentProject: null,
+        },
+        version: 0,
+      }),
+    );
+  }, WORKSPACE_REPO_PATH);
 }
 
 async function bridgeApiToIpv6(page: Parameters<typeof test>[0]['page']) {
@@ -83,18 +102,26 @@ test.describe('Workflow dax_run handoff', () => {
     const daxRunId =
       payload?.outputs?.latestDaxRunId ||
       payload?.outputs?.daxRuns?.[payload?.outputs?.daxRuns?.length - 1]?.runId;
+    const targeting =
+      payload?.outputs?.daxRuns?.[payload?.outputs?.daxRuns?.length - 1]?.targeting;
 
     expect(typeof daxRunId).toBe('string');
+    expect(targeting?.mode).toBe('explicit_repo_path');
+    expect(targeting?.repoPath).toBe(WORKSPACE_REPO_PATH);
 
     await expect(page.getByText('Latest workflow execution delegated to DAX')).toBeVisible();
     await expect(page.getByText(daxRunId).first()).toBeVisible();
+    await expect(page.getByText(`Target:`)).toBeVisible();
+    await expect(page.getByText(WORKSPACE_REPO_PATH)).toBeVisible();
     await expect(page.getByRole('link', { name: 'Open live run' })).toBeVisible();
 
     await page.getByRole('link', { name: 'Open live run' }).click();
 
-    await expect(page).toHaveURL(new RegExp(`/runs/${daxRunId}$`));
+    await expect(page).toHaveURL(new RegExp(`/runs/${daxRunId}\\?`));
     await expect(page.getByText('Run ID:').first()).toBeVisible();
     await expect(page.getByText(daxRunId).first()).toBeVisible();
+    await expect(page.getByText(`Target: ${WORKSPACE_REPO_PATH}`)).toBeVisible();
+    await expect(page.getByText('Explicit repo target')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Refresh Snapshot' })).toBeVisible();
 
     await page.unrouteAll({ behavior: 'ignoreErrors' });

@@ -26,6 +26,16 @@ import type {
 export class DaxController {
   constructor(private readonly daxService: DaxService) {}
 
+  @Get('health')
+  async getHealth() {
+    return this.daxService.getHealth();
+  }
+
+  @Get('overview')
+  async getOverview(@Query('repoPath') repoPath?: string) {
+    return this.daxService.getOverview(repoPath);
+  }
+
   @Post('runs')
   async createRun(
     @GetCurrentUser() user: CurrentUser,
