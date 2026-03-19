@@ -35,6 +35,10 @@ export function DaxOverviewPage() {
         : typeof workspaceSettings?.targetRepoPath === 'string'
           ? workspaceSettings.targetRepoPath
           : undefined;
+  const scopeLabel = inferredRepoPath ? 'Selected repo scope' : 'Default DAX instance scope';
+  const scopeDescription = inferredRepoPath
+    ? `Showing DAX activity for ${inferredRepoPath}.`
+    : 'No workspace repo is selected, so this view is showing the default DAX instance scope.';
 
   useEffect(() => {
     let mounted = true;
@@ -168,6 +172,20 @@ export function DaxOverviewPage() {
         </div>
       </section>
 
+      <section className="rounded-3xl border border-border bg-card p-6 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold">Overview scope</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {scopeDescription}
+            </p>
+          </div>
+          <div className="rounded-full border border-border bg-background/80 px-3 py-1.5 text-xs font-medium text-foreground">
+            {scopeLabel}
+          </div>
+        </div>
+      </section>
+
       <section className="grid gap-4 xl:grid-cols-3">
         <div className="rounded-3xl border border-dashed border-border bg-card/60 p-6">
           <div className="flex items-center gap-3">
@@ -176,7 +194,11 @@ export function DaxOverviewPage() {
           </div>
           <div className="mt-4 space-y-3">
             {(overview?.activeRuns || []).length === 0 ? (
-              <p className="text-sm text-muted-foreground">No active DAX runs right now.</p>
+              <p className="text-sm text-muted-foreground">
+                {inferredRepoPath
+                  ? 'No active DAX runs in the selected repo scope.'
+                  : 'No active DAX runs in the default DAX instance scope.'}
+              </p>
             ) : (
               overview!.activeRuns.map((run) => (
                 <RunRow key={run.runId} run={run} to={runLink(run)} />
@@ -192,7 +214,11 @@ export function DaxOverviewPage() {
           </div>
           <div className="mt-4 space-y-3">
             {(overview?.pendingApprovals || []).length === 0 ? (
-              <p className="text-sm text-muted-foreground">No pending approvals across current DAX runs.</p>
+              <p className="text-sm text-muted-foreground">
+                {inferredRepoPath
+                  ? 'No pending approvals in the selected repo scope.'
+                  : 'No pending approvals in the default DAX instance scope.'}
+              </p>
             ) : (
               overview!.pendingApprovals.map((approval) => (
                 <ApprovalRow key={approval.approvalId} approval={approval} to={runLink(approval)} />
@@ -208,7 +234,11 @@ export function DaxOverviewPage() {
           </div>
           <div className="mt-4 space-y-3">
             {(overview?.recentRuns || []).length === 0 ? (
-              <p className="text-sm text-muted-foreground">No recent completed or failed DAX runs yet.</p>
+              <p className="text-sm text-muted-foreground">
+                {inferredRepoPath
+                  ? 'No recent completed or failed DAX runs in the selected repo scope.'
+                  : 'No recent completed or failed DAX runs in the default DAX instance scope.'}
+              </p>
             ) : (
               overview!.recentRuns.map((run) => (
                 <RunRow key={run.runId} run={run} to={runLink(run)} />

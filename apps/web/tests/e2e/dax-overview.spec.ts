@@ -35,6 +35,32 @@ async function seedClientState(page: Page) {
   }, WORKSPACE_REPO_PATH);
 }
 
+async function seedClientStateWithoutWorkspace(page: Page) {
+  await page.addInitScript(() => {
+    localStorage.setItem('soothsayer-onboarding-complete', 'true');
+    localStorage.setItem(
+      'soothsayer-ai-providers',
+      JSON.stringify({
+        state: {
+          activeProvider: 'ollama',
+          activeModel: 'llama3:latest',
+        },
+        version: 0,
+      }),
+    );
+    localStorage.setItem(
+      'soothsayer-workspace',
+      JSON.stringify({
+        state: {
+          currentWorkspace: null,
+          currentProject: null,
+        },
+        version: 0,
+      }),
+    );
+  });
+}
+
 async function bridgeApiToIpv6(page: Page) {
   await page.route('**/api/**', async (route) => {
     const request = route.request();
@@ -125,11 +151,41 @@ test.describe('DAX overview page', () => {
     await expect(page.getByRole('heading', { name: 'Governed execution overview' })).toBeVisible();
     await expect(page.getByText('DAX health')).toBeVisible();
     await expect(page.getByText('Healthy')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Overview scope' })).toBeVisible();
+    await expect(page.getByText('Selected repo scope', { exact: true })).toBeVisible();
+    await expect(page.getByText(`Showing DAX activity for ${WORKSPACE_REPO_PATH}.`)).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Active runs' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Pending approvals' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Recent runs' })).toBeVisible();
     await expect(page.getByText(activeRunId).first()).toBeVisible();
     await expect(page.getByText(WORKSPACE_REPO_PATH).first()).toBeVisible();
+
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+  });
+
+  test('falls back to default DAX instance scope when no workspace is selected', async ({ page }) => {
+    await seedClientStateWithoutWorkspace(page);
+    await bridgeApiToIpv6(page);
+
+    await page.goto('/login');
+    await page.getByLabel('Email').fill('admin@soothsayer.local');
+    await page.getByLabel('Password').fill('password123');
+    await page.getByRole('button', { name: 'Sign In' }).click();
+    await expect(page).toHaveURL(/\/dashboard$/);
+
+    await page.getByRole('link', { name: 'DAX Control' }).click();
+
+    await expect(page).toHaveURL(/\/dax$/);
+    await expect(page.getByRole('heading', { name: 'Governed execution overview' })).toBeVisible();
+    await expect(page.getByText('Healthy')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Overview scope' })).toBeVisible();
+    await expect(page.getByText('Default DAX instance scope', { exact: true })).toBeVisible();
+    await expect(
+      page.getByText('No workspace repo is selected, so this view is showing the default DAX instance scope.'),
+    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Active runs' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Pending approvals' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Recent runs' })).toBeVisible();
 
     await page.unrouteAll({ behavior: 'ignoreErrors' });
   });

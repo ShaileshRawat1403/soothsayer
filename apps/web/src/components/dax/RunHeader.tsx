@@ -14,7 +14,7 @@ const statusTone: Record<DaxRunSnapshot['status'], string> = {
 
 interface RunHeaderProps {
   snapshot: DaxRunSnapshot;
-  streamState: 'connecting' | 'live' | 'closed';
+  streamState: 'connecting' | 'reconnecting' | 'live' | 'closed';
   onRefresh: () => void;
   targetContext?: {
     mode: 'explicit_repo_path' | 'default_cwd';

@@ -88,6 +88,7 @@ export async function streamDaxRunEvents(
   options: {
     cursor?: string;
     signal?: AbortSignal;
+    onOpen?: () => void;
     onEvent: (event: DaxStreamEvent) => void;
   },
 ): Promise<void> {
@@ -122,6 +123,8 @@ export async function streamDaxRunEvents(
   if (!reader) {
     throw new Error('Run stream is unavailable');
   }
+
+  options.onOpen?.();
 
   const decoder = new TextDecoder();
   let buffer = '';
