@@ -87,6 +87,7 @@ export async function streamDaxRunEvents(
   runId: string,
   options: {
     cursor?: string;
+    repoPath?: string;
     signal?: AbortSignal;
     onOpen?: () => void;
     onEvent: (event: DaxStreamEvent) => void;
@@ -100,6 +101,9 @@ export async function streamDaxRunEvents(
   const params = new URLSearchParams();
   if (options.cursor) {
     params.set('cursor', options.cursor);
+  }
+  if (options.repoPath) {
+    params.set('repoPath', options.repoPath);
   }
 
   const response = await fetch(
@@ -422,17 +426,31 @@ export const apiHelpers = {
     }),
   createDaxRun: (payload: DaxCreateRunRequest) =>
     api.post<DaxCreateRunResponse>('/dax/runs', payload),
-  getDaxRun: (runId: string) => api.get<DaxRunSnapshot>(`/dax/runs/${runId}`),
-  getDaxRunApprovals: (runId: string) =>
-    api.get<DaxApprovalsResponse>(`/dax/runs/${runId}/approvals`),
+  getDaxRun: (runId: string, repoPath?: string) =>
+    api.get<DaxRunSnapshot>(`/dax/runs/${runId}`, {
+      params: repoPath ? { repoPath } : undefined,
+    }),
+  getDaxRunApprovals: (runId: string, repoPath?: string) =>
+    api.get<DaxApprovalsResponse>(`/dax/runs/${runId}/approvals`, {
+      params: repoPath ? { repoPath } : undefined,
+    }),
   resolveDaxRunApproval: (
     runId: string,
     approvalId: string,
     payload: DaxResolveApprovalRequest,
-  ) => api.post(`/dax/runs/${runId}/approvals/${approvalId}`, payload),
-  getDaxRunSummary: (runId: string) => api.get<DaxRunSummary>(`/dax/runs/${runId}/summary`),
-  getDaxRunArtifacts: (runId: string) =>
-    api.get<DaxArtifactRecord[]>(`/dax/runs/${runId}/artifacts`),
+    repoPath?: string,
+  ) =>
+    api.post(`/dax/runs/${runId}/approvals/${approvalId}`, payload, {
+      params: repoPath ? { repoPath } : undefined,
+    }),
+  getDaxRunSummary: (runId: string, repoPath?: string) =>
+    api.get<DaxRunSummary>(`/dax/runs/${runId}/summary`, {
+      params: repoPath ? { repoPath } : undefined,
+    }),
+  getDaxRunArtifacts: (runId: string, repoPath?: string) =>
+    api.get<DaxArtifactRecord[]>(`/dax/runs/${runId}/artifacts`, {
+      params: repoPath ? { repoPath } : undefined,
+    }),
 };
 
 export default api;

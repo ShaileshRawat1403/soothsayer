@@ -46,7 +46,7 @@ function isTerminalStatus(status?: DaxRunStatus | null): boolean {
   return Boolean(status && isTerminalRunStatus(status));
 }
 
-export function useRunConsole(runId: string, enabled = true) {
+export function useRunConsole(runId: string, enabled = true, repoPath?: string) {
   const [snapshot, setSnapshot] = useState<DaxRunSnapshot | null>(null);
   const [events, setEvents] = useState<DaxStreamEvent[]>([]);
   const [approvals, setApprovals] = useState<DaxApprovalRecord[]>([]);
@@ -63,7 +63,7 @@ export function useRunConsole(runId: string, enabled = true) {
   );
 
   const refreshSnapshot = async () => {
-    const nextSnapshot = await readData(apiHelpers.getDaxRun(runId));
+    const nextSnapshot = await readData(apiHelpers.getDaxRun(runId, repoPath));
     lastCursorRef.current = nextSnapshot.lastEvent?.cursor;
     latestStatusRef.current = nextSnapshot.status;
     setSnapshot(nextSnapshot);
@@ -71,14 +71,14 @@ export function useRunConsole(runId: string, enabled = true) {
   };
 
   const refreshApprovals = async () => {
-    const response = await readData(apiHelpers.getDaxRunApprovals(runId));
+    const response = await readData(apiHelpers.getDaxRunApprovals(runId, repoPath));
     setApprovals(response.approvals || []);
     return response.approvals || [];
   };
 
   const refreshSummary = async () => {
     try {
-      const nextSummary = await readData(apiHelpers.getDaxRunSummary(runId));
+      const nextSummary = await readData(apiHelpers.getDaxRunSummary(runId, repoPath));
       setSummary(nextSummary);
       return nextSummary;
     } catch {
@@ -119,7 +119,7 @@ export function useRunConsole(runId: string, enabled = true) {
     }
 
     void loadRun();
-  }, [enabled, runId]);
+  }, [enabled, repoPath, runId]);
 
   useEffect(() => {
     if (!enabled || !runId) {
@@ -157,6 +157,7 @@ export function useRunConsole(runId: string, enabled = true) {
 
           await streamDaxRunEvents(runId, {
             cursor: lastCursorRef.current,
+            repoPath,
             signal: controller.signal,
             onOpen: () => {
               reconnectAttempts = 0;
@@ -221,7 +222,7 @@ export function useRunConsole(runId: string, enabled = true) {
       controller.abort();
       setStreamState('closed');
     };
-  }, [enabled, runId]);
+  }, [enabled, repoPath, runId]);
 
   const resolveApproval = async (decision: DaxApprovalDecision, comment?: string) => {
     if (!runId || !activeApproval) {
@@ -235,7 +236,7 @@ export function useRunConsole(runId: string, enabled = true) {
           decision,
           comment,
           requestId: activeApproval.approvalId,
-        }),
+        }, repoPath),
       );
       await Promise.all([refreshApprovals(), refreshSnapshot()]);
       toast.success(`Approval ${decision === 'approve' ? 'approved' : 'denied'}`);

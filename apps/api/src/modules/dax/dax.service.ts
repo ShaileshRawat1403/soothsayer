@@ -68,34 +68,44 @@ export class DaxService {
     });
   }
 
-  async getRun(runId: string): Promise<DaxRunSnapshot> {
-    return this.requestJson<DaxRunSnapshot>(`/runs/${encodeURIComponent(runId)}`);
+  async getRun(runId: string, repoPath?: string): Promise<DaxRunSnapshot> {
+    return this.requestJson<DaxRunSnapshot>(`/runs/${encodeURIComponent(runId)}`, {
+      headers: this.buildTargetHeaders(repoPath),
+    });
   }
 
-  async getApprovals(runId: string): Promise<DaxApprovalsResponse> {
-    return this.requestJson<DaxApprovalsResponse>(`/runs/${encodeURIComponent(runId)}/approvals`);
+  async getApprovals(runId: string, repoPath?: string): Promise<DaxApprovalsResponse> {
+    return this.requestJson<DaxApprovalsResponse>(`/runs/${encodeURIComponent(runId)}/approvals`, {
+      headers: this.buildTargetHeaders(repoPath),
+    });
   }
 
   async resolveApproval(
     runId: string,
     approvalId: string,
     payload: DaxResolveApprovalRequest,
+    repoPath?: string,
   ): Promise<DaxResolveApprovalResponse> {
     return this.requestJson<DaxResolveApprovalResponse>(
       `/runs/${encodeURIComponent(runId)}/approvals/${encodeURIComponent(approvalId)}`,
       {
         method: 'POST',
+        headers: this.buildTargetHeaders(repoPath),
         body: JSON.stringify(payload),
       },
     );
   }
 
-  async getSummary(runId: string): Promise<DaxRunSummary> {
-    return this.requestJson<DaxRunSummary>(`/runs/${encodeURIComponent(runId)}/summary`);
+  async getSummary(runId: string, repoPath?: string): Promise<DaxRunSummary> {
+    return this.requestJson<DaxRunSummary>(`/runs/${encodeURIComponent(runId)}/summary`, {
+      headers: this.buildTargetHeaders(repoPath),
+    });
   }
 
-  async getArtifacts(runId: string): Promise<DaxArtifactRecord[]> {
-    return this.requestJson<DaxArtifactRecord[]>(`/runs/${encodeURIComponent(runId)}/artifacts`);
+  async getArtifacts(runId: string, repoPath?: string): Promise<DaxArtifactRecord[]> {
+    return this.requestJson<DaxArtifactRecord[]>(`/runs/${encodeURIComponent(runId)}/artifacts`, {
+      headers: this.buildTargetHeaders(repoPath),
+    });
   }
 
   async getHealth(): Promise<DaxHealthResponse> {
@@ -109,18 +119,12 @@ export class DaxService {
   }
 
   async getOverview(repoPath?: string): Promise<DaxRunOverviewResponse> {
-    const normalizedRepoPath = this.normalizeRepoPath(repoPath);
-    const headers = new Headers();
-    if (normalizedRepoPath) {
-      headers.set('x-dax-directory', encodeURIComponent(normalizedRepoPath));
-    }
-
     return this.requestJson<DaxRunOverviewResponse>('/runs/overview', {
-      headers,
+      headers: this.buildTargetHeaders(repoPath),
     });
   }
 
-  async getEventStream(runId: string, cursor?: string): Promise<Response> {
+  async getEventStream(runId: string, cursor?: string, repoPath?: string): Promise<Response> {
     const params = new URLSearchParams();
     if (cursor) {
       params.set('cursor', cursor);
@@ -133,6 +137,7 @@ export class DaxService {
     return this.requestRaw(path, {
       method: 'GET',
       headers: {
+        ...Object.fromEntries(this.buildTargetHeaders(repoPath).entries()),
         Accept: 'text/event-stream',
       },
       timeoutMs: 0,
@@ -211,6 +216,15 @@ export class DaxService {
 
   private ensureTrailingSlash(value: string): string {
     return value.endsWith('/') ? value : `${value}/`;
+  }
+
+  private buildTargetHeaders(repoPath?: string): Headers {
+    const normalizedRepoPath = this.normalizeRepoPath(repoPath);
+    const headers = new Headers();
+    if (normalizedRepoPath) {
+      headers.set('x-dax-directory', encodeURIComponent(normalizedRepoPath));
+    }
+    return headers;
   }
 
   private normalizeRepoPath(repoPath?: string): string | undefined {
