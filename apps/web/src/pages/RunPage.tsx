@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { ArrowLeft, Loader2, Play, ShieldAlert, CheckCircle2, XCircle, Layout, Activity, User, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Loader2, Play, ShieldAlert, CheckCircle2, Activity, ChevronDown, User } from 'lucide-react';
 import { apiHelpers } from '@/lib/api';
 import { RunHeader } from '@/components/dax/RunHeader';
 import { RunEventStream } from '@/components/dax/RunEventStream';
@@ -99,7 +99,7 @@ export function RunPage() {
         },
         personaPreset: {
           personaId: selectedPersonaId || 'standard',
-          approvalMode: 'strict', // Standard for workstation slice
+          approvalMode: 'strict',
         },
         metadata: {
           ...(currentWorkspace?.id ? { workspaceId: currentWorkspace.id } : {}),
@@ -110,13 +110,8 @@ export function RunPage() {
       const created = response.data;
       toast.success('DAX run started');
       const nextParams = new URLSearchParams();
-      nextParams.set(
-        'targetMode',
-        inferredRepoPath ? 'explicit_repo_path' : 'default_cwd',
-      );
-      if (inferredRepoPath) {
-        nextParams.set('repoPath', inferredRepoPath);
-      }
+      nextParams.set('targetMode', inferredRepoPath ? 'explicit_repo_path' : 'default_cwd');
+      if (inferredRepoPath) nextParams.set('repoPath', inferredRepoPath);
       navigate(`/runs/${created.runId}?${nextParams.toString()}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to start DAX run';
@@ -128,48 +123,41 @@ export function RunPage() {
 
   if (isLauncher) {
     return (
-      <div className="page-container flex flex-col gap-10">
-        <Link to="/terminal" className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors">
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Return to Terminal
-        </Link>
-
-        <section className="card-professional p-10">
-          <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 rounded-full bg-secondary px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-              <Layout className="h-3 w-3" />
-              Execution Launcher
-            </div>
-            <h1 className="mt-6 text-4xl font-bold tracking-tight text-foreground">Initiate a live DAX run</h1>
-            <p className="mt-4 text-base leading-relaxed text-muted-foreground">
-              Create a governed execution context. This run will be monitored by the DAX authority and will require manual approval for high-risk actions.
-            </p>
+      <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-8 p-8">
+        <div className="flex items-center justify-between">
+          <Link to="/terminal" className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors">
+            <ArrowLeft className="h-3 w-3" />
+            Back to Console
+          </Link>
+          <div className="flex items-center gap-2 rounded-full bg-primary/5 border border-primary/10 px-3 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-primary">
+            <Play className="h-2.5 w-2.5 fill-current" />
+            Launcher
           </div>
+        </div>
 
-          <div className="mt-12 grid gap-10 lg:grid-cols-[1fr_350px]">
-            <div className="space-y-10">
+        <section className="card-professional p-10 border-border/40">
+          <div className="grid gap-10 lg:grid-cols-[1fr_320px]">
+            <div className="space-y-8">
               <div className="space-y-4">
-                <label className="text-sm font-bold uppercase tracking-widest text-muted-foreground ml-1">
-                  Execution Instruction
-                </label>
+                <h1 className="text-3xl font-black tracking-tighter text-foreground">Initiate Trace</h1>
                 <textarea
                   value={launchInput}
                   onChange={(event) => setLaunchInput(event.target.value)}
-                  placeholder="Specify the task for the AI authority..."
-                  className="min-h-64 w-full rounded-[2.5rem] border border-border bg-background px-8 py-7 text-lg shadow-apple-lg focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all placeholder:text-muted-foreground/30"
+                  placeholder="Specify instruction..."
+                  className="min-h-48 w-full rounded-3xl border border-border/60 bg-background px-6 py-5 text-base shadow-inner focus:outline-none focus:ring-4 focus:ring-primary/5 transition-all placeholder:text-muted-foreground/20"
                 />
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-6 pt-4">
-                <div className="flex items-center gap-2 bg-secondary p-1.5 rounded-full">
+                <div className="flex items-center gap-1.5 bg-secondary/50 p-1 rounded-full border border-border/40">
                   {(['general', 'analysis', 'edit'] as const).map((kind) => (
                     <button
                       key={kind}
                       onClick={() => setLaunchKind(kind)}
-                      className={`rounded-full px-8 py-2.5 text-[11px] font-bold uppercase tracking-widest transition-all ${
+                      className={`rounded-full px-6 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all ${
                         launchKind === kind
                           ? 'bg-background text-foreground shadow-sm'
-                          : 'text-muted-foreground hover:text-foreground'
+                          : 'text-muted-foreground/60 hover:text-foreground'
                       }`}
                     >
                       {kind}
@@ -180,64 +168,50 @@ export function RunPage() {
                 <button
                   disabled={isLaunching}
                   onClick={() => void handleLaunch()}
-                  className="button-professional bg-primary text-primary-foreground hover:opacity-90 shadow-xl shadow-primary/20 flex items-center gap-3 px-10 py-4"
+                  className="button-professional bg-primary text-primary-foreground hover:opacity-90 shadow-xl shadow-primary/20 flex items-center gap-2 px-10 h-12"
                 >
-                  {isLaunching ? <Loader2 className="h-5 w-5 animate-spin" /> : <Play className="h-5 w-5 fill-current" />}
-                  <span className="text-base">Initiate Run</span>
+                  {isLaunching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4 fill-current" />}
+                  <span className="text-xs font-black uppercase tracking-widest">Execute</span>
                 </button>
               </div>
             </div>
 
-            <div className="flex flex-col gap-8">
-              <div className="rounded-[2rem] border border-border bg-muted/30 p-8 space-y-6">
-                <div className="space-y-4">
-                  <label className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">
+            <div className="flex flex-col gap-6">
+              <div className="rounded-2xl border border-border/40 bg-muted/10 p-6 space-y-6">
+                <div className="space-y-3">
+                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 flex items-center gap-2">
                     <User className="h-3 w-3" />
-                    Behavioral Persona
+                    Persona
                   </label>
                   <div className="relative group">
                     <select
                       value={selectedPersonaId}
                       onChange={(e) => setSelectedPersonaId(e.target.value)}
-                      className="w-full appearance-none rounded-2xl border border-border bg-background px-5 py-4 text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/10 shadow-apple transition-all"
+                      className="w-full appearance-none rounded-xl border border-border bg-background px-4 py-3 text-xs font-black text-foreground focus:outline-none focus:ring-2 focus:ring-primary/10 transition-all"
                     >
                       {personas.map((p) => (
                         <option key={p.id} value={p.id}>{p.name}</option>
                       ))}
                     </select>
-                    <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none transition-transform group-hover:translate-y-[-40%]" />
+                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
                   </div>
-                  {selectedPersona && (
-                    <p className="px-1 text-xs font-medium text-muted-foreground leading-relaxed">
-                      {selectedPersona.description}
-                    </p>
-                  )}
                 </div>
 
-                <div className="pt-6 border-t border-border/50 space-y-4">
-                  <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                    <span>Engine Path</span>
-                    <span className="text-foreground">Implicit</span>
-                  </div>
-                  <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                    <span>Policy Mode</span>
+                <div className="pt-4 border-t border-border/40 space-y-2">
+                  <div className="flex justify-between items-center text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60">
+                    <span>Mode</span>
                     <span className="text-orange-600">Strict</span>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-[2rem] border border-border bg-background p-8">
-                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground mb-4">
-                  Target Environment
+              <div className="rounded-2xl border border-border/40 bg-background p-6">
+                <div className="text-[9px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 mb-3">
+                  Environment
                 </div>
-                <div className="text-sm font-bold text-foreground truncate">
-                  {inferredRepoPath || 'Instance CWD'}
+                <div className="text-[11px] font-black text-foreground truncate uppercase tracking-tight">
+                  {inferredRepoPath || 'Instance Root'}
                 </div>
-                <p className="mt-2 text-[11px] font-medium text-muted-foreground">
-                  {inferredRepoPath 
-                    ? 'Explicit repository target active' 
-                    : 'System-wide default scope'}
-                </p>
               </div>
             </div>
           </div>
@@ -249,43 +223,28 @@ export function RunPage() {
   if (isLoading) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-primary/40" />
-          <span className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground">
-            Synchronizing with Authority
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-6 w-6 animate-spin text-primary/20" />
+          <span className="text-[9px] font-black uppercase tracking-[0.3em] text-muted-foreground/40">
+            Synchronizing Authority
           </span>
         </div>
       </div>
     );
   }
 
-  if (!snapshot) {
-    return (
-      <div className="page-container flex flex-col gap-6">
-        <Link to="/runs/new" className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors">
-          <ArrowLeft className="h-3.5 w-3.5" />
-          Start New Context
-        </Link>
-        <section className="card-professional p-10 text-center">
-          <h1 className="text-2xl font-bold">Context Unavailable</h1>
-          <p className="mt-4 text-muted-foreground max-w-md mx-auto">
-            The requested DAX run could not be synchronized. Verify network reachability and system configuration.
-          </p>
-        </section>
-      </div>
-    );
-  }
+  if (!snapshot) return null;
 
   return (
-    <div className="page-container flex flex-col gap-8">
+    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 p-6">
       <div className="flex items-center justify-between">
-        <Link to="/runs/new" className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors">
-          <ArrowLeft className="h-3.5 w-3.5" />
-          New Execution
+        <Link to="/dax" className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors">
+          <ArrowLeft className="h-3 w-3" />
+          Back to Monitor
         </Link>
-        <div className="flex items-center gap-2 rounded-full bg-secondary px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+        <div className="flex items-center gap-2 rounded-full bg-secondary px-3 py-1 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
           <Activity className="h-3 w-3" />
-          Live Run Console
+          Live Console
         </div>
       </div>
 
@@ -296,39 +255,38 @@ export function RunPage() {
         targetContext={targetContext}
       />
 
-      {/* Blocked on Attention Banner - Refined */}
       {activeApproval && (
-        <section className="rounded-[2.5rem] border border-orange-500/20 bg-orange-500/[0.02] p-10 shadow-apple animate-in fade-in zoom-in-95 duration-500">
-          <div className="flex flex-wrap items-center justify-between gap-10">
-            <div className="flex items-start gap-8 max-w-2xl">
-              <div className="rounded-3xl bg-orange-500 p-5 text-white shadow-xl shadow-orange-500/20">
-                <ShieldAlert className="h-8 w-8" />
+        <section className="rounded-3xl border border-orange-500/20 bg-orange-500/[0.02] p-8 shadow-apple animate-in fade-in slide-in-from-top-2">
+          <div className="flex flex-wrap items-center justify-between gap-8">
+            <div className="flex items-start gap-6 max-w-xl">
+              <div className="rounded-2xl bg-orange-500 p-4 text-white shadow-lg shadow-orange-500/20">
+                <ShieldAlert className="h-6 w-6" />
               </div>
               <div className="flex flex-col gap-1">
-                <h2 className="text-2xl font-bold tracking-tight text-foreground">Intervention Required</h2>
-                <p className="text-base font-medium text-muted-foreground leading-relaxed">
-                  Execution has reached a governed boundary. A high-risk <span className="text-foreground underline decoration-orange-500/30 underline-offset-8 font-black uppercase text-[13px] tracking-widest">{activeApproval.type.replace('_', ' ')}</span> action needs operator validation.
+                <h2 className="text-xl font-black tracking-tight text-foreground uppercase">Authorization Node</h2>
+                <p className="text-xs font-medium text-muted-foreground leading-relaxed">
+                  Execution suspended at governed boundary. Action validation required.
                 </p>
-                <div className="mt-6 inline-flex w-fit items-center gap-3 rounded-2xl bg-background border border-orange-500/20 px-5 py-3 text-[14px] font-mono font-bold text-orange-800 dark:text-orange-300 shadow-sm">
-                  {activeApproval.title}: {activeApproval.reason}
+                <div className="mt-4 inline-flex items-center gap-2 rounded-xl bg-background border border-orange-500/20 px-4 py-2 text-[12px] font-mono font-bold text-orange-800 dark:text-orange-300">
+                  {activeApproval.reason}
                 </div>
               </div>
             </div>
             
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <button
                 disabled={isApproving}
                 onClick={() => void resolveApproval('deny')}
-                className="rounded-full border-2 border-border bg-background px-10 py-4 text-sm font-black uppercase tracking-widest text-foreground hover:bg-muted transition-all active:scale-95 disabled:opacity-50"
+                className="rounded-full border border-border bg-background px-8 py-3 text-[10px] font-black uppercase tracking-widest text-foreground hover:bg-muted active:scale-95 disabled:opacity-50"
               >
                 Deny
               </button>
               <button
                 disabled={isApproving}
                 onClick={() => void resolveApproval('approve')}
-                className="rounded-full bg-orange-500 px-10 py-4 text-sm font-black uppercase tracking-widest text-white hover:bg-orange-600 shadow-2xl shadow-orange-500/30 transition-all active:scale-95 disabled:opacity-50"
+                className="rounded-full bg-orange-500 px-8 py-3 text-[10px] font-black uppercase tracking-widest text-white hover:bg-orange-600 shadow-lg shadow-orange-500/20 active:scale-95 disabled:opacity-50 flex items-center gap-2"
               >
-                {isApproving ? <Loader2 className="h-5 w-5 animate-spin" /> : <CheckCircle2 className="h-5 w-5" />}
+                {isApproving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
                 Authorize
               </button>
             </div>
@@ -336,8 +294,8 @@ export function RunPage() {
         </section>
       )}
 
-      <div className="grid gap-10 xl:grid-cols-[1.6fr_1fr]">
-        <div className="flex flex-col gap-10 min-h-[700px]">
+      <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
+        <div className="flex flex-col gap-6 min-h-[600px]">
           <RunTimeline 
             events={events} 
             activeApprovalId={activeApproval?.approvalId} 
@@ -345,7 +303,7 @@ export function RunPage() {
           />
         </div>
         
-        <div className="flex flex-col gap-10">
+        <div className="flex flex-col gap-6">
           <RunSummaryCard summary={summary} />
           <RunProfileCard snapshot={snapshot} events={events} />
           <RunEventStream events={events} streamState={streamState} />
@@ -358,5 +316,13 @@ export function RunPage() {
         onResolve={resolveApproval}
       />
     </div>
+  );
+}
+
+function ArrowLeft({ className }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>
+    </svg>
   );
 }
