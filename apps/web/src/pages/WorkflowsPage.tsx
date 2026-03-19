@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { api, apiHelpers } from '@/lib/api';
 import { useWorkspaceStore } from '@/stores/workspace.store';
@@ -15,18 +16,28 @@ import {
   ChevronRight,
   Save,
   Trash2,
+  ArrowUpRight,
 } from 'lucide-react';
 
 type WorkflowStatus = 'active' | 'paused' | 'draft' | 'archived';
 type WorkflowTrigger = 'manual' | 'scheduled' | 'webhook';
 type StepRisk = 'read' | 'write' | 'execute';
+type WorkflowStepType = 'task' | 'read' | 'analysis' | 'write' | 'validation' | 'notification' | 'dax_run';
+type DaxApprovalMode = 'strict' | 'balanced' | 'relaxed';
+type DaxRiskLevel = 'low' | 'medium' | 'high' | 'critical';
 
 interface WorkflowStep {
   id: string;
   name: string;
-  type: string;
+  type: WorkflowStepType;
   risk: StepRisk;
   task?: string;
+  input?: string;
+  personaPreset?: {
+    personaId: string;
+    approvalMode?: DaxApprovalMode;
+    riskLevel?: DaxRiskLevel;
+  };
 }
 
 interface Workflow {
@@ -46,6 +57,13 @@ interface WorkflowEditorState {
   status: WorkflowStatus;
   trigger: WorkflowTrigger;
   steps: WorkflowStep[];
+}
+
+interface WorkflowRunReference {
+  workflowId: string;
+  workflowRunId: string;
+  daxRunId: string;
+  status?: string;
 }
 
 const defaultEditorState: WorkflowEditorState = {
@@ -68,9 +86,31 @@ const mapApiWorkflow = (w: Record<string, any>): Workflow => ({
     ? w.steps.map((s: Record<string, any>, idx: number) => ({
         id: String(s.id || `step-${idx + 1}`),
         name: String(s.name || `Step ${idx + 1}`),
-        type: String(s.type || 'task'),
+        type: String(s.type || 'task') as WorkflowStepType,
         risk: (s.risk || 'read') as StepRisk,
         ...(s.task ? { task: String(s.task) } : {}),
+        ...(typeof s.input === 'string' ? { input: String(s.input) } : {}),
+        ...(s.personaPreset && typeof s.personaPreset === 'object'
+          ? {
+              personaPreset: {
+                personaId: String((s.personaPreset as Record<string, any>).personaId || ''),
+                ...((s.personaPreset as Record<string, any>).approvalMode
+                  ? {
+                      approvalMode: String(
+                        (s.personaPreset as Record<string, any>).approvalMode,
+                      ) as DaxApprovalMode,
+                    }
+                  : {}),
+                ...((s.personaPreset as Record<string, any>).riskLevel
+                  ? {
+                      riskLevel: String(
+                        (s.personaPreset as Record<string, any>).riskLevel,
+                      ) as DaxRiskLevel,
+                    }
+                  : {}),
+              },
+            }
+          : {}),
       }))
     : [],
 });
@@ -94,6 +134,7 @@ export function WorkflowsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [editor, setEditor] = useState<WorkflowEditorState>(defaultEditorState);
+  const [latestRunReference, setLatestRunReference] = useState<WorkflowRunReference | null>(null);
 
   const selectedWorkflow = useMemo(
     () => workflows.find((w) => w.id === selectedWorkflowId) || null,
@@ -216,9 +257,23 @@ export function WorkflowsPage() {
         steps: editor.steps.map((step, idx) => ({
           id: step.id || `step-${idx + 1}`,
           name: step.name || `Step ${idx + 1}`,
-          type: step.type || 'task',
+          type: (step.type || 'task') as WorkflowStepType,
           risk: step.risk || 'read',
           ...(step.task ? { task: step.task } : {}),
+          ...(step.input ? { input: step.input } : {}),
+          ...(step.personaPreset?.personaId
+            ? {
+                personaPreset: {
+                  personaId: step.personaPreset.personaId,
+                  ...(step.personaPreset.approvalMode
+                    ? { approvalMode: step.personaPreset.approvalMode }
+                    : {}),
+                  ...(step.personaPreset.riskLevel
+                    ? { riskLevel: step.personaPreset.riskLevel }
+                    : {}),
+                },
+              }
+            : {}),
         })),
       });
       await refreshWorkflows();
@@ -239,9 +294,28 @@ export function WorkflowsPage() {
   };
 
   const runWorkflowNow = async (workflow: Workflow) => {
-    await api.post(`/workflows/${workflow.id}/run`, { inputs: {} });
+    const response = await api.post(`/workflows/${workflow.id}/run`, { inputs: {} });
+    const run = response.data as Record<string, any>;
+    const latestDaxRunId =
+      typeof run?.outputs?.latestDaxRunId === 'string'
+        ? run.outputs.latestDaxRunId
+        : Array.isArray(run?.outputs?.daxRuns) &&
+            typeof run.outputs.daxRuns[run.outputs.daxRuns.length - 1]?.runId === 'string'
+          ? run.outputs.daxRuns[run.outputs.daxRuns.length - 1].runId
+          : null;
+
+    setLatestRunReference(
+      latestDaxRunId
+        ? {
+            workflowId: workflow.id,
+            workflowRunId: String(run.id),
+            daxRunId: latestDaxRunId,
+            status: typeof run.status === 'string' ? run.status : undefined,
+          }
+        : null,
+    );
     await refreshWorkflows();
-    toast.success('Workflow run completed');
+    toast.success(latestDaxRunId ? 'Workflow run completed via DAX' : 'Workflow run completed');
   };
 
   const bootstrapTemplates = async () => {
@@ -264,7 +338,7 @@ export function WorkflowsPage() {
   const addStep = () => {
     setEditor((prev) => ({
       ...prev,
-      steps: [
+          steps: [
         ...prev.steps,
         {
           id: `step-${prev.steps.length + 1}`,
@@ -456,6 +530,31 @@ export function WorkflowsPage() {
             </div>
 
             <div className="space-y-4 p-4">
+              {latestRunReference?.workflowId === selectedWorkflow.id ? (
+                <div className="rounded-xl border border-primary/20 bg-primary/5 px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-medium text-foreground">
+                        Latest workflow execution delegated to DAX
+                      </div>
+                      <div className="mt-1 text-sm text-muted-foreground">
+                        Run ID:
+                        <span className="ml-2 font-mono text-xs text-foreground">
+                          {latestRunReference.daxRunId}
+                        </span>
+                      </div>
+                    </div>
+                    <Link
+                      to={`/runs/${latestRunReference.daxRunId}`}
+                      className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+                    >
+                      Open live run
+                      <ArrowUpRight className="h-4 w-4" />
+                    </Link>
+                  </div>
+                </div>
+              ) : null}
+
               <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                 <div className="md:col-span-2">
                   <label className="mb-1 block text-xs text-muted-foreground">Name</label>
@@ -528,12 +627,29 @@ export function WorkflowsPage() {
                         placeholder="Step name"
                         className="col-span-4 h-8 rounded border border-input bg-background px-2 text-sm"
                       />
-                      <input
+                      <select
                         value={step.type}
-                        onChange={(e) => updateStep(idx, { type: e.target.value })}
-                        placeholder="Type"
+                        onChange={(e) =>
+                          updateStep(idx, {
+                            type: e.target.value as WorkflowStepType,
+                            ...(e.target.value === 'dax_run'
+                              ? {
+                                  risk: 'execute',
+                                  task: '',
+                                }
+                              : {}),
+                          })
+                        }
                         className="col-span-3 h-8 rounded border border-input bg-background px-2 text-sm"
-                      />
+                      >
+                        <option value="task">task</option>
+                        <option value="read">read</option>
+                        <option value="analysis">analysis</option>
+                        <option value="write">write</option>
+                        <option value="validation">validation</option>
+                        <option value="notification">notification</option>
+                        <option value="dax_run">dax_run</option>
+                      </select>
                       <select
                         value={step.risk}
                         onChange={(e) => updateStep(idx, { risk: e.target.value as StepRisk })}
@@ -544,9 +660,16 @@ export function WorkflowsPage() {
                         <option value="execute">execute</option>
                       </select>
                       <input
-                        value={step.task || ''}
-                        onChange={(e) => updateStep(idx, { task: e.target.value })}
-                        placeholder="Task (optional)"
+                        value={step.type === 'dax_run' ? step.input || '' : step.task || ''}
+                        onChange={(e) =>
+                          updateStep(
+                            idx,
+                            step.type === 'dax_run'
+                              ? { input: e.target.value }
+                              : { task: e.target.value },
+                          )
+                        }
+                        placeholder={step.type === 'dax_run' ? 'Instruction' : 'Task (optional)'}
                         className="col-span-2 h-8 rounded border border-input bg-background px-2 text-sm"
                       />
                       <button
@@ -556,6 +679,61 @@ export function WorkflowsPage() {
                       >
                         <Trash2 className="h-3 w-3" />
                       </button>
+
+                      {step.type === 'dax_run' ? (
+                        <>
+                          <input
+                            value={step.personaPreset?.personaId || ''}
+                            onChange={(e) =>
+                              updateStep(idx, {
+                                personaPreset: {
+                                  personaId: e.target.value,
+                                  approvalMode: step.personaPreset?.approvalMode,
+                                  riskLevel: step.personaPreset?.riskLevel,
+                                },
+                              })
+                            }
+                            placeholder="Persona ID"
+                            className="col-span-4 h-8 rounded border border-input bg-background px-2 text-sm"
+                          />
+                          <select
+                            value={step.personaPreset?.approvalMode || 'balanced'}
+                            onChange={(e) =>
+                              updateStep(idx, {
+                                personaPreset: {
+                                  personaId: step.personaPreset?.personaId || '',
+                                  approvalMode: e.target.value as DaxApprovalMode,
+                                  riskLevel: step.personaPreset?.riskLevel,
+                                },
+                              })
+                            }
+                            className="col-span-3 h-8 rounded border border-input bg-background px-2 text-sm"
+                          >
+                            <option value="strict">strict approval</option>
+                            <option value="balanced">balanced approval</option>
+                            <option value="relaxed">relaxed approval</option>
+                          </select>
+                          <select
+                            value={step.personaPreset?.riskLevel || 'medium'}
+                            onChange={(e) =>
+                              updateStep(idx, {
+                                personaPreset: {
+                                  personaId: step.personaPreset?.personaId || '',
+                                  approvalMode: step.personaPreset?.approvalMode,
+                                  riskLevel: e.target.value as DaxRiskLevel,
+                                },
+                              })
+                            }
+                            className="col-span-4 h-8 rounded border border-input bg-background px-2 text-sm"
+                          >
+                            <option value="low">low risk</option>
+                            <option value="medium">medium risk</option>
+                            <option value="high">high risk</option>
+                            <option value="critical">critical risk</option>
+                          </select>
+                          <div className="col-span-1" />
+                        </>
+                      ) : null}
                     </div>
                   ))}
                 </div>
