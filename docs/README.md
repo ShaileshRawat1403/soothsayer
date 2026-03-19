@@ -21,5 +21,7 @@ Use this page as the entry point for all documentation.
 - EC2 stabilization runbook: [EC2_STABILIZATION_RUNBOOK.md](EC2_STABILIZATION_RUNBOOK.md)
 - EC2 pitfalls: [HOW_TO_EC2_PITFALLS.md](HOW_TO_EC2_PITFALLS.md)
 - Internal handoff notes: [HANDOFF_MCP_INTEGRATION_TODO.md](HANDOFF_MCP_INTEGRATION_TODO.md)
+- DAX workstation milestone note: [DAX_WORKSTATION_MILESTONE_1.md](DAX_WORKSTATION_MILESTONE_1.md)
+- DAX run console runtime notes: [DAX_RUN_CONSOLE_RUNTIME.md](DAX_RUN_CONSOLE_RUNTIME.md)
 - Internal post-release plan: [POST_RELEASE_14_DAY_PLAN.md](POST_RELEASE_14_DAY_PLAN.md)
 - Internal next-day notes: [TODO_TOMORROW.md](TODO_TOMORROW.md)

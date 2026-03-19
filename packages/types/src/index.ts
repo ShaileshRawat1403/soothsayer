@@ -12,6 +12,7 @@ export * from './api/auth';
 export * from './api/personas';
 export * from './api/chat';
 export * from './api/analytics';
+export * from './api/dax';
 export * as WorkspaceApi from './api/workspaces';
 export * as CommandApi from './api/commands';
 export * as WorkflowApi from './api/workflows';

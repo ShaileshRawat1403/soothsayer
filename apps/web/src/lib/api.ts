@@ -1,5 +1,16 @@
 import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import { useAuthStore } from '@/stores/auth.store';
+import type {
+  DaxApprovalsResponse,
+  DaxArtifactRecord,
+  DaxCreateRunRequest,
+  DaxCreateRunResponse,
+  DaxResolveApprovalRequest,
+  DaxRunEvent,
+  DaxRunSnapshot,
+  DaxRunSummary,
+  DaxStreamEvent,
+} from '@/types/dax';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 const API_TIMEOUT_MS = Number(import.meta.env.VITE_API_TIMEOUT_MS || '300000');
@@ -20,6 +31,124 @@ export const api = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+function resolveApiUrl(path: string): string {
+  if (/^https?:\/\//.test(API_BASE_URL)) {
+    const normalizedBase = API_BASE_URL.endsWith('/') ? API_BASE_URL : `${API_BASE_URL}/`;
+    const normalizedPath = path.startsWith('/') ? path.slice(1) : path;
+    return new URL(normalizedPath, normalizedBase).toString();
+  }
+
+  const normalizedBase = API_BASE_URL.startsWith('/') ? API_BASE_URL : `/${API_BASE_URL}`;
+  return `${normalizedBase.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`;
+}
+
+function parseSseEventBlock(block: string): {
+  event?: string;
+  id?: string;
+  data?: string;
+} | null {
+  const lines = block.split(/\r?\n/);
+  let event: string | undefined;
+  let id: string | undefined;
+  const dataParts: string[] = [];
+
+  for (const line of lines) {
+    if (!line || line.startsWith(':')) {
+      continue;
+    }
+    if (line.startsWith('event:')) {
+      event = line.slice(6).trim();
+      continue;
+    }
+    if (line.startsWith('id:')) {
+      id = line.slice(3).trim();
+      continue;
+    }
+    if (line.startsWith('data:')) {
+      dataParts.push(line.slice(5).trimStart());
+    }
+  }
+
+  if (!event && !id && dataParts.length === 0) {
+    return null;
+  }
+
+  return {
+    event,
+    id,
+    data: dataParts.join('\n'),
+  };
+}
+
+export async function streamDaxRunEvents(
+  runId: string,
+  options: {
+    cursor?: string;
+    signal?: AbortSignal;
+    onEvent: (event: DaxStreamEvent) => void;
+  },
+): Promise<void> {
+  const token = useAuthStore.getState().token;
+  if (!token) {
+    throw new Error('Authentication required');
+  }
+
+  const params = new URLSearchParams();
+  if (options.cursor) {
+    params.set('cursor', options.cursor);
+  }
+
+  const response = await fetch(
+    resolveApiUrl(`/dax/runs/${encodeURIComponent(runId)}/events${params.size ? `?${params.toString()}` : ''}`),
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: 'text/event-stream',
+      },
+      signal: options.signal,
+    },
+  );
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Failed to stream run events (${response.status})`);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error('Run stream is unavailable');
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+    const blocks = buffer.split(/\r?\n\r?\n/);
+    buffer = blocks.pop() || '';
+
+    for (const block of blocks) {
+      const parsed = parseSseEventBlock(block);
+      if (!parsed?.data || parsed.event === 'server.heartbeat') {
+        continue;
+      }
+
+      const event = JSON.parse(parsed.data) as DaxRunEvent;
+      options.onEvent({
+        ...event,
+        sseEvent: parsed.event,
+        sseId: parsed.id,
+      });
+    }
+  }
+}
 
 // Request interceptor to add auth token
 api.interceptors.request.use(
@@ -273,6 +402,21 @@ export const apiHelpers = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+
+  // DAX
+  createDaxRun: (payload: DaxCreateRunRequest) =>
+    api.post<DaxCreateRunResponse>('/dax/runs', payload),
+  getDaxRun: (runId: string) => api.get<DaxRunSnapshot>(`/dax/runs/${runId}`),
+  getDaxRunApprovals: (runId: string) =>
+    api.get<DaxApprovalsResponse>(`/dax/runs/${runId}/approvals`),
+  resolveDaxRunApproval: (
+    runId: string,
+    approvalId: string,
+    payload: DaxResolveApprovalRequest,
+  ) => api.post(`/dax/runs/${runId}/approvals/${approvalId}`, payload),
+  getDaxRunSummary: (runId: string) => api.get<DaxRunSummary>(`/dax/runs/${runId}/summary`),
+  getDaxRunArtifacts: (runId: string) =>
+    api.get<DaxArtifactRecord[]>(`/dax/runs/${runId}/artifacts`),
 };
 
 export default api;
