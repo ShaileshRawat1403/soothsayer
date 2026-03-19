@@ -23,8 +23,9 @@ import {
   Zap,
   Box,
   Loader2,
-  Maximize2,
-  TerminalSquare
+  TerminalSquare,
+  Menu,
+  X
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -41,10 +42,10 @@ interface CommandExecution {
 }
 
 const commandTemplates = [
-  { category: 'Source Control', icon: <FileCode2 className="h-4 w-4" />, commands: ['git status', 'git log --oneline -10', 'git diff'] },
-  { category: 'Package Manager', icon: <Command className="h-4 w-4" />, commands: ['npm run lint', 'npm test', 'npm audit'] },
-  { category: 'System Info', icon: <Settings className="h-4 w-4" />, commands: ['ls -la', 'df -h', 'top -l 1'] },
-  { category: 'Network', icon: <Globe className="h-4 w-4" />, commands: ['curl -I localhost:3000', 'netstat -an', 'ping -c 3 google.com'] },
+  { category: 'Source Control', icon: <FileCode2 className="h-3.5 w-3.5" />, commands: ['git status', 'git log --oneline -10', 'git diff'] },
+  { category: 'Package Manager', icon: <Command className="h-3.5 w-3.5" />, commands: ['npm run lint', 'npm test', 'npm audit'] },
+  { category: 'System Info', icon: <Settings className="h-3.5 w-3.5" />, commands: ['ls -la', 'df -h', 'top -l 1'] },
+  { category: 'Network', icon: <Globe className="h-3.5 w-3.5" />, commands: ['curl -I localhost:3000', 'netstat -an', 'ping -c 3 google.com'] },
 ];
 
 function Globe({ className }: { className?: string }) {
@@ -60,6 +61,7 @@ export function TerminalPage() {
   const [input, setInput] = useState('');
   const [executions, setExecutions] = useState<CommandExecution[]>([]);
   const [isRunning, setIsRunning] = useState(false);
+  const [showReference, setShowReference] = useState(true);
   const inputRef = useRef<HTMLInputElement>(null);
   const outputRef = useRef<HTMLDivElement>(null);
 
@@ -137,59 +139,64 @@ export function TerminalPage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-5rem)] bg-black overflow-hidden relative">
-      {/* Glossy Overlay for the entire page to kill the generic look */}
-      <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-white/[0.02] to-transparent z-10" />
+    <div className="flex flex-col h-[calc(100vh-3.5rem)] bg-black overflow-hidden relative">
+      {/* Glossy Overlay */}
+      <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-white/[0.01] to-transparent z-10" />
 
-      {/* Control Bar - Ultra Minimal */}
-      <header className="h-14 border-b border-white/10 flex items-center justify-between px-8 bg-black z-20">
-        <div className="flex items-center gap-8">
-          <div className="flex items-center gap-3">
-            <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_#10b981]" />
-            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white/80">Isolated Node</span>
+      {/* Internal Control Bar - Tightened */}
+      <header className="h-10 border-b border-white/5 flex items-center justify-between px-6 bg-black z-20 shrink-0">
+        <div className="flex items-center gap-6">
+          <div className="flex items-center gap-2">
+            <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_#10b981]" />
+            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/60">Node Active</span>
           </div>
-          <div className="h-4 w-px bg-white/10" />
-          <div className="flex items-center gap-2 text-[10px] font-bold text-white/40 uppercase tracking-widest">
+          <div className="h-3 w-px bg-white/10" />
+          <div className="flex items-center gap-2 text-[9px] font-bold text-white/30 uppercase tracking-widest">
             <Box className="h-3 w-3" />
-            {currentWorkspace?.name || 'Standard Runtime'}
+            {currentWorkspace?.name || 'Standard'}
           </div>
         </div>
 
         <div className="flex items-center gap-4">
           <button 
-            onClick={() => setExecutions([])}
-            className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-white/40 hover:text-rose-500 transition-colors"
+            onClick={() => setShowReference(!showReference)}
+            className={cn(
+              "flex items-center gap-2 px-2 py-1 rounded transition-colors text-[9px] font-black uppercase tracking-widest",
+              showReference ? "text-emerald-500 bg-emerald-500/10" : "text-white/30 hover:text-white"
+            )}
           >
-            <Trash2 className="h-3 w-3" />
-            Purge Buffer
+            <History className="h-3 w-3" />
+            Reference
           </button>
-          <div className="h-4 w-px bg-white/10" />
-          <div className="flex items-center gap-2 px-3 py-1 rounded-md bg-white/5 border border-white/10">
-            <Shield className="h-3 w-3 text-emerald-500" />
-            <span className="text-[9px] font-black text-white/60 uppercase tracking-widest">Policy Strict</span>
-          </div>
+          <div className="h-3 w-px bg-white/10" />
+          <button 
+            onClick={() => setExecutions([])}
+            className="text-[9px] font-black uppercase tracking-widest text-white/30 hover:text-rose-500 transition-colors"
+          >
+            Purge
+          </button>
         </div>
       </header>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* Terminal Core - Pure Black */}
+        {/* Terminal Core */}
         <main className="flex-1 flex flex-col bg-black relative overflow-hidden">
-          {/* Subtle CRT Effect Overlay */}
-          <div className="absolute inset-0 pointer-events-none z-20 opacity-[0.03] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%]" />
+          {/* Subtle CRT Effect */}
+          <div className="absolute inset-0 pointer-events-none z-20 opacity-[0.02] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,2px_100%]" />
           
           <div 
             ref={outputRef}
-            className="flex-1 overflow-y-auto p-12 font-mono text-[15px] leading-relaxed scrollbar-thin selection:bg-emerald-500/30 selection:text-emerald-200"
+            className="flex-1 overflow-y-auto p-8 font-mono text-[13px] leading-relaxed scrollbar-none selection:bg-emerald-500/30 selection:text-emerald-200"
           >
             <AnimatePresence mode="popLayout">
               {executions.length === 0 ? (
                 <motion.div 
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="h-full flex flex-col items-start justify-start pt-20"
+                  className="h-full flex flex-col items-start justify-start pt-12"
                 >
-                  <div className="text-emerald-500/40 space-y-2 mb-12">
-                    <pre className="text-[10px] leading-tight">
+                  <div className="text-emerald-500/30 space-y-1 mb-8">
+                    <pre className="text-[8px] leading-tight">
 {`   _____  ____   ____ _______ _    _  _____       __     ________ _____  
   / ____|/ __ \\ / __ \\__   __| |  | |/ ____|   /\\\\ \\   / /  ____|  __ \\ 
  | (___ | |  | | |  | | | |  | |__| | (___    /  \\\\ \\_/ /| |__  | |__) |
@@ -197,65 +204,50 @@ export function TerminalPage() {
   ____) | |__| | |__| | | |  | |  | |____) |/ ____ \\| |  | |____| | \\ \\ 
  |_____/ \\____/ \\____/  |_|  |_|  |_|_____//_/    \\_\\_|  |______|_|  \\_\\`}
                     </pre>
-                    <p className="text-[10px] font-black uppercase tracking-[0.5em] mt-4 ml-1">Terminal Interface v3.4.0 (Governed)</p>
+                    <p className="text-[8px] font-black uppercase tracking-[0.4em] mt-2 ml-1">Terminal Interface v3.4.0 (Governed)</p>
                   </div>
-                  <div className="flex items-center gap-3 text-white/20">
-                    <div className="h-px w-8 bg-current" />
-                    <span className="text-[10px] font-black uppercase tracking-widest">Awaiting dispatch signal...</span>
+                  <div className="flex items-center gap-3 text-white/10">
+                    <div className="h-px w-6 bg-current" />
+                    <span className="text-[9px] font-black uppercase tracking-widest">Operator synchronized. Awaiting instruction.</span>
                   </div>
                 </motion.div>
               ) : (
-                <div className="space-y-12">
+                <div className="space-y-8">
                   {executions.map((exec) => (
                     <motion.div 
                       key={exec.id}
-                      initial={{ opacity: 0, y: 5 }}
+                      initial={{ opacity: 0, y: 2 }}
                       animate={{ opacity: 1, y: 0 }}
                       className="group/item"
                     >
-                      {/* Prompt Line */}
-                      <div className="flex items-center gap-4 mb-6">
-                        <div className="flex items-center gap-3">
-                          <span className="text-emerald-500 font-black">operator@soothsayer</span>
-                          <span className="text-white/20">:</span>
-                          <span className="text-blue-400 font-bold">~</span>
-                          <span className="text-white/40 font-black">$</span>
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-emerald-500/80 font-black text-[11px]">operator</span>
+                          <span className="text-white/10 text-[11px]">$</span>
                         </div>
-                        <span className="text-white font-bold tracking-tight">{exec.command}</span>
-                        <div className="flex-1 h-px bg-white/5 mx-4" />
-                        <time className="text-[9px] font-black text-white/10 uppercase tracking-widest">
-                          {new Date(exec.startedAt).toLocaleTimeString()}
-                        </time>
+                        <span className="text-white font-bold tracking-tight text-[13px]">{exec.command}</span>
+                        <div className="flex-1 h-px bg-white/[0.03] ml-2" />
                       </div>
                       
-                      {/* Output Content */}
-                      <div className="relative pl-10 border-l-2 border-white/[0.03] ml-4 space-y-6">
+                      <div className="relative pl-6 border-l border-white/[0.03] ml-2 space-y-4">
                         {exec.status === 'running' && (
-                          <div className="flex items-center gap-4 text-blue-400/80">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            <span className="text-[11px] font-black uppercase tracking-widest animate-pulse">Establishing Trace...</span>
+                          <div className="flex items-center gap-3 text-blue-400/60">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            <span className="text-[10px] font-black uppercase tracking-widest animate-pulse">Establishing Trace...</span>
                           </div>
                         )}
                         {exec.output && (
-                          <pre className="whitespace-pre-wrap break-all text-white/70 text-[14px] leading-relaxed font-medium">
+                          <pre className="whitespace-pre-wrap break-all text-white/50 text-[12px] leading-relaxed font-medium">
                             {exec.output}
                           </pre>
                         )}
                         {exec.status !== 'running' && (
-                          <div className="flex items-center justify-between pt-4">
-                            <div className={cn(
-                              "flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em]",
-                              exec.exitCode === 0 ? "text-emerald-500/40" : "text-rose-500/40"
-                            )}>
-                              {exec.exitCode === 0 ? <CheckCircle className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
-                              Exit {exec.exitCode}
-                            </div>
-                            <button 
-                              onClick={() => { navigator.clipboard.writeText(exec.output); toast.success('Buffer copied'); }}
-                              className="opacity-0 group-hover/item:opacity-100 transition-opacity p-2 rounded-lg hover:bg-white/5 text-white/20 hover:text-white"
-                            >
-                              <Copy className="h-4 w-4" />
-                            </button>
+                          <div className={cn(
+                            "flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.1em]",
+                            exec.exitCode === 0 ? "text-emerald-500/30" : "text-rose-500/30"
+                          )}>
+                            {exec.exitCode === 0 ? <CheckCircle className="h-2.5 w-2.5" /> : <AlertTriangle className="h-2.5 w-2.5" />}
+                            Exit {exec.exitCode}
                           </div>
                         )}
                       </div>
@@ -266,11 +258,11 @@ export function TerminalPage() {
             </AnimatePresence>
           </div>
 
-          {/* Prompt Area - Integrated into the bottom */}
-          <div className="p-10 bg-black border-t border-white/5 relative z-30">
-            <div className="flex items-center gap-6 max-w-6xl mx-auto w-full">
-              <div className="flex items-center gap-3 text-emerald-500 font-black text-lg select-none">
-                <span className="opacity-50">➜</span>
+          {/* Prompt Area - Integrated */}
+          <div className="px-8 py-6 bg-black border-t border-white/5 relative z-30 shrink-0">
+            <div className="flex items-center gap-4 max-w-5xl mx-auto w-full">
+              <div className="flex items-center gap-2 text-emerald-500 font-black text-sm select-none">
+                <span className="opacity-30">➜</span>
                 <span>$</span>
               </div>
               <input 
@@ -278,14 +270,14 @@ export function TerminalPage() {
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && executeCommand()}
-                placeholder="Type instruction..."
-                className="flex-1 bg-transparent border-none p-0 font-mono text-xl text-white focus:outline-none focus:ring-0 placeholder:text-white/5"
+                placeholder="Dispatch signal..."
+                className="flex-1 bg-transparent border-none p-0 font-mono text-base text-white focus:outline-none focus:ring-0 placeholder:text-white/5"
               />
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3">
                 {isRunning ? (
                   <button 
                     onClick={() => setIsRunning(false)}
-                    className="h-12 px-8 rounded-xl bg-rose-500 text-white font-black uppercase tracking-widest text-[10px] shadow-[0_0_20px_rgba(244,63,94,0.3)] transition-all active:scale-95"
+                    className="h-8 px-4 rounded-lg bg-rose-500/80 text-white font-black uppercase tracking-widest text-[9px] shadow-[0_0_15px_rgba(244,63,94,0.2)] transition-all active:scale-95"
                   >
                     Halt
                   </button>
@@ -293,9 +285,9 @@ export function TerminalPage() {
                   <button 
                     onClick={executeCommand}
                     disabled={!input.trim()}
-                    className="h-12 px-10 rounded-xl bg-white text-black font-black uppercase tracking-widest text-[10px] hover:bg-emerald-400 transition-all active:scale-95 disabled:opacity-20 disabled:grayscale"
+                    className="h-8 px-6 rounded-lg bg-white text-black font-black uppercase tracking-widest text-[9px] hover:bg-emerald-400 transition-all active:scale-95 disabled:opacity-10"
                   >
-                    Execute
+                    Run
                   </button>
                 )}
               </div>
@@ -303,47 +295,57 @@ export function TerminalPage() {
           </div>
         </main>
 
-        {/* Knowledge Sidebar - Hidden on small screens */}
-        <aside className="w-96 border-l border-white/10 bg-black hidden xl:flex flex-col">
-          <div className="p-8 border-b border-white/10">
-            <div className="flex items-center gap-3">
-              <TerminalSquare className="h-4 w-4 text-white/40" />
-              <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/60">Reference Buffer</h3>
-            </div>
-          </div>
-          
-          <div className="flex-1 overflow-y-auto p-8 space-y-12 scrollbar-none">
-            {commandTemplates.map(cat => (
-              <div key={cat.category} className="space-y-5">
-                <span className="text-[9px] font-black uppercase tracking-widest text-white/20">{cat.category}</span>
-                <div className="space-y-2">
-                  {cat.commands.map(cmd => (
-                    <button 
-                      key={cmd}
-                      onClick={() => setInput(cmd)}
-                      className="w-full text-left p-4 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.05] hover:border-emerald-500/30 transition-all group flex items-center justify-between"
-                    >
-                      <code className="text-xs font-mono text-white/40 group-hover:text-emerald-400 transition-colors">{cmd}</code>
-                      <ChevronRight className="h-3.5 w-3.5 text-emerald-500 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
-                    </button>
-                  ))}
+        {/* Knowledge Sidebar - Responsive Slide-out */}
+        <AnimatePresence>
+          {showReference && (
+            <motion.aside 
+              initial={{ width: 0, opacity: 0 }}
+              animate={{ width: 320, opacity: 1 }}
+              exit={{ width: 0, opacity: 0 }}
+              transition={{ type: "spring", bounce: 0, duration: 0.4 }}
+              className="border-l border-white/10 bg-black flex flex-col shrink-0 overflow-hidden relative z-40"
+            >
+              <div className="p-6 border-b border-white/5 flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <TerminalSquare className="h-3.5 w-3.5 text-white/30" />
+                  <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/50">Reference</h3>
+                </div>
+                <button onClick={() => setShowReference(false)} className="xl:hidden p-1 text-white/20 hover:text-white">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-6 space-y-10 scrollbar-none">
+                {commandTemplates.map(cat => (
+                  <div key={cat.category} className="space-y-4">
+                    <span className="text-[8px] font-black uppercase tracking-widest text-white/10">{cat.category}</span>
+                    <div className="space-y-1.5">
+                      {cat.commands.map(cmd => (
+                        <button 
+                          key={cmd}
+                          onClick={() => setInput(cmd)}
+                          className="w-full text-left p-3 rounded-lg border border-white/[0.03] bg-white/[0.01] hover:bg-white/[0.03] hover:border-emerald-500/20 transition-all group flex items-center justify-between"
+                        >
+                          <code className="text-[11px] font-mono text-white/30 group-hover:text-emerald-400 transition-colors">{cmd}</code>
+                          <Zap className="h-3 w-3 text-emerald-500 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="p-6 bg-white/[0.01] border-t border-white/5">
+                <div className="flex items-start gap-3">
+                  <Shield className="h-3.5 w-3.5 text-emerald-500/50 shrink-0 mt-0.5" />
+                  <p className="text-[10px] font-medium text-white/30 leading-relaxed italic">
+                    Instructions are audited by the DAX authority.
+                  </p>
                 </div>
               </div>
-            ))}
-          </div>
-
-          <div className="p-8 bg-white/[0.02] border-t border-white/10">
-            <div className="flex items-start gap-4">
-              <Shield className="h-4 w-4 text-emerald-500 shrink-0 mt-1" />
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-white/80 mb-2">Safety Lock Active</p>
-                <p className="text-[11px] font-medium text-white/40 leading-relaxed italic">
-                  Runtime instructions are audited by the DAX authority. Destructive commands require manual elevation.
-                </p>
-              </div>
-            </div>
-          </div>
-        </aside>
+            </motion.aside>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
