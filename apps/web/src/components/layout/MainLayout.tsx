@@ -96,7 +96,7 @@ export function MainLayout() {
           width: sidebarCollapsed ? 80 : 280,
           transition: { type: "spring", bounce: 0, duration: 0.4 }
         }}
-        className="relative z-40 flex flex-col border-r border-border bg-card/30 backdrop-blur-2xl"
+        className="relative z-40 flex flex-col border-r border-border bg-card/30 backdrop-blur-3xl"
       >
         {/* Logo Area */}
         <div className="flex h-20 items-center justify-between px-5">
@@ -111,7 +111,7 @@ export function MainLayout() {
                 onClick={() => navigate('/dashboard')}
               >
                 <Logo size="md" className="transition-transform duration-500 group-hover:rotate-[15deg]" />
-                <span className="font-bold tracking-tight text-xl bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
+                <span className="font-black tracking-tighter text-xl bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/70">
                   Soothsayer
                 </span>
               </motion.div>
@@ -188,11 +188,13 @@ export function MainLayout() {
                 </motion.span>
               )}
               {/* Active Indicator Dot */}
-              <NavLink to={item.path}>
-                {({ isActive }) => isActive && sidebarCollapsed && (
-                  <div className="absolute right-1 top-1/2 -translate-y-1/2 h-1 w-1 rounded-full bg-primary-foreground" />
-                )}
-              </NavLink>
+              {sidebarCollapsed && (
+                <NavLink to={item.path}>
+                  {({ isActive }) => isActive && (
+                    <div className="absolute right-1 top-1/2 -translate-y-1/2 h-1 w-1 rounded-full bg-primary-foreground" />
+                  )}
+                </NavLink>
+              )}
             </NavLink>
           ))}
         </nav>
@@ -264,7 +266,7 @@ export function MainLayout() {
       {/* Main Content Area */}
       <div className="flex flex-1 flex-col overflow-hidden relative">
         {/* Header */}
-        <header className="absolute top-0 left-0 right-0 z-30 flex h-20 items-center justify-between border-b border-border/30 bg-background/40 px-10 backdrop-blur-2xl">
+        <header className="absolute top-0 left-0 right-0 z-30 flex h-20 items-center justify-between border-b border-border/30 bg-background/40 px-10 backdrop-blur-3xl">
           <div className="flex flex-1 items-center gap-6">
             {/* Context Breadcrumb or Status */}
             <div className="hidden items-center gap-3 lg:flex">
@@ -403,7 +405,7 @@ export function MainLayout() {
 
         {/* Scrollable Main View */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden pt-20 relative scrollbar-none">
-          <div className="min-h-full w-full max-w-[1600px] mx-auto animate-in fade-in duration-1000 slide-in-from-bottom-2">
+          <div className="min-h-full w-full max-w-[1800px] mx-auto animate-in fade-in duration-1000 slide-in-from-bottom-2">
             <Outlet />
           </div>
         </main>
