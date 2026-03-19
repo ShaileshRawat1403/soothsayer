@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { ArrowLeft, Loader2, Play } from 'lucide-react';
 import { apiHelpers } from '@/lib/api';
@@ -8,15 +8,18 @@ import { RunEventStream } from '@/components/dax/RunEventStream';
 import { ApprovalModal } from '@/components/dax/ApprovalModal';
 import { RunSummaryCard } from '@/components/dax/RunSummaryCard';
 import { useRunConsole } from '@/hooks/useRunConsole';
+import { useWorkspaceStore } from '@/stores/workspace.store';
 import type { DaxCreateRunRequest } from '@/types/dax';
 
 export function RunPage() {
   const { runId = '' } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const isLauncher = runId === 'new';
   const [isLaunching, setIsLaunching] = useState(false);
   const [launchInput, setLaunchInput] = useState('');
   const [launchKind, setLaunchKind] = useState<'general' | 'analysis' | 'edit'>('edit');
+  const { currentWorkspace, currentProject } = useWorkspaceStore();
   const {
     activeApproval,
     events,
@@ -28,6 +31,33 @@ export function RunPage() {
     streamState,
     summary,
   } = useRunConsole(runId, !isLauncher);
+
+  const workspaceSettings =
+    currentWorkspace?.settings && typeof currentWorkspace.settings === 'object'
+      ? (currentWorkspace.settings as Record<string, unknown>)
+      : null;
+
+  const inferredRepoPath =
+    typeof searchParams.get('repoPath') === 'string' && searchParams.get('repoPath')
+      ? searchParams.get('repoPath') || undefined
+      : typeof workspaceSettings?.repoPath === 'string'
+        ? workspaceSettings.repoPath
+        : typeof workspaceSettings?.defaultRepoPath === 'string'
+          ? workspaceSettings.defaultRepoPath
+          : typeof workspaceSettings?.targetRepoPath === 'string'
+            ? workspaceSettings.targetRepoPath
+            : undefined;
+
+  const targetMode =
+    (searchParams.get('targetMode') as 'explicit_repo_path' | 'default_cwd' | null) ||
+    (inferredRepoPath ? 'explicit_repo_path' : 'default_cwd');
+
+  const targetContext = {
+    mode: targetMode,
+    ...(inferredRepoPath ? { repoPath: inferredRepoPath } : {}),
+    ...(currentWorkspace?.name ? { workspaceName: currentWorkspace.name } : {}),
+    ...(currentProject?.name ? { projectName: currentProject.name } : {}),
+  } as const;
 
   const handleLaunch = async () => {
     const input = launchInput.trim();
@@ -42,12 +72,25 @@ export function RunPage() {
         intent: {
           input,
           kind: launchKind,
+          ...(inferredRepoPath ? { repoPath: inferredRepoPath } : {}),
+        },
+        metadata: {
+          ...(currentWorkspace?.id ? { workspaceId: currentWorkspace.id } : {}),
+          ...(currentProject?.id ? { projectId: currentProject.id } : {}),
         },
       };
       const response = await apiHelpers.createDaxRun(payload);
       const created = response.data;
       toast.success('DAX run started');
-      navigate(`/runs/${created.runId}`);
+      const nextParams = new URLSearchParams();
+      nextParams.set(
+        'targetMode',
+        inferredRepoPath ? 'explicit_repo_path' : 'default_cwd',
+      );
+      if (inferredRepoPath) {
+        nextParams.set('repoPath', inferredRepoPath);
+      }
+      navigate(`/runs/${created.runId}?${nextParams.toString()}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to start DAX run';
       toast.error(message);
@@ -76,6 +119,37 @@ export function RunPage() {
           </div>
 
           <div className="mt-6 grid gap-4">
+            <div className="rounded-2xl border border-border bg-background/70 px-4 py-3 text-sm">
+              <div className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+                Execution Target
+              </div>
+              {inferredRepoPath ? (
+                <>
+                  <div className="mt-2 text-foreground">{inferredRepoPath}</div>
+                  <div className="mt-1 text-muted-foreground">
+                    This run will launch against the explicit repo target above.
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="mt-2 text-foreground">Default DAX target (cwd)</div>
+                  <div className="mt-1 text-muted-foreground">
+                    No explicit repo target is available in the current workspace context, so this launch will fall back to the DAX server cwd.
+                  </div>
+                </>
+              )}
+              {currentWorkspace?.name ? (
+                <div className="mt-2 text-muted-foreground">
+                  Workspace: <span className="text-foreground">{currentWorkspace.name}</span>
+                </div>
+              ) : null}
+              {currentProject?.name ? (
+                <div className="mt-1 text-muted-foreground">
+                  Project: <span className="text-foreground">{currentProject.name}</span>
+                </div>
+              ) : null}
+            </div>
+
             <div>
               <label className="mb-2 block text-sm font-medium">Instruction</label>
               <textarea
@@ -155,7 +229,12 @@ export function RunPage() {
         </Link>
       </div>
 
-      <RunHeader snapshot={snapshot} streamState={streamState} onRefresh={() => void loadRun()} />
+      <RunHeader
+        snapshot={snapshot}
+        streamState={streamState}
+        onRefresh={() => void loadRun()}
+        targetContext={targetContext}
+      />
 
       <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
         <RunEventStream events={events} streamState={streamState} />

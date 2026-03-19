@@ -12,6 +12,7 @@ import { PersonasPage } from '@/pages/PersonasPage';
 import { AnalyticsPage } from '@/pages/AnalyticsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { RunPage } from '@/pages/RunPage';
+import { DaxOverviewPage } from '@/pages/DaxOverviewPage';
 import { ThemeProvider } from '@/components/common/ThemeProvider';
 import { CommandPalette } from '@/components/common/CommandPalette';
 import { OnboardingWizard } from '@/components/common/OnboardingWizard';
@@ -91,6 +92,7 @@ function App() {
             <Route path="/workflows/:workflowId" element={<WorkflowsPage />} />
             <Route path="/personas" element={<PersonasPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
+            <Route path="/dax" element={<DaxOverviewPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/runs/:runId" element={<RunPage />} />
           </Route>

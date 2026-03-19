@@ -46,6 +46,10 @@ interface Message {
       runId: string;
       status?: DaxRunStatus;
       targetPath: string;
+      targeting?: {
+        mode: 'explicit_repo_path' | 'default_cwd';
+        repoPath?: string;
+      };
     };
   };
 }
@@ -177,6 +181,19 @@ function mapApiMessageToUi(message: any): Message {
                         ? (message.metadata.handoff.status as DaxRunStatus)
                         : undefined,
                     targetPath: message.metadata.handoff.targetPath,
+                    targeting:
+                      message.metadata.handoff.targeting &&
+                      typeof message.metadata.handoff.targeting === 'object'
+                        ? {
+                            mode:
+                              message.metadata.handoff.targeting.mode === 'explicit_repo_path'
+                                ? 'explicit_repo_path'
+                                : 'default_cwd',
+                            ...(typeof message.metadata.handoff.targeting.repoPath === 'string'
+                              ? { repoPath: message.metadata.handoff.targeting.repoPath }
+                              : {}),
+                          }
+                        : undefined,
                   }
                 : undefined,
           }
@@ -223,11 +240,23 @@ export function ChatPage() {
   const isSendingRef = useRef(false);
   const loadRequestIdRef = useRef(0);
   const { currentPersona, setCurrentPersona } = usePersonaStore();
-  const { currentWorkspace, setCurrentWorkspace } = useWorkspaceStore();
+  const { currentWorkspace, currentProject, setCurrentWorkspace } = useWorkspaceStore();
   const { activeProvider, activeModel, providers, setActiveModel } = useAIProviderStore();
 
   const activeProviderConfig = providers.find((p) => p.id === activeProvider);
   const suggestedPrompts = useMemo(() => getPersonaSuggestedPrompts(currentPersona), [currentPersona]);
+  const workspaceSettings =
+    currentWorkspace?.settings && typeof currentWorkspace.settings === 'object'
+      ? (currentWorkspace.settings as Record<string, unknown>)
+      : null;
+  const inferredChatRepoPath =
+    typeof workspaceSettings?.repoPath === 'string'
+      ? workspaceSettings.repoPath
+      : typeof workspaceSettings?.defaultRepoPath === 'string'
+        ? workspaceSettings.defaultRepoPath
+        : typeof workspaceSettings?.targetRepoPath === 'string'
+          ? workspaceSettings.targetRepoPath
+          : undefined;
 
   useEffect(() => {
     setActiveConversationId(routeConversationId || null);
@@ -468,6 +497,8 @@ export function ChatPage() {
         const createResponse = await apiHelpers.createConversation({
           workspaceId,
           personaId: persona.id,
+          ...(currentProject?.id ? { projectId: currentProject.id } : {}),
+          ...(inferredChatRepoPath ? { repoPath: inferredChatRepoPath } : {}),
           title: text.slice(0, 80),
         });
         const createdConversation = createResponse.data as any;
@@ -728,6 +759,12 @@ export function ChatPage() {
                           <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Run ID</div>
                           <div className="font-mono text-xs text-foreground">
                             {message.metadata.handoff.runId}
+                          </div>
+                        </div>
+                        <div className="rounded-lg border border-border/80 bg-background/80 px-3 py-2">
+                          <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Target</div>
+                          <div className="text-xs text-foreground">
+                            {message.metadata.handoff.targeting?.repoPath || 'Default DAX target (cwd)'}
                           </div>
                         </div>
                         <button

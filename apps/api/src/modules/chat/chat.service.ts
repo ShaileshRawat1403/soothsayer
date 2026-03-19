@@ -37,6 +37,7 @@ export class ChatService {
     personaId: string,
     options: {
       projectId?: string;
+      repoPath?: string;
       title?: string;
       memoryMode?: string;
     } = {},
@@ -55,7 +56,14 @@ export class ChatService {
         personaId: resolvedPersonaId,
         title: options.title || 'New Conversation',
         memoryMode: options.memoryMode || 'session',
-        metadata: {},
+        metadata: options.repoPath
+          ? {
+              targeting: {
+                mode: 'explicit_repo_path',
+                repoPath: options.repoPath,
+              },
+            }
+          : {},
       },
     });
 
@@ -283,6 +291,19 @@ export class ChatService {
       }
     }
 
+    const handoffTargetPath = runHandoff
+      ? `/runs/${runHandoff.runId}${
+          runHandoff.targeting
+            ? `?${new URLSearchParams({
+                targetMode: runHandoff.targeting.mode,
+                ...(typeof runHandoff.targeting.repoPath === 'string'
+                  ? { repoPath: runHandoff.targeting.repoPath }
+                  : {}),
+              }).toString()}`
+            : ''
+        }`
+      : undefined;
+
     const assistantMetadata: Record<string, unknown> = {
       provider: providerUsed,
       model: modelUsed,
@@ -293,7 +314,8 @@ export class ChatService {
               type: 'dax_run',
               runId: runHandoff.runId,
               status: runHandoff.status,
-              targetPath: `/runs/${runHandoff.runId}`,
+              targetPath: handoffTargetPath,
+              targeting: runHandoff.targeting,
             },
           }
         : {}),
@@ -362,6 +384,7 @@ export class ChatService {
       projectId?: string | null;
       personaId: string;
       persona?: { id?: string; name?: string; config?: unknown } | null;
+      metadata?: unknown;
     },
     content: string,
     options: {
@@ -378,10 +401,16 @@ export class ChatService {
       },
       options,
     );
+    const repoPath = await this.resolveChatRepoPath(
+      conversation.workspaceId,
+      conversation.projectId || undefined,
+      conversation.metadata,
+    );
 
     const request: DaxCreateRunRequest = {
       intent: {
         input: content,
+        ...(repoPath ? { repoPath } : {}),
       },
       personaPreset,
       metadata: {
@@ -389,10 +418,29 @@ export class ChatService {
         workspaceId: conversation.workspaceId,
         projectId: conversation.projectId || undefined,
         chatId: conversation.id,
+        targeting: repoPath
+          ? {
+              mode: 'explicit_repo_path',
+              repoPath,
+            }
+          : {
+              mode: 'default_cwd',
+            },
       },
     };
 
-    return this.daxService.createRun({ id: options.userId } as any, request);
+    const created = await this.daxService.createRun({ id: options.userId } as any, request);
+    return {
+      ...created,
+      targeting: repoPath
+        ? {
+            mode: 'explicit_repo_path' as const,
+            repoPath,
+          }
+        : {
+            mode: 'default_cwd' as const,
+          },
+    };
   }
 
   private buildDaxPersonaPreset(
@@ -503,6 +551,88 @@ export class ChatService {
     if (normalized.includes('critical')) return 'critical';
     if (normalized.includes('low') || normalized.includes('cautious')) return 'low';
     return 'medium';
+  }
+
+  private async resolveChatRepoPath(
+    workspaceId: string,
+    projectId?: string,
+    conversationMetadata?: unknown,
+  ): Promise<string | undefined> {
+    const metadataRepoPath = this.extractRepoPathFromTargetingMetadata(conversationMetadata);
+    if (metadataRepoPath) {
+      return metadataRepoPath;
+    }
+
+    if (projectId) {
+      const project = await this.prisma.project.findFirst({
+        where: {
+          id: projectId,
+          workspaceId,
+          deletedAt: null,
+        },
+        select: {
+          rootPath: true,
+          settings: true,
+        },
+      });
+
+      const projectRepoPath =
+        (typeof project?.rootPath === 'string' && project.rootPath.trim()
+          ? project.rootPath.trim()
+          : undefined) || this.extractRepoPathFromSettings(project?.settings);
+
+      if (projectRepoPath) {
+        return projectRepoPath;
+      }
+    }
+
+    const workspace = await this.prisma.workspace.findFirst({
+      where: {
+        id: workspaceId,
+        deletedAt: null,
+      },
+      select: {
+        settings: true,
+      },
+    });
+
+    return this.extractRepoPathFromSettings(workspace?.settings);
+  }
+
+  private extractRepoPathFromTargetingMetadata(metadata: unknown): string | undefined {
+    if (!metadata || typeof metadata !== 'object') {
+      return undefined;
+    }
+
+    const raw = metadata as Record<string, unknown>;
+    const targeting =
+      raw.targeting && typeof raw.targeting === 'object'
+        ? (raw.targeting as Record<string, unknown>)
+        : null;
+
+    if (targeting && typeof targeting.repoPath === 'string' && targeting.repoPath.trim()) {
+      return targeting.repoPath.trim();
+    }
+
+    return undefined;
+  }
+
+  private extractRepoPathFromSettings(settings: unknown): string | undefined {
+    if (!settings || typeof settings !== 'object') {
+      return undefined;
+    }
+
+    const raw = settings as Record<string, unknown>;
+    const candidates = ['repoPath', 'defaultRepoPath', 'targetRepoPath'] as const;
+
+    for (const key of candidates) {
+      const value = raw[key];
+      if (typeof value === 'string' && value.trim()) {
+        return value.trim();
+      }
+    }
+
+    return undefined;
   }
 
   private async resolvePersonaId(params: {

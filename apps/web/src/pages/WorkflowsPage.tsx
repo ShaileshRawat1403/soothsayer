@@ -64,6 +64,8 @@ interface WorkflowRunReference {
   workflowRunId: string;
   daxRunId: string;
   status?: string;
+  repoPath?: string;
+  targetMode?: 'explicit_repo_path' | 'default_cwd';
 }
 
 const defaultEditorState: WorkflowEditorState = {
@@ -126,7 +128,7 @@ const toEditorState = (workflow: Workflow): WorkflowEditorState => ({
 });
 
 export function WorkflowsPage() {
-  const { currentWorkspace, setCurrentWorkspace } = useWorkspaceStore();
+  const { currentWorkspace, currentProject, setCurrentWorkspace } = useWorkspaceStore();
   const [workflows, setWorkflows] = useState<Workflow[]>([]);
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -135,6 +137,20 @@ export function WorkflowsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [editor, setEditor] = useState<WorkflowEditorState>(defaultEditorState);
   const [latestRunReference, setLatestRunReference] = useState<WorkflowRunReference | null>(null);
+
+  const workspaceSettings =
+    currentWorkspace?.settings && typeof currentWorkspace.settings === 'object'
+      ? (currentWorkspace.settings as Record<string, unknown>)
+      : null;
+
+  const inferredWorkflowRepoPath =
+    typeof workspaceSettings?.repoPath === 'string'
+      ? workspaceSettings.repoPath
+      : typeof workspaceSettings?.defaultRepoPath === 'string'
+        ? workspaceSettings.defaultRepoPath
+        : typeof workspaceSettings?.targetRepoPath === 'string'
+          ? workspaceSettings.targetRepoPath
+          : undefined;
 
   const selectedWorkflow = useMemo(
     () => workflows.find((w) => w.id === selectedWorkflowId) || null,
@@ -294,7 +310,11 @@ export function WorkflowsPage() {
   };
 
   const runWorkflowNow = async (workflow: Workflow) => {
-    const response = await api.post(`/workflows/${workflow.id}/run`, { inputs: {} });
+    const response = await api.post(`/workflows/${workflow.id}/run`, {
+      inputs: {},
+      ...(currentProject?.id ? { projectId: currentProject.id } : {}),
+      ...(inferredWorkflowRepoPath ? { repoPath: inferredWorkflowRepoPath } : {}),
+    });
     const run = response.data as Record<string, any>;
     const latestDaxRunId =
       typeof run?.outputs?.latestDaxRunId === 'string'
@@ -304,6 +324,20 @@ export function WorkflowsPage() {
           ? run.outputs.daxRuns[run.outputs.daxRuns.length - 1].runId
           : null;
 
+    const latestDaxRun =
+      Array.isArray(run?.outputs?.daxRuns) && run.outputs.daxRuns.length > 0
+        ? run.outputs.daxRuns[run.outputs.daxRuns.length - 1]
+        : null;
+
+    const targetMode =
+      latestDaxRun?.targeting?.mode === 'explicit_repo_path'
+        ? 'explicit_repo_path'
+        : 'default_cwd';
+    const repoPath =
+      typeof latestDaxRun?.targeting?.repoPath === 'string'
+        ? latestDaxRun.targeting.repoPath
+        : inferredWorkflowRepoPath;
+
     setLatestRunReference(
       latestDaxRunId
         ? {
@@ -311,6 +345,8 @@ export function WorkflowsPage() {
             workflowRunId: String(run.id),
             daxRunId: latestDaxRunId,
             status: typeof run.status === 'string' ? run.status : undefined,
+            ...(repoPath ? { repoPath } : {}),
+            targetMode,
           }
         : null,
     );
@@ -543,9 +579,24 @@ export function WorkflowsPage() {
                           {latestRunReference.daxRunId}
                         </span>
                       </div>
+                      <div className="mt-1 text-sm text-muted-foreground">
+                        Target:
+                        <span className="ml-2 text-foreground">
+                          {latestRunReference.repoPath || 'Default DAX target (cwd)'}
+                        </span>
+                      </div>
                     </div>
                     <Link
-                      to={`/runs/${latestRunReference.daxRunId}`}
+                      to={`/runs/${latestRunReference.daxRunId}${
+                        latestRunReference.repoPath || latestRunReference.targetMode
+                          ? `?${new URLSearchParams({
+                              targetMode: latestRunReference.targetMode || 'default_cwd',
+                              ...(latestRunReference.repoPath
+                                ? { repoPath: latestRunReference.repoPath }
+                                : {}),
+                            }).toString()}`
+                          : ''
+                      }`}
                       className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
                     >
                       Open live run

@@ -16,9 +16,15 @@ interface RunHeaderProps {
   snapshot: DaxRunSnapshot;
   streamState: 'connecting' | 'live' | 'closed';
   onRefresh: () => void;
+  targetContext?: {
+    mode: 'explicit_repo_path' | 'default_cwd';
+    repoPath?: string;
+    workspaceName?: string;
+    projectName?: string;
+  };
 }
 
-export function RunHeader({ snapshot, streamState, onRefresh }: RunHeaderProps) {
+export function RunHeader({ snapshot, streamState, onRefresh, targetContext }: RunHeaderProps) {
   return (
     <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -40,6 +46,16 @@ export function RunHeader({ snapshot, streamState, onRefresh }: RunHeaderProps) 
             <p className="mt-1 text-sm text-muted-foreground">
               Run ID: <span className="font-mono text-xs">{snapshot.runId}</span>
             </p>
+            {targetContext ? (
+              <p className="mt-1 text-sm text-muted-foreground">
+                Target:{' '}
+                <span className="text-foreground">
+                  {targetContext.mode === 'explicit_repo_path'
+                    ? targetContext.repoPath || 'Explicit repo path'
+                    : 'Default DAX target (cwd)'}
+                </span>
+              </p>
+            ) : null}
           </div>
 
           <div className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-2 xl:grid-cols-4">
@@ -62,6 +78,27 @@ export function RunHeader({ snapshot, streamState, onRefresh }: RunHeaderProps) 
               <div className="mt-1 text-foreground">{snapshot.artifactSummary?.total ?? 0}</div>
             </div>
           </div>
+
+          {targetContext ? (
+            <div className="rounded-xl border border-border bg-background/70 px-3 py-3 text-sm text-muted-foreground">
+              <div className="text-xs uppercase tracking-wide">Targeting Mode</div>
+              <div className="mt-1 text-foreground">
+                {targetContext.mode === 'explicit_repo_path'
+                  ? 'Explicit repo target'
+                  : 'Fallback to DAX cwd'}
+              </div>
+              {targetContext.workspaceName ? (
+                <div className="mt-1">
+                  Workspace: <span className="text-foreground">{targetContext.workspaceName}</span>
+                </div>
+              ) : null}
+              {targetContext.projectName ? (
+                <div className="mt-1">
+                  Project: <span className="text-foreground">{targetContext.projectName}</span>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         <div className="flex flex-col gap-3 lg:items-end">
