@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
-import { ArrowLeft, Loader2, Play, ShieldAlert, CheckCircle2, Activity, ChevronDown, User } from 'lucide-react';
+import { ArrowLeft as ArrowLeftIcon, Loader2, Play, ShieldAlert, CheckCircle2, Activity, ChevronDown, User } from 'lucide-react';
 import { apiHelpers } from '@/lib/api';
 import { RunHeader } from '@/components/dax/RunHeader';
 import { RunEventStream } from '@/components/dax/RunEventStream';
@@ -126,7 +126,7 @@ export function RunPage() {
       <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-8 p-8">
         <div className="flex items-center justify-between">
           <Link to="/terminal" className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors">
-            <ArrowLeft className="h-3 w-3" />
+            <ArrowLeftIcon className="h-3 w-3" />
             Back to Console
           </Link>
           <div className="flex items-center gap-2 rounded-full bg-primary/5 border border-primary/10 px-3 py-1 text-[9px] font-black uppercase tracking-[0.2em] text-primary">
@@ -239,7 +239,7 @@ export function RunPage() {
     <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 p-6">
       <div className="flex items-center justify-between">
         <Link to="/dax" className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-foreground transition-colors">
-          <ArrowLeft className="h-3 w-3" />
+          <ArrowLeftIcon className="h-3 w-3" />
           Back to Monitor
         </Link>
         <div className="flex items-center gap-2 rounded-full bg-secondary px-3 py-1 text-[9px] font-black uppercase tracking-widest text-muted-foreground">
@@ -316,13 +316,5 @@ export function RunPage() {
         onResolve={resolveApproval}
       />
     </div>
-  );
-}
-
-function ArrowLeft({ className }: { className?: string }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-      <path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>
-    </svg>
   );
 }
