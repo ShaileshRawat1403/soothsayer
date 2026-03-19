@@ -22,7 +22,9 @@ import {
   History,
   Zap,
   Box,
-  Loader2
+  Loader2,
+  Maximize2,
+  TerminalSquare
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -135,134 +137,125 @@ export function TerminalPage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-5rem)] gap-6 p-10 max-w-[1800px] mx-auto w-full">
-      {/* Header Controls */}
-      <div className="flex items-end justify-between">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] text-primary">
-            <TerminalIcon className="h-3 w-3" />
-            Direct Runtime
+    <div className="flex flex-col h-[calc(100vh-5rem)] bg-black overflow-hidden relative">
+      {/* Glossy Overlay for the entire page to kill the generic look */}
+      <div className="absolute inset-0 pointer-events-none bg-gradient-to-b from-white/[0.02] to-transparent z-10" />
+
+      {/* Control Bar - Ultra Minimal */}
+      <header className="h-14 border-b border-white/10 flex items-center justify-between px-8 bg-black z-20">
+        <div className="flex items-center gap-8">
+          <div className="flex items-center gap-3">
+            <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_#10b981]" />
+            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-white/80">Isolated Node</span>
           </div>
-          <h1 className="text-4xl font-black tracking-tighter text-foreground">Command Console</h1>
+          <div className="h-4 w-px bg-white/10" />
+          <div className="flex items-center gap-2 text-[10px] font-bold text-white/40 uppercase tracking-widest">
+            <Box className="h-3 w-3" />
+            {currentWorkspace?.name || 'Standard Runtime'}
+          </div>
         </div>
-        
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-6 px-8 py-3 rounded-2xl bg-muted/20 border border-border/50 mr-4">
-            <div className="flex flex-col items-end">
-              <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">Sessions</span>
-              <span className="text-sm font-bold">{executions.length}</span>
-            </div>
-            <div className="h-8 w-px bg-border/50" />
-            <div className="flex flex-col items-end">
-              <span className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">Policy</span>
-              <span className="text-sm font-bold text-emerald-600">Strict</span>
-            </div>
-          </div>
-          <button
+
+        <div className="flex items-center gap-4">
+          <button 
             onClick={() => setExecutions([])}
-            className="h-12 w-12 flex items-center justify-center rounded-2xl border border-border bg-background hover:bg-rose-500/5 hover:text-rose-600 transition-all active:scale-95"
-            title="Clear Console"
+            className="flex items-center gap-2 text-[9px] font-black uppercase tracking-widest text-white/40 hover:text-rose-500 transition-colors"
           >
-            <Trash2 className="h-5 w-5" />
+            <Trash2 className="h-3 w-3" />
+            Purge Buffer
           </button>
-          <button className="button-professional border border-border bg-background px-8 h-12 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-muted">
-            <Download className="h-4 w-4" />
-            Export Log
-          </button>
+          <div className="h-4 w-px bg-white/10" />
+          <div className="flex items-center gap-2 px-3 py-1 rounded-md bg-white/5 border border-white/10">
+            <Shield className="h-3 w-3 text-emerald-500" />
+            <span className="text-[9px] font-black text-white/60 uppercase tracking-widest">Policy Strict</span>
+          </div>
         </div>
-      </div>
+      </header>
 
-      <div className="flex-1 flex gap-10 min-h-0 overflow-hidden">
-        {/* Massive Terminal Window */}
-        <div className="flex-1 flex flex-col card-professional border-primary/5 bg-[#0D0D0F] shadow-2xl relative group overflow-hidden">
-          {/* Scanning Line Animation */}
-          <div className="absolute inset-0 pointer-events-none z-20">
-            <div className="w-full h-[2px] bg-primary/10 shadow-[0_0_15px_rgba(255,255,255,0.1)] absolute top-0 animate-[scanning_8s_linear_infinite]" />
-          </div>
-
-          {/* Terminal Header */}
-          <div className="h-12 bg-[#1A1A1C] border-b border-white/5 flex items-center justify-between px-6 shrink-0">
-            <div className="flex items-center gap-6">
-              <div className="flex gap-2">
-                <div className="w-3 h-3 rounded-full bg-rose-500/40" />
-                <div className="w-3 h-3 rounded-full bg-amber-500/40" />
-                <div className="w-3 h-3 rounded-full bg-emerald-500/40" />
-              </div>
-              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground/40">
-                <Box className="h-3 w-3" />
-                Isolated Context: {currentWorkspace?.name || 'Standard'}
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-emerald-500/5 border border-emerald-500/10">
-                <Activity className="h-3 w-3 text-emerald-500" />
-                <span className="text-[9px] font-black text-emerald-500/80 uppercase">Authority Online</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Output Stream */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Terminal Core - Pure Black */}
+        <main className="flex-1 flex flex-col bg-black relative overflow-hidden">
+          {/* Subtle CRT Effect Overlay */}
+          <div className="absolute inset-0 pointer-events-none z-20 opacity-[0.03] bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_4px,3px_100%]" />
+          
           <div 
             ref={outputRef}
-            className="flex-1 overflow-y-auto p-10 font-mono text-[14px] leading-relaxed text-gray-400 scrollbar-thin selection:bg-primary/30"
+            className="flex-1 overflow-y-auto p-12 font-mono text-[15px] leading-relaxed scrollbar-thin selection:bg-emerald-500/30 selection:text-emerald-200"
           >
             <AnimatePresence mode="popLayout">
               {executions.length === 0 ? (
                 <motion.div 
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
-                  className="h-full flex flex-col items-center justify-center text-muted-foreground/20"
+                  className="h-full flex flex-col items-start justify-start pt-20"
                 >
-                  <Cpu className="h-20 w-20 mb-6 animate-pulse duration-[4000ms]" />
-                  <p className="text-xs font-black uppercase tracking-[0.4em]">Awaiting Instruction</p>
+                  <div className="text-emerald-500/40 space-y-2 mb-12">
+                    <pre className="text-[10px] leading-tight">
+{`   _____  ____   ____ _______ _    _  _____       __     ________ _____  
+  / ____|/ __ \\ / __ \\__   __| |  | |/ ____|   /\\\\ \\   / /  ____|  __ \\ 
+ | (___ | |  | | |  | | | |  | |__| | (___    /  \\\\ \\_/ /| |__  | |__) |
+  \\___ \\| |  | | |  | | | |  |  __  |\\___ \\  / /\\ \\\\   / |  __| |  _  / 
+  ____) | |__| | |__| | | |  | |  | |____) |/ ____ \\| |  | |____| | \\ \\ 
+ |_____/ \\____/ \\____/  |_|  |_|  |_|_____//_/    \\_\\_|  |______|_|  \\_\\`}
+                    </pre>
+                    <p className="text-[10px] font-black uppercase tracking-[0.5em] mt-4 ml-1">Terminal Interface v3.4.0 (Governed)</p>
+                  </div>
+                  <div className="flex items-center gap-3 text-white/20">
+                    <div className="h-px w-8 bg-current" />
+                    <span className="text-[10px] font-black uppercase tracking-widest">Awaiting dispatch signal...</span>
+                  </div>
                 </motion.div>
               ) : (
-                <div className="space-y-10">
-                  {executions.map((exec, idx) => (
+                <div className="space-y-12">
+                  {executions.map((exec) => (
                     <motion.div 
                       key={exec.id}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
                       className="group/item"
                     >
-                      <div className="flex items-center gap-4 mb-4">
-                        <div className="flex items-center gap-2">
-                          <span className="text-emerald-500 font-bold">$</span>
-                          <span className="text-white/90 font-bold">{exec.command}</span>
+                      {/* Prompt Line */}
+                      <div className="flex items-center gap-4 mb-6">
+                        <div className="flex items-center gap-3">
+                          <span className="text-emerald-500 font-black">operator@soothsayer</span>
+                          <span className="text-white/20">:</span>
+                          <span className="text-blue-400 font-bold">~</span>
+                          <span className="text-white/40 font-black">$</span>
                         </div>
-                        <div className="h-px flex-1 bg-white/5" />
-                        <div className="flex items-center gap-3 opacity-0 group-hover/item:opacity-100 transition-opacity">
-                          <time className="text-[9px] font-bold text-white/20 uppercase">
-                            {new Date(exec.startedAt).toLocaleTimeString()}
-                          </time>
-                          <button 
-                            onClick={() => { navigator.clipboard.writeText(exec.output); toast.success('Output copied'); }}
-                            className="p-1 hover:text-white transition-colors"
-                          >
-                            <Copy className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
+                        <span className="text-white font-bold tracking-tight">{exec.command}</span>
+                        <div className="flex-1 h-px bg-white/5 mx-4" />
+                        <time className="text-[9px] font-black text-white/10 uppercase tracking-widest">
+                          {new Date(exec.startedAt).toLocaleTimeString()}
+                        </time>
                       </div>
                       
-                      <div className="relative pl-6 border-l border-white/5 space-y-4">
+                      {/* Output Content */}
+                      <div className="relative pl-10 border-l-2 border-white/[0.03] ml-4 space-y-6">
                         {exec.status === 'running' && (
-                          <div className="flex items-center gap-3 text-blue-400">
+                          <div className="flex items-center gap-4 text-blue-400/80">
                             <Loader2 className="h-4 w-4 animate-spin" />
-                            <span className="text-xs font-bold animate-pulse">Processing technical trace...</span>
+                            <span className="text-[11px] font-black uppercase tracking-widest animate-pulse">Establishing Trace...</span>
                           </div>
                         )}
                         {exec.output && (
-                          <pre className="whitespace-pre-wrap break-all text-white/60 text-[13px] leading-relaxed">
+                          <pre className="whitespace-pre-wrap break-all text-white/70 text-[14px] leading-relaxed font-medium">
                             {exec.output}
                           </pre>
                         )}
                         {exec.status !== 'running' && (
-                          <div className={cn(
-                            "flex items-center gap-2 text-[10px] font-black uppercase tracking-widest",
-                            exec.exitCode === 0 ? "text-emerald-500/50" : "text-rose-500/50"
-                          )}>
-                            {exec.exitCode === 0 ? <CheckCircle className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
-                            Exit Code: {exec.exitCode}
+                          <div className="flex items-center justify-between pt-4">
+                            <div className={cn(
+                              "flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em]",
+                              exec.exitCode === 0 ? "text-emerald-500/40" : "text-rose-500/40"
+                            )}>
+                              {exec.exitCode === 0 ? <CheckCircle className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
+                              Exit {exec.exitCode}
+                            </div>
+                            <button 
+                              onClick={() => { navigator.clipboard.writeText(exec.output); toast.success('Buffer copied'); }}
+                              className="opacity-0 group-hover/item:opacity-100 transition-opacity p-2 rounded-lg hover:bg-white/5 text-white/20 hover:text-white"
+                            >
+                              <Copy className="h-4 w-4" />
+                            </button>
                           </div>
                         )}
                       </div>
@@ -273,84 +266,84 @@ export function TerminalPage() {
             </AnimatePresence>
           </div>
 
-          {/* Heavy Footer Input */}
-          <div className="p-8 bg-[#141416] border-t border-white/5 shrink-0">
-            <div className="flex items-center gap-6">
-              <div className="relative flex-1">
-                <div className="absolute left-6 top-1/2 -translate-y-1/2 flex items-center gap-3 text-primary">
-                  <span className="font-bold text-lg">$</span>
-                  <div className="h-4 w-px bg-primary/20" />
-                </div>
-                <input 
-                  ref={inputRef}
-                  value={input}
-                  onChange={e => setInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && executeCommand()}
-                  placeholder="Dispatch autonomous instruction..."
-                  className="w-full h-16 rounded-[1.25rem] bg-black/40 border border-white/10 pl-16 pr-6 font-mono text-base text-white focus:outline-none focus:ring-4 focus:ring-primary/5 focus:border-primary/40 transition-all placeholder:text-white/10 shadow-inner"
-                />
+          {/* Prompt Area - Integrated into the bottom */}
+          <div className="p-10 bg-black border-t border-white/5 relative z-30">
+            <div className="flex items-center gap-6 max-w-6xl mx-auto w-full">
+              <div className="flex items-center gap-3 text-emerald-500 font-black text-lg select-none">
+                <span className="opacity-50">➜</span>
+                <span>$</span>
               </div>
-              <button 
-                onClick={executeCommand}
-                disabled={isRunning || !input.trim()}
-                className={cn(
-                  "h-16 px-10 rounded-[1.25rem] font-black uppercase tracking-widest text-xs flex items-center gap-3 transition-all active:scale-95 shadow-2xl",
-                  isRunning ? "bg-rose-500 text-white shadow-rose-500/20" : "bg-primary text-primary-foreground shadow-primary/20 hover:opacity-90 disabled:opacity-50"
-                )}
-              >
+              <input 
+                ref={inputRef}
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && executeCommand()}
+                placeholder="Type instruction..."
+                className="flex-1 bg-transparent border-none p-0 font-mono text-xl text-white focus:outline-none focus:ring-0 placeholder:text-white/5"
+              />
+              <div className="flex items-center gap-4">
                 {isRunning ? (
-                  <><Square className="h-4 w-4 fill-current" /> Terminate</>
+                  <button 
+                    onClick={() => setIsRunning(false)}
+                    className="h-12 px-8 rounded-xl bg-rose-500 text-white font-black uppercase tracking-widest text-[10px] shadow-[0_0_20px_rgba(244,63,94,0.3)] transition-all active:scale-95"
+                  >
+                    Halt
+                  </button>
                 ) : (
-                  <><Play className="h-4 w-4 fill-current" /> Dispatch</>
+                  <button 
+                    onClick={executeCommand}
+                    disabled={!input.trim()}
+                    className="h-12 px-10 rounded-xl bg-white text-black font-black uppercase tracking-widest text-[10px] hover:bg-emerald-400 transition-all active:scale-95 disabled:opacity-20 disabled:grayscale"
+                  >
+                    Execute
+                  </button>
                 )}
-              </button>
+              </div>
             </div>
           </div>
-        </div>
+        </main>
 
-        {/* Snippet Sidebar */}
-        <div className="w-96 flex flex-col gap-6 shrink-0">
-          <div className="card-professional p-8 flex flex-col h-full bg-muted/5 border-border/40">
-            <div className="flex items-center gap-3 mb-10">
-              <div className="h-8 w-8 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                <History className="h-4 w-4" />
+        {/* Knowledge Sidebar - Hidden on small screens */}
+        <aside className="w-96 border-l border-white/10 bg-black hidden xl:flex flex-col">
+          <div className="p-8 border-b border-white/10">
+            <div className="flex items-center gap-3">
+              <TerminalSquare className="h-4 w-4 text-white/40" />
+              <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/60">Reference Buffer</h3>
+            </div>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto p-8 space-y-12 scrollbar-none">
+            {commandTemplates.map(cat => (
+              <div key={cat.category} className="space-y-5">
+                <span className="text-[9px] font-black uppercase tracking-widest text-white/20">{cat.category}</span>
+                <div className="space-y-2">
+                  {cat.commands.map(cmd => (
+                    <button 
+                      key={cmd}
+                      onClick={() => setInput(cmd)}
+                      className="w-full text-left p-4 rounded-xl border border-white/5 bg-white/[0.02] hover:bg-white/[0.05] hover:border-emerald-500/30 transition-all group flex items-center justify-between"
+                    >
+                      <code className="text-xs font-mono text-white/40 group-hover:text-emerald-400 transition-colors">{cmd}</code>
+                      <ChevronRight className="h-3.5 w-3.5 text-emerald-500 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all" />
+                    </button>
+                  ))}
+                </div>
               </div>
-              <h3 className="text-xs font-black uppercase tracking-[0.3em] text-foreground/80">Command Hub</h3>
-            </div>
+            ))}
+          </div>
 
-            <div className="flex-1 overflow-y-auto space-y-10 scrollbar-none">
-              {commandTemplates.map(cat => (
-                <div key={cat.category} className="space-y-4">
-                  <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40 px-2">{cat.category}</div>
-                  <div className="space-y-2">
-                    {cat.commands.map(cmd => (
-                      <button 
-                        key={cmd}
-                        onClick={() => setInput(cmd)}
-                        className="w-full text-left p-4 rounded-2xl bg-background border border-border/50 hover:border-primary/30 hover:shadow-apple-lg transition-all group flex items-center justify-between"
-                      >
-                        <code className="text-xs font-mono text-muted-foreground group-hover:text-primary transition-colors">{cmd}</code>
-                        <Zap className="h-3 w-3 text-primary opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-10 pt-8 border-t border-border/50">
-              <div className="rounded-2xl bg-primary/5 p-5 border border-primary/10">
-                <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-widest text-primary mb-2">
-                  <Shield className="h-3.5 w-3.5" />
-                  Operator Policy
-                </div>
-                <p className="text-[11px] font-medium text-muted-foreground leading-relaxed italic">
-                  " All terminal instructions are proxied through the DAX control plane for safety analysis. "
+          <div className="p-8 bg-white/[0.02] border-t border-white/10">
+            <div className="flex items-start gap-4">
+              <Shield className="h-4 w-4 text-emerald-500 shrink-0 mt-1" />
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-white/80 mb-2">Safety Lock Active</p>
+                <p className="text-[11px] font-medium text-white/40 leading-relaxed italic">
+                  Runtime instructions are audited by the DAX authority. Destructive commands require manual elevation.
                 </p>
               </div>
             </div>
           </div>
-        </div>
+        </aside>
       </div>
     </div>
   );
