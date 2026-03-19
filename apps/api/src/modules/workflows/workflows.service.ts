@@ -1,10 +1,19 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import type { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { DaxService } from '../dax/dax.service';
+import type { DaxCreateRunRequest, DaxPersonaPreset, DaxRunStatus, DaxRunSummary } from '../dax/dax.types';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class WorkflowsService {
   private readonly logger = new Logger(WorkflowsService.name);
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly daxService: DaxService,
+  ) {}
+
+  private readonly daxPollIntervalMs = 1500;
+  private readonly daxPollTimeoutMs = 15 * 60 * 1000;
 
   private readonly defaultTemplates: Array<{
     name: string;
@@ -51,6 +60,14 @@ export class WorkflowsService {
       ],
     },
   ];
+
+  private asWorkflowUser(userId: string): CurrentUser {
+    return {
+      id: userId,
+      email: 'workflow@soothsayer.local',
+      name: 'Workflow Runner',
+    };
+  }
 
   async findAll(userId: string) {
     const memberships = await this.prisma.workspaceMember.findMany({
@@ -224,7 +241,12 @@ export class WorkflowsService {
   async run(
     id: string,
     userId: string,
-    options: { inputs?: Record<string, unknown>; projectId?: string; conversationId?: string },
+    options: {
+      inputs?: Record<string, unknown>;
+      projectId?: string;
+      conversationId?: string;
+      repoPath?: string;
+    },
   ) {
     const workflow = await this.prisma.workflow.findUnique({
       where: { id },
@@ -258,6 +280,8 @@ export class WorkflowsService {
     const steps = Array.isArray(workflow.steps) ? (workflow.steps as Array<Record<string, any>>) : [];
 
     try {
+      const workflowRunDaxMetadata: Array<Record<string, unknown>> = [];
+
       for (const step of steps) {
         const stepId = String(step.id || `step-${Math.random().toString(36).slice(2, 8)}`);
         const stepName = String(step.name || stepId);
@@ -274,6 +298,31 @@ export class WorkflowsService {
             logs: [{ at: new Date().toISOString(), message: `Started ${stepName}` }],
           },
         });
+
+        if (String(step.type || 'task') === 'dax_run') {
+          const daxResult = await this.executeDaxRunStep({
+            userId,
+            workflow,
+            projectId: options.projectId,
+            repoPath: typeof options.repoPath === 'string' ? options.repoPath : undefined,
+            workflowRunId: run.id,
+            workflowStepRunId: createdStep.id,
+            stepId,
+            stepName,
+            step,
+            stepStartedAt: stepStart,
+          });
+
+          workflowRunDaxMetadata.push({
+            stepId,
+            stepName,
+            runId: daxResult.runId,
+            status: daxResult.status,
+            outcome: daxResult.summary.outcome?.result || daxResult.summary.status,
+            targeting: daxResult.targeting,
+          });
+          continue;
+        }
 
         await new Promise((resolve) => setTimeout(resolve, 120));
 
@@ -297,7 +346,23 @@ export class WorkflowsService {
         where: { id: run.id },
         data: {
           status: 'completed',
-          outputs: { completedSteps: steps.length, ok: true },
+          outputs: {
+            completedSteps: steps.length,
+            ok: true,
+            daxRuns: workflowRunDaxMetadata,
+            latestDaxRunId:
+              workflowRunDaxMetadata.length > 0
+                ? String(workflowRunDaxMetadata[workflowRunDaxMetadata.length - 1].runId)
+                : undefined,
+          } as any,
+          metadata:
+            workflowRunDaxMetadata.length > 0
+              ? {
+                  source: 'api',
+                  mode: 'inline-execution',
+                  daxRuns: workflowRunDaxMetadata,
+                } as any
+              : ({ source: 'api', mode: 'inline-execution' } as any),
           completedAt: new Date(),
           durationMs,
         },
@@ -417,7 +482,350 @@ export class WorkflowsService {
       risk: String(step.risk || 'read'),
       ...(step.task ? { task: String(step.task) } : {}),
       ...(step.input ? { input: step.input } : {}),
+      ...(step.personaPreset &&
+      typeof step.personaPreset === 'object' &&
+      step.personaPreset !== null
+        ? {
+            personaPreset: {
+              ...(typeof (step.personaPreset as Record<string, unknown>).personaId === 'string'
+                ? { personaId: String((step.personaPreset as Record<string, unknown>).personaId) }
+                : {}),
+              ...(typeof (step.personaPreset as Record<string, unknown>).approvalMode === 'string'
+                ? {
+                    approvalMode: String(
+                      (step.personaPreset as Record<string, unknown>).approvalMode,
+                    ),
+                  }
+                : {}),
+              ...(typeof (step.personaPreset as Record<string, unknown>).riskLevel === 'string'
+                ? { riskLevel: String((step.personaPreset as Record<string, unknown>).riskLevel) }
+                : {}),
+            },
+          }
+        : {}),
     }));
+  }
+
+  private async executeDaxRunStep(params: {
+    userId: string;
+    workflow: {
+      id: string;
+      workspaceId: string;
+      slug: string;
+      workspace?: {
+        settings?: unknown;
+      };
+    };
+    projectId?: string;
+    repoPath?: string;
+    workflowRunId: string;
+    workflowStepRunId: string;
+    stepId: string;
+    stepName: string;
+    step: Record<string, any>;
+    stepStartedAt: number;
+  }): Promise<{
+    runId: string;
+    status: DaxRunStatus;
+    summary: DaxRunSummary;
+    targeting: {
+      mode: 'explicit_repo_path' | 'default_cwd';
+      repoPath?: string;
+    };
+  }> {
+    const input = typeof params.step.input === 'string' ? params.step.input.trim() : '';
+    if (!input) {
+      throw new BadRequestException(`Workflow step "${params.stepName}" requires a DAX input`);
+    }
+
+    const personaPreset = this.normalizeDaxPersonaPreset(params.step.personaPreset);
+    const repoPath = await this.resolveWorkflowRepoPath(
+      params.repoPath,
+      params.workflow.workspace?.settings,
+      params.projectId,
+    );
+    const createPayload: DaxCreateRunRequest = {
+      intent: {
+        input,
+        kind: 'workflow_step',
+        ...(repoPath ? { repoPath } : {}),
+      },
+      ...(personaPreset ? { personaPreset } : {}),
+      metadata: {
+        source: 'soothsayer',
+        workspaceId: params.workflow.workspaceId,
+        projectId: params.projectId || undefined,
+        workflowId: params.workflow.id,
+        targeting: repoPath
+          ? {
+              mode: 'explicit_repo_path',
+              repoPath,
+            }
+          : {
+              mode: 'default_cwd',
+            },
+      },
+    };
+
+    const createdRun = await this.daxService.createRun(this.asWorkflowUser(params.userId), createPayload);
+    const initialLogs = [
+      { at: new Date().toISOString(), message: `Started ${params.stepName}` },
+      { at: new Date().toISOString(), message: `Delegated to DAX run ${createdRun.runId}` },
+    ];
+
+    await this.prisma.workflowStepRun.update({
+      where: { id: params.workflowStepRunId },
+      data: {
+        inputs: {
+          input,
+          ...(repoPath ? { repoPath } : {}),
+          ...(personaPreset ? { personaPreset } : {}),
+        } as any,
+        outputs: {
+          delegated: true,
+          runId: createdRun.runId,
+          status: createdRun.status,
+          targeting: repoPath
+            ? {
+                mode: 'explicit_repo_path',
+                repoPath,
+              }
+            : {
+                mode: 'default_cwd',
+              },
+        } as any,
+        logs: initialLogs,
+      },
+    });
+
+    await this.prisma.workflowRun.update({
+      where: { id: params.workflowRunId },
+      data: {
+        metadata: {
+          source: 'api',
+          mode: 'inline-execution',
+          latestDaxRunId: createdRun.runId,
+          daxRuns: [
+            {
+              stepId: params.stepId,
+              stepName: params.stepName,
+              runId: createdRun.runId,
+              status: createdRun.status,
+              targeting: repoPath
+                ? {
+                    mode: 'explicit_repo_path',
+                    repoPath,
+                  }
+                : {
+                    mode: 'default_cwd',
+                  },
+            },
+          ],
+        } as any,
+      },
+    });
+
+    const terminal = await this.waitForDaxTerminal(params.workflowRunId, params.workflowStepRunId, {
+      runId: createdRun.runId,
+      stepName: params.stepName,
+      initialLogs,
+      stepStartedAt: params.stepStartedAt,
+    });
+
+    if (terminal.status === 'completed') {
+      return {
+        ...terminal,
+        targeting: repoPath
+          ? {
+              mode: 'explicit_repo_path',
+              repoPath,
+            }
+          : {
+              mode: 'default_cwd',
+            },
+      };
+    }
+
+    throw new Error(
+      terminal.summary.outcome?.summaryText ||
+        `DAX run ${createdRun.runId} ended with status ${terminal.status}`,
+    );
+  }
+
+  private normalizeDaxPersonaPreset(value: unknown): DaxPersonaPreset | null {
+    if (!value || typeof value !== 'object') {
+      return null;
+    }
+
+    const raw = value as Record<string, unknown>;
+    const personaId =
+      typeof raw.personaId === 'string' && raw.personaId.trim()
+        ? raw.personaId.trim()
+        : undefined;
+
+    if (!personaId) {
+      return null;
+    }
+
+    return {
+      personaId,
+      ...(typeof raw.approvalMode === 'string'
+        ? {
+            approvalMode: raw.approvalMode as DaxPersonaPreset['approvalMode'],
+          }
+        : {}),
+      ...(typeof raw.riskLevel === 'string'
+        ? { riskLevel: raw.riskLevel as DaxPersonaPreset['riskLevel'] }
+        : {}),
+    };
+  }
+
+  private async resolveWorkflowRepoPath(
+    runtimeRepoPath: string | undefined,
+    workspaceSettings: unknown,
+    projectId?: string,
+  ): Promise<string | undefined> {
+    if (typeof runtimeRepoPath === 'string' && runtimeRepoPath.trim()) {
+      return runtimeRepoPath.trim();
+    }
+
+    if (projectId) {
+      const project = await this.prisma.project.findUnique({
+        where: { id: projectId },
+        select: {
+          rootPath: true,
+          settings: true,
+        },
+      });
+
+      const projectRepoPath =
+        (typeof project?.rootPath === 'string' && project.rootPath.trim()
+          ? project.rootPath.trim()
+          : undefined) || this.extractRepoPathFromSettings(project?.settings);
+
+      if (projectRepoPath) {
+        return projectRepoPath;
+      }
+    }
+
+    return this.extractRepoPathFromSettings(workspaceSettings);
+  }
+
+  private extractRepoPathFromSettings(settings: unknown): string | undefined {
+    if (!settings || typeof settings !== 'object') {
+      return undefined;
+    }
+
+    const raw = settings as Record<string, unknown>;
+    const candidates = ['repoPath', 'defaultRepoPath', 'targetRepoPath'] as const;
+
+    for (const key of candidates) {
+      const value = raw[key];
+      if (typeof value === 'string' && value.trim()) {
+        return value.trim();
+      }
+    }
+
+    return undefined;
+  }
+
+  private async waitForDaxTerminal(
+    workflowRunId: string,
+    workflowStepRunId: string,
+    params: {
+      runId: string;
+      stepName: string;
+      initialLogs: Array<{ at: string; message: string }>;
+      stepStartedAt: number;
+    },
+  ): Promise<{ runId: string; status: DaxRunStatus; summary: DaxRunSummary }> {
+    const startedAt = Date.now();
+    let lastStatus: DaxRunStatus | null = null;
+
+    while (Date.now() - startedAt < this.daxPollTimeoutMs) {
+      const snapshot = await this.daxService.getRun(params.runId);
+
+      if (snapshot.status !== lastStatus) {
+        lastStatus = snapshot.status;
+        await this.prisma.workflowStepRun.update({
+          where: { id: workflowStepRunId },
+          data: {
+            status:
+              snapshot.status === 'waiting_approval'
+                ? 'waiting_approval'
+                : snapshot.status === 'failed'
+                  ? 'failed'
+                  : snapshot.status === 'completed'
+                    ? 'completed'
+                    : 'running',
+            outputs: {
+              delegated: true,
+              runId: params.runId,
+              status: snapshot.status,
+            } as any,
+            logs: [
+              ...params.initialLogs,
+              {
+                at: new Date().toISOString(),
+                message: `DAX run status changed to ${snapshot.status}`,
+              },
+            ],
+          },
+        });
+
+        await this.prisma.workflowRun.update({
+          where: { id: workflowRunId },
+          data: {
+            status: snapshot.status === 'waiting_approval' ? 'waiting_approval' : 'running',
+          },
+        });
+      }
+
+      if (snapshot.status === 'completed' || snapshot.status === 'failed') {
+        const summary = await this.daxService.getSummary(params.runId);
+        await this.prisma.workflowStepRun.update({
+          where: { id: workflowStepRunId },
+          data: {
+            status: snapshot.status === 'completed' ? 'completed' : 'failed',
+            outputs: {
+              delegated: true,
+              runId: params.runId,
+              status: snapshot.status,
+              summary,
+            } as any,
+            error:
+              snapshot.status === 'failed'
+                ? {
+                    message:
+                      summary.outcome?.summaryText ||
+                      `DAX run ${params.runId} failed`,
+                  } as any
+                : undefined,
+            logs: [
+              ...params.initialLogs,
+              {
+                at: new Date().toISOString(),
+                message: `DAX run reached terminal status ${snapshot.status}`,
+              },
+            ],
+            completedAt: new Date(),
+            durationMs: Date.now() - params.stepStartedAt,
+          },
+        });
+
+        return {
+          runId: params.runId,
+          status: snapshot.status,
+          summary,
+        };
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, this.daxPollIntervalMs));
+    }
+
+    throw new BadRequestException(
+      `Timed out waiting for DAX run ${params.runId} to reach a terminal state`,
+    );
   }
 
   private generateSlug(value: string): string {

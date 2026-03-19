@@ -30,6 +30,11 @@ export class CreateConversationDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  repoPath?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   title?: string;
 
   @ApiPropertyOptional({ enum: ['session', 'project', 'persistent'] })
