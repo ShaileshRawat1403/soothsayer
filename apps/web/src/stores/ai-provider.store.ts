@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import React from 'react';
 
 export type AIProvider = 'openai' | 'anthropic' | 'ollama' | 'lmstudio' | 'groq' | 'together' | 'openrouter' | 'bedrock' | 'custom';
 
@@ -7,7 +8,7 @@ export interface AIProviderConfig {
   id: AIProvider;
   name: string;
   description: string;
-  icon: string;
+  icon: string; // Keep as string for persist, but we'll map it in the UI
   baseUrl: string;
   apiKey?: string;
   models: AIModel[];
@@ -50,7 +51,7 @@ const DEFAULT_PROVIDERS: AIProviderConfig[] = [
     id: 'openai',
     name: 'OpenAI',
     description: 'GPT-4, GPT-3.5-turbo and more',
-    icon: '🤖',
+    icon: 'bot',
     baseUrl: 'https://api.openai.com/v1',
     models: [
       { id: 'gpt-4-turbo-preview', name: 'GPT-4 Turbo', contextLength: 128000, capabilities: ['chat', 'code', 'vision', 'function_calling'], pricing: { input: 0.01, output: 0.03 } },
@@ -65,7 +66,7 @@ const DEFAULT_PROVIDERS: AIProviderConfig[] = [
     id: 'anthropic',
     name: 'Anthropic',
     description: 'Claude 3 Opus, Sonnet, and Haiku',
-    icon: '🧠',
+    icon: 'cpu',
     baseUrl: 'https://api.anthropic.com/v1',
     models: [
       { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus', contextLength: 200000, capabilities: ['chat', 'code', 'vision'], pricing: { input: 0.015, output: 0.075 } },
@@ -80,7 +81,7 @@ const DEFAULT_PROVIDERS: AIProviderConfig[] = [
     id: 'ollama',
     name: 'Ollama',
     description: 'Run open-source models locally',
-    icon: '🦙',
+    icon: 'server',
     baseUrl: 'http://localhost:11434',
     models: [
       { id: 'ministral-3:3b', name: 'Ministral 3B', contextLength: 8192, capabilities: ['chat', 'code'] },
@@ -100,7 +101,7 @@ const DEFAULT_PROVIDERS: AIProviderConfig[] = [
     id: 'lmstudio',
     name: 'LM Studio',
     description: 'Local models via LM Studio',
-    icon: '🎨',
+    icon: 'laptop',
     baseUrl: 'http://localhost:1234/v1',
     models: [
       { id: 'local-model', name: 'Local Model', contextLength: 4096, capabilities: ['chat', 'code'] },
@@ -113,7 +114,7 @@ const DEFAULT_PROVIDERS: AIProviderConfig[] = [
     id: 'groq',
     name: 'Groq',
     description: 'Ultra-fast inference with LPU',
-    icon: '⚡',
+    icon: 'zap',
     baseUrl: 'https://api.groq.com/openai/v1',
     models: [
       { id: 'llama3-70b-8192', name: 'Llama 3 70B', contextLength: 8192, capabilities: ['chat', 'code'], pricing: { input: 0.00059, output: 0.00079 } },
@@ -128,7 +129,7 @@ const DEFAULT_PROVIDERS: AIProviderConfig[] = [
     id: 'together',
     name: 'Together AI',
     description: 'Open-source models at scale',
-    icon: '🤝',
+    icon: 'globe',
     baseUrl: 'https://api.together.xyz/v1',
     models: [
       { id: 'meta-llama/Llama-3-70b-chat-hf', name: 'Llama 3 70B', contextLength: 8192, capabilities: ['chat', 'code'], pricing: { input: 0.0009, output: 0.0009 } },
@@ -143,7 +144,7 @@ const DEFAULT_PROVIDERS: AIProviderConfig[] = [
     id: 'openrouter',
     name: 'OpenRouter',
     description: 'Access 100+ models via one API',
-    icon: '🌐',
+    icon: 'webhook',
     baseUrl: 'https://openrouter.ai/api/v1',
     models: [
       { id: 'openai/gpt-4-turbo-preview', name: 'GPT-4 Turbo', contextLength: 128000, capabilities: ['chat', 'code', 'vision', 'function_calling'] },
@@ -159,7 +160,7 @@ const DEFAULT_PROVIDERS: AIProviderConfig[] = [
     id: 'bedrock',
     name: 'AWS Bedrock',
     description: 'Managed foundation models on AWS',
-    icon: '☁️',
+    icon: 'cloud',
     baseUrl: 'https://bedrock-runtime.us-east-1.amazonaws.com',
     models: [
       { id: 'anthropic.claude-3-5-sonnet-20240620-v1:0', name: 'Claude 3.5 Sonnet', contextLength: 200000, capabilities: ['chat', 'code', 'vision'] },
@@ -175,7 +176,7 @@ const DEFAULT_PROVIDERS: AIProviderConfig[] = [
     id: 'custom',
     name: 'Custom Endpoint',
     description: 'Connect to any OpenAI-compatible API',
-    icon: '🔧',
+    icon: 'settings',
     baseUrl: '',
     models: [],
     isLocal: false,
