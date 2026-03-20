@@ -16,26 +16,25 @@ import { DaxOverviewPage } from '@/pages/DaxOverviewPage';
 import { ThemeProvider } from '@/components/common/ThemeProvider';
 import { CommandPalette } from '@/components/common/CommandPalette';
 import { OnboardingWizard } from '@/components/common/OnboardingWizard';
-import { ToastProvider } from '@/components/common/Toast';
 import { useEffect, useState } from 'react';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
-  
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
-  
+
   return <>{children}</>;
 }
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
-  
+
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
   }
-  
+
   return <>{children}</>;
 }
 
@@ -58,50 +57,66 @@ function App() {
 
   return (
     <ThemeProvider>
-      <ToastProvider>
-        {/* Command Palette - Always available when authenticated */}
-        {isAuthenticated && <CommandPalette />}
-        
-        {/* Onboarding Wizard */}
-        {showOnboarding && (
-          <OnboardingWizard onComplete={handleOnboardingComplete} />
-        )}
+      {/* Skip to main content link */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-lg focus:outline-none"
+      >
+        Skip to main content
+      </a>
 
-        <Routes>
-          {/* Public routes */}
-          <Route element={<AuthLayout />}>
-            <Route path="/login" element={
-              <PublicRoute><LoginPage /></PublicRoute>
-            } />
-            <Route path="/register" element={
-              <PublicRoute><RegisterPage /></PublicRoute>
-            } />
-          </Route>
+      {/* Command Palette - Always available when authenticated */}
+      {isAuthenticated && <CommandPalette />}
 
-          {/* Protected routes */}
-          <Route element={
+      {/* Onboarding Wizard */}
+      {showOnboarding && <OnboardingWizard onComplete={handleOnboardingComplete} />}
+
+      <Routes>
+        {/* Public routes */}
+        <Route element={<AuthLayout />}>
+          <Route
+            path="/login"
+            element={
+              <PublicRoute>
+                <LoginPage />
+              </PublicRoute>
+            }
+          />
+          <Route
+            path="/register"
+            element={
+              <PublicRoute>
+                <RegisterPage />
+              </PublicRoute>
+            }
+          />
+        </Route>
+
+        {/* Protected routes */}
+        <Route
+          element={
             <ProtectedRoute>
               <MainLayout />
             </ProtectedRoute>
-          }>
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/chat" element={<ChatPage />} />
-            <Route path="/chat/:conversationId" element={<ChatPage />} />
-            <Route path="/terminal" element={<TerminalPage />} />
-            <Route path="/workflows" element={<WorkflowsPage />} />
-            <Route path="/workflows/:workflowId" element={<WorkflowsPage />} />
-            <Route path="/personas" element={<PersonasPage />} />
-            <Route path="/analytics" element={<AnalyticsPage />} />
-            <Route path="/dax" element={<DaxOverviewPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/runs/:runId" element={<RunPage />} />
-          </Route>
+          }
+        >
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/chat" element={<ChatPage />} />
+          <Route path="/chat/:conversationId" element={<ChatPage />} />
+          <Route path="/terminal" element={<TerminalPage />} />
+          <Route path="/workflows" element={<WorkflowsPage />} />
+          <Route path="/workflows/:workflowId" element={<WorkflowsPage />} />
+          <Route path="/personas" element={<PersonasPage />} />
+          <Route path="/analytics" element={<AnalyticsPage />} />
+          <Route path="/dax" element={<DaxOverviewPage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/runs/:runId" element={<RunPage />} />
+        </Route>
 
-          {/* Default redirect */}
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
-      </ToastProvider>
+        {/* Default redirect */}
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
     </ThemeProvider>
   );
 }

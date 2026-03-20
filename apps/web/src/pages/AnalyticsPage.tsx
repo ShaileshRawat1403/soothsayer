@@ -15,93 +15,18 @@ import {
   Download,
   Filter,
 } from 'lucide-react';
+import {
+  ANALYTICS_MOCK_STATS,
+  ANALYTICS_MOCK_AUDIT_LOGS,
+  ANALYTICS_MOCK_PERSONA_USAGE,
+} from '@/constants/analytics';
 
-const stats = [
-  {
-    label: 'Total Commands',
-    value: '2,847',
-    change: '+12.5%',
-    trend: 'up',
-    icon: Terminal,
-  },
-  {
-    label: 'Workflow Runs',
-    value: '456',
-    change: '+8.2%',
-    trend: 'up',
-    icon: GitBranch,
-  },
-  {
-    label: 'Chat Conversations',
-    value: '1,234',
-    change: '+24.1%',
-    trend: 'up',
-    icon: MessageSquare,
-  },
-  {
-    label: 'Active Users',
-    value: '89',
-    change: '-2.3%',
-    trend: 'down',
-    icon: Users,
-  },
-];
-
-const recentAuditLogs = [
-  {
-    id: '1',
-    action: 'command.execute',
-    user: 'alice@company.com',
-    resource: 'npm audit fix',
-    status: 'success',
-    timestamp: '2024-01-15T10:30:00Z',
-    riskLevel: 'medium',
-  },
-  {
-    id: '2',
-    action: 'workflow.run',
-    user: 'bob@company.com',
-    resource: 'Release Checklist',
-    status: 'success',
-    timestamp: '2024-01-15T10:25:00Z',
-    riskLevel: 'low',
-  },
-  {
-    id: '3',
-    action: 'persona.switch',
-    user: 'alice@company.com',
-    resource: 'Security Engineer',
-    status: 'success',
-    timestamp: '2024-01-15T10:20:00Z',
-    riskLevel: 'low',
-  },
-  {
-    id: '4',
-    action: 'command.execute',
-    user: 'charlie@company.com',
-    resource: 'rm -rf node_modules',
-    status: 'blocked',
-    timestamp: '2024-01-15T10:15:00Z',
-    riskLevel: 'high',
-  },
-  {
-    id: '5',
-    action: 'approval.request',
-    user: 'bob@company.com',
-    resource: 'Production Deploy',
-    status: 'pending',
-    timestamp: '2024-01-15T10:10:00Z',
-    riskLevel: 'critical',
-  },
-];
-
-const personaUsage = [
-  { name: 'Staff SWE', usage: 35, color: 'bg-blue-500' },
-  { name: 'Backend Dev', usage: 25, color: 'bg-emerald-500' },
-  { name: 'DevOps', usage: 20, color: 'bg-orange-500' },
-  { name: 'Product Manager', usage: 12, color: 'bg-purple-500' },
-  { name: 'Security Engineer', usage: 8, color: 'bg-red-500' },
-];
+const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  Terminal,
+  GitBranch,
+  MessageSquare,
+  Users,
+};
 
 const toolUsage = [
   { name: 'Code Generator', calls: 1245, avgLatency: '1.2s' },
@@ -155,11 +80,8 @@ export function AnalyticsPage() {
 
       {/* Stats Grid */}
       <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => (
-          <div
-            key={stat.label}
-            className="rounded-xl border border-border bg-card p-4"
-          >
+        {ANALYTICS_MOCK_STATS.map((stat) => (
+          <div key={stat.label} className="rounded-xl border border-border bg-card p-4">
             <div className="flex items-center justify-between">
               <div
                 className={cn(
@@ -169,7 +91,10 @@ export function AnalyticsPage() {
                     : 'bg-red-100 text-red-600 dark:bg-red-900/30'
                 )}
               >
-                <stat.icon className="h-5 w-5" />
+                {(() => {
+                  const IconComponent = iconMap[stat.icon];
+                  return IconComponent ? <IconComponent className="h-5 w-5" /> : null;
+                })()}
               </div>
               <div
                 className={cn(
@@ -198,7 +123,7 @@ export function AnalyticsPage() {
         <div className="rounded-xl border border-border bg-card p-6">
           <h3 className="mb-4 text-lg font-semibold">Persona Usage</h3>
           <div className="space-y-4">
-            {personaUsage.map((persona) => (
+            {ANALYTICS_MOCK_PERSONA_USAGE.map((persona) => (
               <div key={persona.name}>
                 <div className="mb-1 flex items-center justify-between text-sm">
                   <span>{persona.name}</span>
@@ -274,15 +199,10 @@ export function AnalyticsPage() {
               </tr>
             </thead>
             <tbody>
-              {recentAuditLogs.map((log) => (
-                <tr
-                  key={log.id}
-                  className="border-b border-border hover:bg-accent/50"
-                >
+              {ANALYTICS_MOCK_AUDIT_LOGS.map((log) => (
+                <tr key={log.id} className="border-b border-border hover:bg-accent/50">
                   <td className="px-4 py-3 text-sm">
-                    <code className="rounded bg-secondary px-1.5 py-0.5 text-xs">
-                      {log.action}
-                    </code>
+                    <code className="rounded bg-secondary px-1.5 py-0.5 text-xs">{log.action}</code>
                   </td>
                   <td className="px-4 py-3 text-sm">{log.user}</td>
                   <td className="px-4 py-3 text-sm font-medium">{log.resource}</td>
@@ -326,9 +246,7 @@ export function AnalyticsPage() {
           </table>
         </div>
         <div className="flex items-center justify-between border-t border-border p-4">
-          <span className="text-sm text-muted-foreground">
-            Showing 5 of 1,234 entries
-          </span>
+          <span className="text-sm text-muted-foreground">Showing 5 of 1,234 entries</span>
           <div className="flex items-center gap-2">
             <button className="h-8 rounded-md border border-input px-3 text-sm hover:bg-accent">
               Previous

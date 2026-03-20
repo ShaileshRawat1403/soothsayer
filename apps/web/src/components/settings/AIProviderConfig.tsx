@@ -23,7 +23,7 @@ import {
   Cloud,
 } from 'lucide-react';
 import { useAIProviderStore, AIProvider, AIModel } from '../../stores/ai-provider.store';
-import { toast } from './Toast';
+import { toast } from 'sonner';
 
 interface ProviderConfigProps {
   onClose?: () => void;
@@ -65,7 +65,9 @@ export const AIProviderConfig: React.FC<ProviderConfigProps> = ({ onClose }) => 
     removeProvider,
   } = useAIProviderStore();
 
-  const [expandedProviders, setExpandedProviders] = useState<Set<string>>(new Set([activeProvider || '']));
+  const [expandedProviders, setExpandedProviders] = useState<Set<string>>(
+    new Set([activeProvider || ''])
+  );
   const [testingProvider, setTestingProvider] = useState<string | null>(null);
   const [refreshingProvider, setRefreshingProvider] = useState<string | null>(null);
   const [showApiKeys, setShowApiKeys] = useState<Set<string>>(new Set());
@@ -76,9 +78,11 @@ export const AIProviderConfig: React.FC<ProviderConfigProps> = ({ onClose }) => 
   });
 
   // Group providers by type
-  const cloudProviders = providers.filter(p => ['openai', 'anthropic', 'groq', 'together', 'openrouter'].includes(p.id));
-  const localProviders = providers.filter(p => ['ollama', 'lm-studio'].includes(p.id));
-  const customProviders = providers.filter(p => p.id.startsWith('custom-'));
+  const cloudProviders = providers.filter((p) =>
+    ['openai', 'anthropic', 'groq', 'together', 'openrouter'].includes(p.id)
+  );
+  const localProviders = providers.filter((p) => ['ollama', 'lm-studio'].includes(p.id));
+  const customProviders = providers.filter((p) => p.id.startsWith('custom-'));
 
   const toggleExpanded = (providerId: string) => {
     const newExpanded = new Set(expandedProviders);
@@ -131,7 +135,7 @@ export const AIProviderConfig: React.FC<ProviderConfigProps> = ({ onClose }) => 
       toast.warning('Please fill in name and base URL');
       return;
     }
-    
+
     addCustomProvider(customEndpoint.name, customEndpoint.baseUrl, customEndpoint.apiKey);
     toast.success(`Added ${customEndpoint.name} endpoint`);
     setCustomEndpoint({ name: '', baseUrl: '', apiKey: '' });
@@ -221,7 +225,9 @@ export const AIProviderConfig: React.FC<ProviderConfigProps> = ({ onClose }) => 
                       <input
                         type={showKey ? 'text' : 'password'}
                         value={provider.apiKey || ''}
-                        onChange={(e) => updateProviderConfig(provider.id, { apiKey: e.target.value })}
+                        onChange={(e) =>
+                          updateProviderConfig(provider.id, { apiKey: e.target.value })
+                        }
                         placeholder={`Enter your ${provider.name} API key`}
                         className="w-full px-3 py-2 pr-20 bg-gray-900 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                       />
@@ -245,8 +251,14 @@ export const AIProviderConfig: React.FC<ProviderConfigProps> = ({ onClose }) => 
                     <input
                       type="text"
                       value={provider.baseUrl || ''}
-                      onChange={(e) => updateProviderConfig(provider.id, { baseUrl: e.target.value })}
-                      placeholder={provider.id === 'ollama' ? 'http://localhost:11434' : 'http://localhost:1234'}
+                      onChange={(e) =>
+                        updateProviderConfig(provider.id, { baseUrl: e.target.value })
+                      }
+                      placeholder={
+                        provider.id === 'ollama'
+                          ? 'http://localhost:11434'
+                          : 'http://localhost:1234'
+                      }
                       className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                     />
                   </div>
@@ -275,7 +287,8 @@ export const AIProviderConfig: React.FC<ProviderConfigProps> = ({ onClose }) => 
                   >
                     {provider.models.map((model) => (
                       <option key={model.id} value={model.id}>
-                        {model.name} {model.contextWindow ? `(${Math.round(model.contextWindow / 1000)}K)` : ''}
+                        {model.name}{' '}
+                        {model.contextWindow ? `(${Math.round(model.contextWindow / 1000)}K)` : ''}
                       </option>
                     ))}
                   </select>
@@ -295,7 +308,7 @@ export const AIProviderConfig: React.FC<ProviderConfigProps> = ({ onClose }) => 
                     )}
                     Test Connection
                   </button>
-                  
+
                   <button
                     onClick={() => {
                       setActiveProvider(provider.id);
@@ -381,9 +394,7 @@ export const AIProviderConfig: React.FC<ProviderConfigProps> = ({ onClose }) => 
           <Cloud className="w-4 h-4 text-blue-400" />
           <h3 className="text-sm font-medium text-gray-300">Cloud Providers</h3>
         </div>
-        <div className="space-y-3">
-          {cloudProviders.map(renderProviderCard)}
-        </div>
+        <div className="space-y-3">{cloudProviders.map(renderProviderCard)}</div>
       </div>
 
       {/* Local Providers */}
@@ -392,9 +403,7 @@ export const AIProviderConfig: React.FC<ProviderConfigProps> = ({ onClose }) => 
           <Server className="w-4 h-4 text-green-400" />
           <h3 className="text-sm font-medium text-gray-300">Local Models (Privacy-First)</h3>
         </div>
-        <div className="space-y-3">
-          {localProviders.map(renderProviderCard)}
-        </div>
+        <div className="space-y-3">{localProviders.map(renderProviderCard)}</div>
       </div>
 
       {/* Custom Providers */}
@@ -404,9 +413,7 @@ export const AIProviderConfig: React.FC<ProviderConfigProps> = ({ onClose }) => 
             <Settings className="w-4 h-4 text-purple-400" />
             <h3 className="text-sm font-medium text-gray-300">Custom Endpoints</h3>
           </div>
-          <div className="space-y-3">
-            {customProviders.map(renderProviderCard)}
-          </div>
+          <div className="space-y-3">{customProviders.map(renderProviderCard)}</div>
         </div>
       )}
 
@@ -416,7 +423,7 @@ export const AIProviderConfig: React.FC<ProviderConfigProps> = ({ onClose }) => 
           <Plus className="w-4 h-4 text-gray-400" />
           <h3 className="text-sm font-medium text-gray-300">Add Custom Endpoint</h3>
         </div>
-        
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <input
             type="text"
@@ -440,7 +447,7 @@ export const AIProviderConfig: React.FC<ProviderConfigProps> = ({ onClose }) => 
             className="px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-500 focus:border-blue-500 outline-none"
           />
         </div>
-        
+
         <button
           onClick={handleAddCustomEndpoint}
           className="mt-3 flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
@@ -457,8 +464,14 @@ export const AIProviderConfig: React.FC<ProviderConfigProps> = ({ onClose }) => 
           <div>
             <h4 className="text-sm font-medium text-white mb-2">Tips for Local Models</h4>
             <ul className="text-xs text-gray-400 space-y-1">
-              <li>• <strong>Ollama:</strong> Run <code className="px-1 py-0.5 bg-gray-700 rounded">ollama serve</code> then <code className="px-1 py-0.5 bg-gray-700 rounded">ollama pull llama3</code></li>
-              <li>• <strong>LM Studio:</strong> Enable "Local Server" in settings, default port 1234</li>
+              <li>
+                • <strong>Ollama:</strong> Run{' '}
+                <code className="px-1 py-0.5 bg-gray-700 rounded">ollama serve</code> then{' '}
+                <code className="px-1 py-0.5 bg-gray-700 rounded">ollama pull llama3</code>
+              </li>
+              <li>
+                • <strong>LM Studio:</strong> Enable "Local Server" in settings, default port 1234
+              </li>
               <li>• Local models keep your data private - nothing sent to cloud</li>
               <li>• Recommended: 16GB+ RAM for 7B models, 32GB+ for 13B models</li>
             </ul>

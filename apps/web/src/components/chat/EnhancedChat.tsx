@@ -32,7 +32,7 @@ import { useChatStore, Message } from '../../stores/chat.store';
 import { useAIProviderStore } from '../../stores/ai-provider.store';
 import { usePersonaStore } from '../../stores/persona.store';
 import { CodeExplainer } from '../code/CodeExplainer';
-import { toast } from '../common/Toast';
+import { toast } from 'sonner';
 
 // Typing indicator component
 const TypingIndicator = () => (
@@ -73,7 +73,7 @@ const MessageActions: React.FC<{
       >
         <Copy className="w-4 h-4" />
       </button>
-      
+
       {message.role === 'assistant' && (
         <>
           <button
@@ -103,7 +103,7 @@ const MessageActions: React.FC<{
           </button>
         </>
       )}
-      
+
       <div className="relative">
         <button
           onClick={() => setShowMenu(!showMenu)}
@@ -111,7 +111,7 @@ const MessageActions: React.FC<{
         >
           <MoreVertical className="w-4 h-4" />
         </button>
-        
+
         <AnimatePresence>
           {showMenu && (
             <motion.div
@@ -138,7 +138,10 @@ const MessageActions: React.FC<{
 };
 
 // Code block detection and rendering
-const renderMessageContent = (content: string, onExecuteCode?: (code: string, lang: string) => void) => {
+const renderMessageContent = (
+  content: string,
+  onExecuteCode?: (code: string, lang: string) => void
+) => {
   const codeBlockRegex = /```(\w+)?\n([\s\S]*?)```/g;
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
@@ -207,11 +210,13 @@ const ChatMessage: React.FC<{
       className={`group flex gap-4 ${isUser ? 'flex-row-reverse' : ''}`}
     >
       {/* Avatar */}
-      <div className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
-        isUser 
-          ? 'bg-gradient-to-br from-blue-500 to-purple-600' 
-          : 'bg-gradient-to-br from-emerald-500 to-cyan-600'
-      }`}>
+      <div
+        className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center ${
+          isUser
+            ? 'bg-gradient-to-br from-blue-500 to-purple-600'
+            : 'bg-gradient-to-br from-emerald-500 to-cyan-600'
+        }`}
+      >
         {isUser ? (
           <User className="w-5 h-5 text-white" />
         ) : personaAvatar ? (
@@ -230,7 +235,10 @@ const ChatMessage: React.FC<{
           </span>
           <span className="text-xs text-gray-500 flex items-center gap-1">
             <Clock className="w-3 h-3" />
-            {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            {new Date(message.timestamp).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
           </span>
           {message.model && (
             <span className="text-xs px-2 py-0.5 bg-gray-700/50 rounded-full text-gray-400">
@@ -240,11 +248,13 @@ const ChatMessage: React.FC<{
         </div>
 
         {/* Message bubble */}
-        <div className={`rounded-2xl p-4 ${
-          isUser 
-            ? 'bg-blue-600/20 border border-blue-500/30 text-gray-100' 
-            : 'bg-gray-800/50 border border-gray-700/50 text-gray-200'
-        }`}>
+        <div
+          className={`rounded-2xl p-4 ${
+            isUser
+              ? 'bg-blue-600/20 border border-blue-500/30 text-gray-100'
+              : 'bg-gray-800/50 border border-gray-700/50 text-gray-200'
+          }`}
+        >
           {message.isStreaming ? (
             <div className="flex items-center gap-2">
               <TypingIndicator />
@@ -287,10 +297,17 @@ const ChatMessage: React.FC<{
 // Model selector dropdown
 const ModelSelector: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const { providers, activeProvider, selectedModelId, setActiveProvider, setSelectedModel, getActiveModel } = useAIProviderStore();
-  
+  const {
+    providers,
+    activeProvider,
+    selectedModelId,
+    setActiveProvider,
+    setSelectedModel,
+    getActiveModel,
+  } = useAIProviderStore();
+
   const activeModel = getActiveModel();
-  const activeProviderData = providers.find(p => p.id === activeProvider);
+  const activeProviderData = providers.find((p) => p.id === activeProvider);
 
   return (
     <div className="relative">
@@ -299,10 +316,10 @@ const ModelSelector: React.FC = () => {
         className="flex items-center gap-2 px-3 py-1.5 bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700 rounded-lg transition-colors"
       >
         <Sparkles className="w-4 h-4 text-blue-400" />
-        <span className="text-sm text-gray-300">
-          {activeModel?.name || 'Select Model'}
-        </span>
-        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <span className="text-sm text-gray-300">{activeModel?.name || 'Select Model'}</span>
+        <ChevronDown
+          className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+        />
       </button>
 
       <AnimatePresence>
@@ -314,40 +331,42 @@ const ModelSelector: React.FC = () => {
             className="absolute top-full left-0 mt-2 w-72 bg-gray-800 border border-gray-700 rounded-xl shadow-xl z-50 overflow-hidden"
           >
             <div className="max-h-80 overflow-y-auto">
-              {providers.filter(p => p.models.length > 0).map((provider) => (
-                <div key={provider.id}>
-                  <div className="px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-900/50">
-                    {provider.name}
-                  </div>
-                  {provider.models.map((model) => (
-                    <button
-                      key={model.id}
-                      onClick={() => {
-                        setActiveProvider(provider.id);
-                        setSelectedModel(model.id);
-                        setIsOpen(false);
-                      }}
-                      className={`w-full px-3 py-2 text-left hover:bg-gray-700/50 flex items-center justify-between ${
-                        activeProvider === provider.id && selectedModelId === model.id
-                          ? 'bg-blue-500/10 border-l-2 border-blue-500'
-                          : ''
-                      }`}
-                    >
-                      <div>
-                        <div className="text-sm text-gray-200">{model.name}</div>
-                        {model.contextWindow && (
-                          <div className="text-xs text-gray-500">
-                            {Math.round(model.contextWindow / 1000)}K context
-                          </div>
+              {providers
+                .filter((p) => p.models.length > 0)
+                .map((provider) => (
+                  <div key={provider.id}>
+                    <div className="px-3 py-2 text-xs font-medium text-gray-500 uppercase tracking-wider bg-gray-900/50">
+                      {provider.name}
+                    </div>
+                    {provider.models.map((model) => (
+                      <button
+                        key={model.id}
+                        onClick={() => {
+                          setActiveProvider(provider.id);
+                          setSelectedModel(model.id);
+                          setIsOpen(false);
+                        }}
+                        className={`w-full px-3 py-2 text-left hover:bg-gray-700/50 flex items-center justify-between ${
+                          activeProvider === provider.id && selectedModelId === model.id
+                            ? 'bg-blue-500/10 border-l-2 border-blue-500'
+                            : ''
+                        }`}
+                      >
+                        <div>
+                          <div className="text-sm text-gray-200">{model.name}</div>
+                          {model.contextWindow && (
+                            <div className="text-xs text-gray-500">
+                              {Math.round(model.contextWindow / 1000)}K context
+                            </div>
+                          )}
+                        </div>
+                        {activeProvider === provider.id && selectedModelId === model.id && (
+                          <Check className="w-4 h-4 text-blue-400" />
                         )}
-                      </div>
-                      {activeProvider === provider.id && selectedModelId === model.id && (
-                        <Check className="w-4 h-4 text-blue-400" />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              ))}
+                      </button>
+                    ))}
+                  </div>
+                ))}
             </div>
           </motion.div>
         )}
@@ -370,17 +389,24 @@ export const EnhancedChat: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  
-  const { messages, currentConversationId, isLoading, sendMessage, regenerateMessage, setMessageReaction } = useChatStore();
+
+  const {
+    messages,
+    currentConversationId,
+    isLoading,
+    sendMessage,
+    regenerateMessage,
+    setMessageReaction,
+  } = useChatStore();
   const { activeProvider, getActiveModel } = useAIProviderStore();
   const { selectedPersona, personas } = usePersonaStore();
 
   const currentMessages = useMemo(() => {
-    return messages.filter(m => m.conversationId === currentConversationId);
+    return messages.filter((m) => m.conversationId === currentConversationId);
   }, [messages, currentConversationId]);
 
   const currentPersona = useMemo(() => {
-    return personas.find(p => p.id === selectedPersona);
+    return personas.find((p) => p.id === selectedPersona);
   }, [personas, selectedPersona]);
 
   // Auto-scroll to bottom
@@ -424,14 +450,14 @@ export const EnhancedChat: React.FC = () => {
   };
 
   const handleReact = (messageId: string, reaction: 'like' | 'dislike') => {
-    const message = currentMessages.find(m => m.id === messageId);
+    const message = currentMessages.find((m) => m.id === messageId);
     const newReaction = message?.reaction === reaction ? undefined : reaction;
     setMessageReaction(messageId, newReaction);
   };
 
   const handleExecuteCode = (code: string, lang: string) => {
     // Execute code in terminal (could integrate with terminal store)
-    toast.info('Code execution', 'Opening in terminal...');
+    toast.info('Opening in terminal...', { description: 'Code execution' });
     // This could navigate to terminal page with pre-filled code
   };
 
@@ -451,15 +477,13 @@ export const EnhancedChat: React.FC = () => {
             </div>
           )}
           <div>
-            <h2 className="font-semibold text-white">
-              {currentPersona?.name || 'AI Assistant'}
-            </h2>
+            <h2 className="font-semibold text-white">{currentPersona?.name || 'AI Assistant'}</h2>
             <p className="text-xs text-gray-400">
               {currentPersona?.description || 'Ready to help with code and commands'}
             </p>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-3">
           <ModelSelector />
           <button className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-colors">
@@ -475,13 +499,12 @@ export const EnhancedChat: React.FC = () => {
             <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500/20 to-purple-600/20 flex items-center justify-center mb-6">
               <Sparkles className="w-10 h-10 text-blue-400" />
             </div>
-            <h3 className="text-xl font-semibold text-white mb-2">
-              Start a conversation
-            </h3>
+            <h3 className="text-xl font-semibold text-white mb-2">Start a conversation</h3>
             <p className="text-gray-400 mb-8 max-w-md">
-              Ask questions about code, get explanations, debug issues, or just chat with your AI assistant.
+              Ask questions about code, get explanations, debug issues, or just chat with your AI
+              assistant.
             </p>
-            
+
             {/* Suggestions */}
             <div className="flex flex-wrap justify-center gap-2">
               {suggestions.map((suggestion, i) => (
@@ -528,10 +551,16 @@ export const EnhancedChat: React.FC = () => {
         <div className="flex items-end gap-3">
           {/* Attachment buttons */}
           <div className="flex items-center gap-1 pb-2">
-            <button className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-colors" title="Attach file">
+            <button
+              className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-colors"
+              title="Attach file"
+            >
               <Paperclip className="w-5 h-5" />
             </button>
-            <button className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-colors" title="Add image">
+            <button
+              className="p-2 hover:bg-gray-800 rounded-lg text-gray-400 hover:text-white transition-colors"
+              title="Add image"
+            >
               <Image className="w-5 h-5" />
             </button>
           </div>
@@ -555,15 +584,15 @@ export const EnhancedChat: React.FC = () => {
             <button
               onClick={() => setIsRecording(!isRecording)}
               className={`p-2 rounded-lg transition-colors ${
-                isRecording 
-                  ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30' 
+                isRecording
+                  ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
                   : 'hover:bg-gray-800 text-gray-400 hover:text-white'
               }`}
               title={isRecording ? 'Stop recording' : 'Voice input'}
             >
               {isRecording ? <Square className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
             </button>
-            
+
             <button
               onClick={handleSend}
               disabled={!input.trim() || isLoading || !activeProvider}

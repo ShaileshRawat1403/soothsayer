@@ -24,6 +24,13 @@
     --input: 0 0% 92%;
     --ring: 0 0% 9%;
     --radius: 0.75rem;
+
+    /* Semantic surface colors for common patterns */
+    --surface-hover: 0 0% 97%;
+    --surface-active: 0 0% 94%;
+    --border-subtle: 0 0% 88%;
+    --text-muted: 0 0% 55%;
+    --text-subtle: 0 0% 65%;
   }
 
   .dark {
@@ -46,6 +53,13 @@
     --border: 0 0% 12%;
     --input: 0 0% 12%;
     --ring: 0 0% 83%;
+
+    /* Semantic surface colors for common patterns */
+    --surface-hover: 0 0% 10%;
+    --surface-active: 0 0% 15%;
+    --border-subtle: 0 0% 18%;
+    --text-muted: 0 0% 60%;
+    --text-subtle: 0 0% 45%;
   }
 }
 
@@ -55,7 +69,13 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
-    font-feature-settings: "ss01", "ss02", "cv01", "cv02", "rlig" 1, "calt" 1;
+    font-feature-settings:
+      'ss01',
+      'ss02',
+      'cv01',
+      'cv02',
+      'rlig' 1,
+      'calt' 1;
     letter-spacing: -0.015em;
   }
 }
@@ -70,11 +90,15 @@
   }
 
   .shadow-nuance {
-    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.02), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
+    box-shadow:
+      0 1px 3px 0 rgba(0, 0, 0, 0.02),
+      0 1px 2px -1px rgba(0, 0, 0, 0.02);
   }
 
   .shadow-nuance-lg {
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.04), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
+    box-shadow:
+      0 4px 6px -1px rgba(0, 0, 0, 0.04),
+      0 2px 4px -2px rgba(0, 0, 0, 0.04);
   }
 
   .hover-lift {
@@ -96,6 +120,23 @@
   .glass-card {
     @apply bg-card/30 backdrop-blur-xl border border-border/40;
   }
+
+  /* Semantic surface utilities */
+  .bg-surface-hover {
+    background-color: hsl(var(--surface-hover));
+  }
+  .bg-surface-active {
+    background-color: hsl(var(--surface-active));
+  }
+  .border-surface {
+    border-color: hsl(var(--border-subtle));
+  }
+  .text-muted {
+    color: hsl(var(--text-muted));
+  }
+  .text-subtle {
+    color: hsl(var(--text-subtle));
+  }
 }
 
 .page-container {
@@ -116,13 +157,26 @@
 
 /* Precise Animations */
 @keyframes scanning {
-  0%, 100% { transform: translateY(0%); opacity: 0.03; }
-  50% { transform: translateY(100vh); opacity: 0.1; }
+  0%,
+  100% {
+    transform: translateY(0%);
+    opacity: 0.03;
+  }
+  50% {
+    transform: translateY(100vh);
+    opacity: 0.1;
+  }
 }
 
 @keyframes fade-in-up {
-  from { opacity: 0; transform: translateY(6px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .animate-in-up {
@@ -134,7 +188,8 @@
   @apply text-[14px] leading-relaxed text-foreground/80 font-medium;
 }
 
-.prose-refined b, .prose-refined strong {
+.prose-refined b,
+.prose-refined strong {
   @apply font-black text-foreground;
 }
 

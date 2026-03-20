@@ -28,7 +28,8 @@ import {
   ChevronDown,
   CheckCircle,
   Menu,
-  ShieldCheck
+  ShieldCheck,
+  X,
 } from 'lucide-react';
 import { useTheme } from '@/components/common/ThemeProvider';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -47,8 +48,9 @@ const navItems = [
 
 export function MainLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
-  
+
   const { user, logout } = useAuthStore();
   const { currentPersona } = usePersonaStore();
   const { currentWorkspace } = useWorkspaceStore();
@@ -56,11 +58,15 @@ export function MainLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const notifRef = useRef<HTMLDivElement>(null);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
         setShowNotifications(false);
+      }
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target as Node)) {
+        setMobileMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -72,30 +78,130 @@ export function MainLayout() {
     navigate('/login');
   };
 
+  const closeMobileMenu = () => setMobileMenuOpen(false);
+
   return (
     <div className="flex h-screen bg-background overflow-hidden text-foreground selection:bg-primary/30 font-sans transition-colors duration-500">
-      {/* Sidebar - Nuanced Density */}
+      {/* Mobile Menu Button */}
+      <button
+        onClick={() => setMobileMenuOpen(true)}
+        className="fixed bottom-4 right-4 z-50 md:hidden flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg active:scale-95 transition-all"
+        aria-label="Open menu"
+      >
+        <Menu className="h-5 w-5" />
+      </button>
+
+      {/* Mobile Drawer Overlay */}
+      <AnimatePresence>
+        {mobileMenuOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm md:hidden"
+              onClick={closeMobileMenu}
+            />
+            <motion.nav
+              ref={mobileMenuRef}
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
+              className="fixed left-0 top-0 bottom-0 z-50 w-72 bg-card border-r border-border/30 md:hidden flex flex-col"
+            >
+              <div className="flex h-14 items-center justify-between px-4 border-b border-border/20">
+                <div
+                  className="flex items-center gap-2.5 cursor-pointer"
+                  onClick={() => {
+                    navigate('/dashboard');
+                    closeMobileMenu();
+                  }}
+                >
+                  <Logo size="sm" />
+                  <span className="font-black tracking-tighter text-sm uppercase">Soothsayer</span>
+                </div>
+                <button
+                  onClick={closeMobileMenu}
+                  className="p-2 hover:bg-muted/40 rounded-lg"
+                  aria-label="Close menu"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+                {navItems.map((item) => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    onClick={closeMobileMenu}
+                    className={({ isActive }) =>
+                      cn(
+                        'flex items-center gap-3 rounded-lg px-3 py-3 transition-all',
+                        isActive
+                          ? 'bg-primary text-primary-foreground'
+                          : 'text-muted-foreground/60 hover:text-foreground hover:bg-muted/40'
+                      )
+                    }
+                  >
+                    <item.icon className="h-5 w-5" />
+                    <span className="text-sm font-medium">{item.label}</span>
+                  </NavLink>
+                ))}
+              </nav>
+              <div className="p-3 border-t border-border/20">
+                <button
+                  onClick={() => {
+                    handleLogout();
+                    closeMobileMenu();
+                  }}
+                  className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-muted-foreground/60 hover:text-destructive hover:bg-destructive/5 transition-all"
+                >
+                  <LogOut className="h-5 w-5" />
+                  <span className="text-sm font-medium">Sign Out</span>
+                </button>
+              </div>
+            </motion.nav>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Desktop Sidebar - Hidden on mobile */}
       <motion.aside
         initial={false}
         animate={{ width: sidebarCollapsed ? 64 : 240 }}
-        transition={{ type: "spring", bounce: 0, duration: 0.4 }}
-        className="relative z-40 flex flex-col border-r border-border/30 bg-card/20 backdrop-blur-3xl"
+        transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
+        className="hidden md:flex relative z-40 flex-col border-r border-border/30 bg-card/20 backdrop-blur-3xl"
       >
         {/* Branding - High Fidelity */}
         <div className="flex h-14 items-center justify-between px-4 border-b border-border/20">
           <AnimatePresence mode="wait">
             {!sidebarCollapsed ? (
-              <motion.div 
+              <motion.div
                 key="full"
-                initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
                 className="flex items-center gap-2.5 cursor-pointer group"
                 onClick={() => navigate('/dashboard')}
               >
-                <Logo size="sm" className="transition-transform group-hover:rotate-12 duration-500" />
-                <span className="font-black tracking-tighter text-sm uppercase bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/60">Soothsayer</span>
+                <Logo
+                  size="sm"
+                  className="transition-transform group-hover:rotate-12 duration-500"
+                />
+                <span className="font-black tracking-tighter text-sm uppercase bg-clip-text text-transparent bg-gradient-to-r from-foreground to-foreground/60">
+                  Soothsayer
+                </span>
               </motion.div>
             ) : (
-              <motion.div key="icon" initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.8 }} className="mx-auto cursor-pointer" onClick={() => navigate('/dashboard')}>
+              <motion.div
+                key="icon"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                className="mx-auto cursor-pointer"
+                onClick={() => navigate('/dashboard')}
+              >
                 <Logo size="sm" />
               </motion.div>
             )}
@@ -107,7 +213,11 @@ export function MainLayout() {
           onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
           className="absolute -right-3 top-16 z-50 flex h-6 w-6 items-center justify-center rounded-full border border-border/40 bg-background shadow-nuance hover:scale-110 active:scale-95 transition-all"
         >
-          {sidebarCollapsed ? <ChevronRight className="h-3 w-3 text-muted-foreground" /> : <ChevronLeft className="h-3 w-3 text-muted-foreground" />}
+          {sidebarCollapsed ? (
+            <ChevronRight className="h-3 w-3 text-muted-foreground" />
+          ) : (
+            <ChevronLeft className="h-3 w-3 text-muted-foreground" />
+          )}
         </button>
 
         {/* Workspace Hub - Minimalist */}
@@ -117,7 +227,9 @@ export function MainLayout() {
               <Sparkles className="h-3.5 w-3.5" />
             </div>
             {!sidebarCollapsed && (
-              <span className="flex-1 text-left truncate uppercase tracking-[0.2em] text-[9px] font-black text-muted-foreground/60">{currentWorkspace?.name || 'Standard Context'}</span>
+              <span className="flex-1 text-left truncate uppercase tracking-[0.2em] text-[9px] font-black text-muted-foreground/60">
+                {currentWorkspace?.name || 'Standard Context'}
+              </span>
             )}
           </button>
         </div>
@@ -139,32 +251,54 @@ export function MainLayout() {
               }
             >
               <item.icon className="h-4 w-4 shrink-0 transition-transform group-hover:scale-110 duration-300" />
-              {!sidebarCollapsed && <span className="text-[10px] font-black uppercase tracking-widest truncate">{item.label}</span>}
+              {!sidebarCollapsed && (
+                <span className="text-[10px] font-black uppercase tracking-widest truncate">
+                  {item.label}
+                </span>
+              )}
             </NavLink>
           ))}
         </nav>
 
         {/* Operator Hub - Clean Bottom */}
         <div className="mt-auto p-3 border-t border-border/20 space-y-2">
-          <div className={cn(
-            "flex items-center gap-2.5 p-1.5 rounded-xl transition-all",
-            sidebarCollapsed ? "flex-col" : "hover:bg-muted/10"
-          )}>
+          <div
+            className={cn(
+              'flex items-center gap-2.5 p-1.5 rounded-xl transition-all',
+              sidebarCollapsed ? 'flex-col' : 'hover:bg-muted/10'
+            )}
+          >
             <div className="h-8 w-8 rounded-lg bg-primary text-white flex items-center justify-center text-[10px] font-black shadow-lg shadow-primary/10 flex-shrink-0">
               {user?.name?.charAt(0).toUpperCase() || 'O'}
             </div>
             {!sidebarCollapsed && (
               <div className="flex-1 min-w-0">
-                <div className="truncate text-[10px] font-black uppercase tracking-tight leading-none">{user?.name}</div>
-                <div className="truncate text-[8px] font-black text-emerald-600/60 mt-1 uppercase tracking-widest leading-none">Identity Linked</div>
+                <div className="truncate text-[10px] font-black uppercase tracking-tight leading-none">
+                  {user?.name}
+                </div>
+                <div className="truncate text-[8px] font-black text-emerald-600/60 mt-1 uppercase tracking-widest leading-none">
+                  Identity Linked
+                </div>
               </div>
             )}
           </div>
           <div className="flex gap-1">
-            <button onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')} className="flex-1 flex h-8 items-center justify-center rounded-lg bg-muted/10 text-muted-foreground/60 hover:text-primary hover:bg-primary/5 active-scale transition-all" title="Toggle Theme">
-              {resolvedTheme === 'dark' ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+            <button
+              onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
+              className="flex-1 flex h-8 items-center justify-center rounded-lg bg-muted/10 text-muted-foreground/60 hover:text-primary hover:bg-primary/5 active-scale transition-all"
+              title="Toggle Theme"
+            >
+              {resolvedTheme === 'dark' ? (
+                <Sun className="h-3.5 w-3.5" />
+              ) : (
+                <Moon className="h-3.5 w-3.5" />
+              )}
             </button>
-            <button onClick={handleLogout} className="flex-1 flex h-8 items-center justify-center rounded-lg bg-rose-500/5 text-rose-500/40 hover:text-rose-600 hover:bg-rose-500/10 active-scale transition-all" title="Sign Out">
+            <button
+              onClick={handleLogout}
+              className="flex-1 flex h-8 items-center justify-center rounded-lg bg-rose-500/5 text-rose-500/40 hover:text-rose-600 hover:bg-rose-500/10 active-scale transition-all"
+              title="Sign Out"
+            >
               <LogOut className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -173,33 +307,40 @@ export function MainLayout() {
 
       {/* Main Workstation */}
       <div className="flex-1 flex flex-col relative overflow-hidden">
-        {/* Header - Fixed 56px Pass */}
-        <header className="h-14 border-b border-border/30 bg-background/40 backdrop-blur-3xl px-8 flex items-center justify-between z-30 transition-all duration-500">
+        {/* Header - Fixed 56px Pass - Hidden on mobile */}
+        <header className="hidden md:flex h-14 border-b border-border/30 bg-background/40 backdrop-blur-3xl px-8 items-center justify-between z-30 transition-all duration-500">
           <div className="flex-1 max-w-sm relative group">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground/40 group-focus-within:text-primary transition-colors duration-300" />
-            <input 
-              type="text" placeholder="Search operational traces..." 
-              className="w-full h-9 rounded-xl bg-muted/10 border border-border/40 pl-9 pr-4 text-xs font-bold focus:ring-4 focus:ring-primary/5 focus:border-primary/20 outline-none transition-all placeholder:text-muted-foreground/20" 
+            <input
+              type="text"
+              placeholder="Search operational traces..."
+              className="w-full h-9 rounded-xl bg-muted/10 border border-border/40 pl-9 pr-4 text-xs font-bold focus:ring-4 focus:ring-primary/5 focus:border-primary/20 outline-none transition-all placeholder:text-muted-foreground/20"
             />
           </div>
 
           <div className="flex items-center gap-6">
             <div className="hidden md:flex items-center gap-6 pr-6 border-r border-border/20">
               <div className="flex flex-col items-end">
-                <span className="text-[8px] font-black text-muted-foreground/40 uppercase tracking-[0.2em] leading-none">Authority</span>
+                <span className="text-[8px] font-black text-muted-foreground/40 uppercase tracking-[0.2em] leading-none">
+                  Authority
+                </span>
                 <div className="flex items-center gap-1.5 mt-1">
                   <div className="h-1 w-1 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]" />
-                  <span className="text-[10px] font-black text-foreground uppercase tracking-tight">Synchronized</span>
+                  <span className="text-[10px] font-black text-foreground uppercase tracking-tight">
+                    Synchronized
+                  </span>
                 </div>
               </div>
             </div>
-            
+
             <div className="relative" ref={notifRef}>
-              <button 
+              <button
                 onClick={() => setShowNotifications(!showNotifications)}
                 className={cn(
-                  "h-9 w-9 flex items-center justify-center rounded-xl transition-all active-scale",
-                  showNotifications ? "bg-primary text-white shadow-xl shadow-primary/20" : "text-muted-foreground/60 hover:text-foreground hover:bg-muted/40"
+                  'h-9 w-9 flex items-center justify-center rounded-xl transition-all active-scale',
+                  showNotifications
+                    ? 'bg-primary text-white shadow-xl shadow-primary/20'
+                    : 'text-muted-foreground/60 hover:text-foreground hover:bg-muted/40'
                 )}
               >
                 <Bell className="h-4 w-4" />
@@ -209,7 +350,10 @@ export function MainLayout() {
         </header>
 
         {/* Viewport - Responsive Container */}
-        <main className="flex-1 overflow-y-auto scrollbar-none relative pt-0 bg-muted/[0.01]">
+        <main
+          id="main-content"
+          className="flex-1 overflow-y-auto scrollbar-none relative pt-0 bg-muted/[0.01]"
+        >
           <Outlet />
         </main>
       </div>
