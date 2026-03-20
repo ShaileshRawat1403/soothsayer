@@ -2,6 +2,27 @@
 
 Operational guidance for engineers/agents running Soothsayer in development and EC2 test environments.
 
+## Quick Start
+
+```bash
+./launch.sh
+```
+
+Or manually:
+
+```bash
+# Build & start API
+pnpm --filter @soothsayer/api build
+pnpm --filter @soothsayer/api prisma:generate
+pnpm --filter @soothsayer/api prisma:push
+node apps/api/dist/apps/api/src/main.js &
+
+# Start Web
+pnpm --filter @soothsayer/web exec vite --host 0.0.0.0
+```
+
+Open http://localhost:5173/
+
 ## Environment Baseline
 
 - API: `apps/api` (NestJS)
@@ -166,14 +187,15 @@ DAX (Data Agent eXecutor) provides the execution workstation with run management
 
 ```bash
 # 1. Prisma setup
-npx -y pnpm@8.12.0 --filter @soothsayer/api prisma:generate
-npx -y pnpm@8.12.0 --filter @soothsayer/api prisma:push
+pnpm --filter @soothsayer/api build
+pnpm --filter @soothsayer/api prisma:generate
+pnpm --filter @soothsayer/api prisma:push
 
 # 2. Start API (requires DAX server running)
-npx -y pnpm@8.12.0 --filter @soothsayer/api dev
+node apps/api/dist/apps/api/src/main.js &
 
 # 3. Start Web
-npx -y pnpm@8.12.0 --filter @soothsayer/web exec vite
+pnpm --filter @soothsayer/web exec vite --host 0.0.0.0
 ```
 
 ### DAX Endpoints
