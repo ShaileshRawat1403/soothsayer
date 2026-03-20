@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/auth.store';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { AuthLayout } from '@/components/layout/AuthLayout';
@@ -16,6 +16,7 @@ import { DaxOverviewPage } from '@/pages/DaxOverviewPage';
 import { ThemeProvider } from '@/components/common/ThemeProvider';
 import { CommandPalette } from '@/components/common/CommandPalette';
 import { OnboardingWizard } from '@/components/common/OnboardingWizard';
+import { PageTransition } from '@/components/common/PageTransition';
 import { useEffect, useState } from 'react';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -100,17 +101,94 @@ function App() {
             </ProtectedRoute>
           }
         >
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/chat" element={<ChatPage />} />
-          <Route path="/chat/:conversationId" element={<ChatPage />} />
-          <Route path="/terminal" element={<TerminalPage />} />
-          <Route path="/workflows" element={<WorkflowsPage />} />
-          <Route path="/workflows/:workflowId" element={<WorkflowsPage />} />
-          <Route path="/personas" element={<PersonasPage />} />
-          <Route path="/analytics" element={<AnalyticsPage />} />
-          <Route path="/dax" element={<DaxOverviewPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/runs/:runId" element={<RunPage />} />
+          <Route
+            path="/dashboard"
+            element={
+              <PageTransition>
+                <DashboardPage />
+              </PageTransition>
+            }
+          />
+          <Route
+            path="/chat"
+            element={
+              <PageTransition>
+                <ChatPage />
+              </PageTransition>
+            }
+          />
+          <Route
+            path="/chat/:conversationId"
+            element={
+              <PageTransition>
+                <ChatPage />
+              </PageTransition>
+            }
+          />
+          <Route
+            path="/terminal"
+            element={
+              <PageTransition>
+                <TerminalPage />
+              </PageTransition>
+            }
+          />
+          <Route
+            path="/workflows"
+            element={
+              <PageTransition>
+                <WorkflowsPage />
+              </PageTransition>
+            }
+          />
+          <Route
+            path="/workflows/:workflowId"
+            element={
+              <PageTransition>
+                <WorkflowsPage />
+              </PageTransition>
+            }
+          />
+          <Route
+            path="/personas"
+            element={
+              <PageTransition>
+                <PersonasPage />
+              </PageTransition>
+            }
+          />
+          <Route
+            path="/analytics"
+            element={
+              <PageTransition>
+                <AnalyticsPage />
+              </PageTransition>
+            }
+          />
+          <Route
+            path="/dax"
+            element={
+              <PageTransition>
+                <DaxOverviewPage />
+              </PageTransition>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <PageTransition>
+                <SettingsPage />
+              </PageTransition>
+            }
+          />
+          <Route
+            path="/runs/:runId"
+            element={
+              <PageTransition>
+                <RunPage />
+              </PageTransition>
+            }
+          />
         </Route>
 
         {/* Default redirect */}

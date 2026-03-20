@@ -234,30 +234,61 @@ export function MainLayout() {
           </button>
         </div>
 
-        {/* Navigation - High Density */}
+        {/* Navigation - High Density with Fluid Animations */}
         <nav className="flex-1 space-y-0.5 px-3 overflow-y-auto scrollbar-none">
-          {navItems.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              className={({ isActive }) =>
-                cn(
-                  'group flex items-center gap-3 rounded-lg px-2.5 py-2 transition-all active-scale',
-                  isActive
-                    ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/10'
-                    : 'text-muted-foreground/60 hover:text-foreground hover:bg-muted/40',
-                  sidebarCollapsed && 'justify-center'
-                )
-              }
-            >
-              <item.icon className="h-4 w-4 shrink-0 transition-transform group-hover:scale-110 duration-300" />
-              {!sidebarCollapsed && (
-                <span className="text-[10px] font-black uppercase tracking-widest truncate">
-                  {item.label}
-                </span>
-              )}
-            </NavLink>
-          ))}
+          {navItems.map((item, index) => {
+            const isActive =
+              location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+            return (
+              <motion.div
+                key={item.path}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.03, type: 'spring', stiffness: 300, damping: 25 }}
+              >
+                <NavLink
+                  to={item.path}
+                  className={cn(
+                    'group relative flex items-center gap-3 rounded-lg px-2.5 py-2 transition-all duration-200',
+                    isActive
+                      ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/10'
+                      : 'text-muted-foreground/60 hover:text-foreground hover:bg-muted/40',
+                    sidebarCollapsed && 'justify-center'
+                  )}
+                >
+                  <motion.div
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.95 }}
+                    className="relative"
+                  >
+                    <item.icon className="h-4 w-4 shrink-0" />
+                    {!sidebarCollapsed && (
+                      <motion.div
+                        className="absolute -bottom-1 left-1/2 h-0.5 bg-primary rounded-full"
+                        initial={{ width: 0, x: '-50%' }}
+                        whileHover={{ width: '60%' }}
+                        transition={{ duration: 0.2 }}
+                      />
+                    )}
+                  </motion.div>
+                  {!sidebarCollapsed && (
+                    <span className="text-[10px] font-black uppercase tracking-widest truncate">
+                      {item.label}
+                    </span>
+                  )}
+                  {/* Active indicator dot */}
+                  {sidebarCollapsed && (
+                    <motion.div
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 h-1.5 w-1.5 rounded-full bg-primary"
+                      initial={{ scale: 0 }}
+                      animate={{ scale: isActive ? 1 : 0 }}
+                      transition={{ type: 'spring', stiffness: 400 }}
+                    />
+                  )}
+                </NavLink>
+              </motion.div>
+            );
+          })}
         </nav>
 
         {/* Operator Hub - Clean Bottom */}
@@ -283,24 +314,34 @@ export function MainLayout() {
             )}
           </div>
           <div className="flex gap-1">
-            <button
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
               onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
-              className="flex-1 flex h-8 items-center justify-center rounded-lg bg-muted/10 text-muted-foreground/60 hover:text-primary hover:bg-primary/5 active-scale transition-all"
+              className="flex-1 flex h-8 items-center justify-center rounded-lg bg-muted/10 text-muted-foreground/60 hover:text-primary hover:bg-primary/5 transition-all"
               title="Toggle Theme"
             >
-              {resolvedTheme === 'dark' ? (
-                <Sun className="h-3.5 w-3.5" />
-              ) : (
-                <Moon className="h-3.5 w-3.5" />
-              )}
-            </button>
-            <button
+              <motion.div
+                initial={false}
+                animate={{ rotate: resolvedTheme === 'dark' ? 0 : 180 }}
+                transition={{ type: 'spring', stiffness: 200, damping: 15 }}
+              >
+                {resolvedTheme === 'dark' ? (
+                  <Sun className="h-3.5 w-3.5" />
+                ) : (
+                  <Moon className="h-3.5 w-3.5" />
+                )}
+              </motion.div>
+            </motion.button>
+            <motion.button
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
               onClick={handleLogout}
-              className="flex-1 flex h-8 items-center justify-center rounded-lg bg-rose-500/5 text-rose-500/40 hover:text-rose-600 hover:bg-rose-500/10 active-scale transition-all"
+              className="flex-1 flex h-8 items-center justify-center rounded-lg bg-rose-500/5 text-rose-500/40 hover:text-rose-600 hover:bg-rose-500/10 transition-all"
               title="Sign Out"
             >
               <LogOut className="h-3.5 w-3.5" />
-            </button>
+            </motion.button>
           </div>
         </div>
       </motion.aside>
