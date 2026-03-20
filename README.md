@@ -40,10 +40,10 @@ Soothsayer is not just a chatbot; it is a **DAX (Distributed Autonomous eXecutio
 
 The Soothsayer operator workstation features a professional, minimalist aesthetic optimized for clarity and trust:
 
--   **Approval Inbox V3**: A triage system that prioritizes actions by risk grade and execution impact.
--   **Replay / Audit V3**: Structured, stage-based execution timelines with resource snippet previews.
--   **Contextual Control**: Real-time switching between behavioral personas and inference engines.
--   **Precision Navigation**: One-click jumps from global alerts to specific execution signals.
+- **Approval Inbox V3**: A triage system that prioritizes actions by risk grade and execution impact.
+- **Replay / Audit V3**: Structured, stage-based execution timelines with resource snippet previews.
+- **Contextual Control**: Real-time switching between behavioral personas and inference engines.
+- **Precision Navigation**: One-click jumps from global alerts to specific execution signals.
 
 ## Architecture
 
@@ -77,40 +77,55 @@ The Soothsayer operator workstation features a professional, minimalist aestheti
 
 ### Prerequisites
 
--   Node.js 18+
--   pnpm 8+
--   Docker & Docker Compose
--   [DAX Engine](https://github.com/ShaileshRawat1403/dax) (External runtime)
+- Node.js 18+
+- pnpm 8+
+- PostgreSQL (running locally or via Docker)
+- [DAX Engine](https://github.com/ShaileshRawat1403/dax) (External runtime, optional)
 
-### Development Setup
+### Installation
 
-1.  **Install dependencies**
-    ```bash
-    pnpm install
-    ```
+```bash
+# Install dependencies
+pnpm install
+```
 
-2.  **Start infrastructure**
-    ```bash
-    docker-compose -f docker-compose.dev.yml up -d
-    ```
+### Launch
 
-3.  **Initialize environment**
-    ```bash
-    cp .env.example .env
-    pnpm db:migrate && pnpm db:seed
-    ```
+```bash
+# Easy launch (builds and starts everything)
+./launch.sh
 
-4.  **Start Platform**
-    ```bash
-    pnpm dev
-    ```
+# Or manually:
+# 1. Build API
+pnpm --filter @soothsayer/api build
+
+# 2. Setup Prisma
+pnpm --filter @soothsayer/api prisma:generate
+pnpm --filter @soothsayer/api prisma:push
+
+# 3. Start API
+node apps/api/dist/apps/api/src/main.js &
+
+# 4. Start Web
+pnpm --filter @soothsayer/web exec vite --host 0.0.0.0
+```
+
+Open http://localhost:5173/
+
+### DAX Integration (Optional)
+
+To enable execution features, start the DAX server and ensure `DAX_BASE_URL=http://127.0.0.1:4096` is set in `apps/api/.env`.
+
+- `/runs/new` - Create execution run
+- `/runs/:id` - Run console
+- `/dax` - DAX overview
 
 ## Documentation Hub
 
--   **[docs/README.md](docs/README.md)** - Root documentation index
--   **[docs/architecture.md](docs/architecture.md)** - Detailed system design
--   **[docs/VALIDATION_REPORT_2026_03_19.md](docs/VALIDATION_REPORT_2026_03_19.md)** - Latest runtime stability report
--   **[docs/SOOTHSAYER_ELI12_GUIDE.md](docs/SOOTHSAYER_ELI12_GUIDE.md)** - Beginner-friendly system overview
+- **[docs/README.md](docs/README.md)** - Root documentation index
+- **[docs/architecture.md](docs/architecture.md)** - Detailed system design
+- **[docs/VALIDATION_REPORT_2026_03_19.md](docs/VALIDATION_REPORT_2026_03_19.md)** - Latest runtime stability report
+- **[docs/SOOTHSAYER_ELI12_GUIDE.md](docs/SOOTHSAYER_ELI12_GUIDE.md)** - Beginner-friendly system overview
 
 ## License
 
