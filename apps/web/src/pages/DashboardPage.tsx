@@ -10,30 +10,30 @@ import {
   CheckCircle,
   AlertCircle,
   ArrowRight,
+  Activity,
+  Zap,
+  ShieldCheck,
+  LayoutDashboard,
+  Sparkles,
+  Search,
+  Command as CommandIcon,
+  ChevronRight
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { motion } from 'framer-motion';
 
 const quickActions = [
-  { icon: MessageSquare, label: 'New Chat', path: '/chat', color: 'bg-blue-500' },
-  { icon: Terminal, label: 'Run Command', path: '/terminal', color: 'bg-emerald-500' },
-  { icon: GitBranch, label: 'Create Workflow', path: '/workflows', color: 'bg-purple-500' },
-  { icon: Users, label: 'Switch Persona', path: '/personas', color: 'bg-amber-500' },
-];
-
-const recentActivities = [
-  { type: 'chat', title: 'Code review conversation', time: '2 min ago', status: 'completed' },
-  { type: 'command', title: 'npm audit fix', time: '15 min ago', status: 'completed' },
-  { type: 'workflow', title: 'Deploy to staging', time: '1 hour ago', status: 'running' },
-  { type: 'chat', title: 'API design discussion', time: '3 hours ago', status: 'completed' },
-  { type: 'command', title: 'Database migration', time: '5 hours ago', status: 'failed' },
+  { icon: MessageSquare, label: 'Chat', path: '/chat', color: 'text-blue-500 bg-blue-500/5' },
+  { icon: Terminal, label: 'Terminal', path: '/terminal', color: 'text-emerald-500 bg-emerald-500/5' },
+  { icon: GitBranch, label: 'Workflows', path: '/workflows', color: 'text-purple-500 bg-purple-500/5' },
+  { icon: Users, label: 'Personas', path: '/personas', color: 'text-orange-500 bg-orange-500/5' },
 ];
 
 const stats = [
-  { label: 'Commands Run', value: '128', change: '+12%', icon: Terminal },
-  { label: 'Workflows', value: '24', change: '+8%', icon: GitBranch },
-  { label: 'Conversations', value: '56', change: '+24%', icon: MessageSquare },
-  { label: 'Success Rate', value: '94%', change: '+2%', icon: TrendingUp },
+  { label: 'Authorized Runs', value: '128', icon: Terminal },
+  { label: 'Active Tasks', value: '24', icon: Activity },
+  { label: 'Success Rate', value: '94%', icon: CheckCircle },
 ];
 
 export function DashboardPage() {
@@ -41,145 +41,109 @@ export function DashboardPage() {
   const { currentPersona } = usePersonaStore();
 
   return (
-    <div className="p-6">
-      {/* Welcome Section */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold">
-          Welcome back, {user?.name?.split(' ')[0] || 'User'}!
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-12 p-12 animate-in-up">
+      {/* Header - Nuanced */}
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center gap-2.5 text-[10px] font-black uppercase tracking-[0.3em] text-muted-foreground/50">
+          <div className="h-1.5 w-1.5 rounded-full bg-emerald-500/60 shadow-[0_0_8px_rgba(16,185,129,0.2)]" />
+          Node Operational
+        </div>
+        <h1 className="text-5xl font-black tracking-tighter text-foreground">
+          Welcome, {user?.name?.split(' ')[0] || 'Operator'}
         </h1>
-        <p className="mt-1 text-muted-foreground">
-          Here's what's happening in your workspace today.
+        <p className="text-base font-medium text-muted-foreground/60 max-w-xl leading-relaxed">
+          Inference handshake established. Accessing decentralized execution context.
         </p>
-      </div>
+      </section>
 
-      {/* Quick Actions */}
-      <div className="mb-8">
-        <h2 className="mb-4 text-lg font-semibold">Quick Actions</h2>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+      {/* Primary Grid */}
+      <div className="grid gap-10 lg:grid-cols-3">
+        {/* Quick Access */}
+        <section className="lg:col-span-2 grid gap-4 sm:grid-cols-2">
           {quickActions.map((action) => (
             <Link
               key={action.path}
               to={action.path}
-              className="group flex flex-col items-center gap-3 rounded-xl border border-border bg-card p-4 transition-all hover:border-primary hover:shadow-md"
+              className="group flex items-center justify-between p-7 rounded-2xl border border-border/40 bg-card/20 hover-lift hover-glow"
             >
-              <div
-                className={cn(
-                  'flex h-12 w-12 items-center justify-center rounded-xl text-white transition-transform group-hover:scale-110',
-                  action.color
-                )}
-              >
-                <action.icon className="h-6 w-6" />
+              <div className="flex items-center gap-5">
+                <div className={cn("flex h-11 w-11 items-center justify-center rounded-[1.25rem] transition-all duration-500 group-hover:scale-110", action.color)}>
+                  <action.icon className="h-5.5 w-5.5" />
+                </div>
+                <span className="text-[13px] font-black uppercase tracking-widest text-muted-foreground group-hover:text-foreground transition-colors duration-300">{action.label}</span>
               </div>
-              <span className="text-sm font-medium">{action.label}</span>
+              <ChevronRight className="h-4 w-4 text-muted-foreground/20 group-hover:text-primary group-hover:translate-x-1 transition-all duration-300" />
             </Link>
           ))}
-        </div>
+        </section>
+
+        {/* Status Profile */}
+        <section className="flex flex-col">
+          <div className="flex-1 rounded-[2rem] border border-primary/5 bg-primary/[0.01] p-10 flex flex-col justify-between relative overflow-hidden group hover-glow">
+            <div className="relative z-10">
+              <span className="text-[9px] font-black uppercase tracking-[0.3em] text-primary/40 block mb-8">Authority Node</span>
+              <div className="flex items-center gap-5">
+                <div className="h-14 w-14 rounded-2xl bg-primary text-white flex items-center justify-center shadow-xl shadow-primary/10 transition-transform duration-500 group-hover:scale-105 group-hover:rotate-3">
+                  <Zap className="h-7 w-7 fill-current" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-black tracking-tight leading-none uppercase">{currentPersona?.name || 'Standard'}</h3>
+                  <p className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest mt-2">{currentPersona?.category || 'General'}</p>
+                </div>
+              </div>
+            </div>
+            <Link to="/personas" className="relative z-10 mt-12 button-professional bg-primary text-white text-center py-3 hover:opacity-90">
+              Switch Identity
+            </Link>
+          </div>
+        </section>
       </div>
 
-      {/* Stats Grid */}
-      <div className="mb-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
+      {/* Metrics Row */}
+      <section className="grid gap-6 sm:grid-cols-3">
         {stats.map((stat) => (
-          <div
-            key={stat.label}
-            className="rounded-xl border border-border bg-card p-4"
-          >
-            <div className="flex items-center justify-between">
-              <stat.icon className="h-5 w-5 text-muted-foreground" />
-              <span className="text-sm font-medium text-green-500">{stat.change}</span>
+          <div key={stat.label} className="p-8 rounded-2xl border border-border/40 bg-card/10 flex items-center justify-between hover-glow group transition-all">
+            <div className="space-y-1">
+              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/40">{stat.label}</span>
+              <div className="text-3xl font-black text-foreground">{stat.value}</div>
             </div>
-            <div className="mt-3">
-              <div className="text-2xl font-bold">{stat.value}</div>
-              <div className="text-sm text-muted-foreground">{stat.label}</div>
-            </div>
+            <stat.icon className="h-6 w-6 text-muted-foreground/10 group-hover:text-primary/20 transition-colors duration-500" />
           </div>
         ))}
-      </div>
+      </section>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Current Persona */}
-        <div className="rounded-xl border border-border bg-card p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Active Persona</h2>
-            <Link
-              to="/personas"
-              className="flex items-center gap-1 text-sm text-primary hover:underline"
-            >
-              Change <ArrowRight className="h-3 w-3" />
-            </Link>
-          </div>
-          {currentPersona ? (
-            <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-2xl">
-                {currentPersona.icon}
-              </div>
-              <div className="flex-1">
-                <h3 className="font-semibold">{currentPersona.name}</h3>
-                <p className="text-sm text-muted-foreground">{currentPersona.category}</p>
-                <p className="mt-2 text-sm">{currentPersona.description}</p>
-                <div className="mt-3 flex flex-wrap gap-1">
-                  {currentPersona.capabilities.slice(0, 3).map((cap) => (
-                    <span
-                      key={cap}
-                      className="rounded-full bg-secondary px-2 py-0.5 text-xs"
-                    >
-                      {cap}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <Users className="mb-3 h-12 w-12 text-muted-foreground" />
-              <p className="text-muted-foreground">No persona selected</p>
-              <Link
-                to="/personas"
-                className="mt-2 text-sm text-primary hover:underline"
-              >
-                Select a persona
-              </Link>
-            </div>
-          )}
+      {/* Trace Buffer */}
+      <section className="flex flex-col gap-6">
+        <div className="flex items-center justify-between px-2">
+          <h2 className="text-[11px] font-black uppercase tracking-[0.4em] text-muted-foreground/40">Execution Buffer</h2>
+          <Link to="/analytics" className="text-[10px] font-black uppercase tracking-widest text-primary/60 hover:text-primary transition-all">Full Audit</Link>
         </div>
-
-        {/* Recent Activity */}
-        <div className="rounded-xl border border-border bg-card p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Recent Activity</h2>
-            <Link
-              to="/analytics"
-              className="flex items-center gap-1 text-sm text-primary hover:underline"
-            >
-              View all <ArrowRight className="h-3 w-3" />
-            </Link>
-          </div>
-          <div className="space-y-3">
-            {recentActivities.map((activity, index) => (
-              <div
-                key={index}
-                className="flex items-center gap-3 rounded-lg border border-border p-3"
-              >
-                <div
-                  className={cn(
-                    'flex h-8 w-8 items-center justify-center rounded-lg',
-                    activity.status === 'completed' && 'bg-green-100 text-green-600 dark:bg-green-900/30',
-                    activity.status === 'running' && 'bg-blue-100 text-blue-600 dark:bg-blue-900/30',
-                    activity.status === 'failed' && 'bg-red-100 text-red-600 dark:bg-red-900/30'
-                  )}
-                >
-                  {activity.status === 'completed' && <CheckCircle className="h-4 w-4" />}
-                  {activity.status === 'running' && <Clock className="h-4 w-4 animate-pulse" />}
-                  {activity.status === 'failed' && <AlertCircle className="h-4 w-4" />}
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{activity.title}</p>
-                  <p className="text-xs text-muted-foreground">{activity.time}</p>
+        <div className="grid gap-3">
+          {[
+            { t: 'Security policy audit established', s: 'completed', m: 'Direct Execution', time: '2m ago' },
+            { t: 'Repository context alignment', s: 'running', m: 'Workflow Trace', time: '15m ago' },
+            { t: 'Inference node handshake', s: 'completed', m: 'System Signal', time: '1h ago' }
+          ].map((trace, i) => (
+            <div key={i} className="group flex items-center justify-between p-5 rounded-2xl border border-border/40 bg-card/5 hover:bg-card/20 hover:border-primary/10 transition-all duration-300">
+              <div className="flex items-center gap-6">
+                <div className={cn(
+                  "h-1.5 w-1.5 rounded-full",
+                  trace.s === 'completed' ? "bg-emerald-500/40" : "bg-blue-500/40 animate-pulse"
+                )} />
+                <div>
+                  <span className="text-[13px] font-bold text-foreground group-hover:text-primary transition-colors duration-300 uppercase tracking-tight">{trace.t}</span>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[9px] font-black text-muted-foreground/30 uppercase tracking-widest">{trace.m}</span>
+                    <span className="h-1 w-1 rounded-full bg-border/40" />
+                    <span className="text-[9px] font-bold text-muted-foreground/30 uppercase tracking-widest">{trace.time}</span>
+                  </div>
                 </div>
               </div>
-            ))}
-          </div>
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/10 group-hover:text-primary group-hover:translate-x-1 transition-all duration-300" />
+            </div>
+          ))}
         </div>
-      </div>
+      </section>
     </div>
   );
 }

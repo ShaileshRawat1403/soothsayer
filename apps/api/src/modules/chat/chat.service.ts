@@ -12,6 +12,8 @@ import {
 } from '@aws-sdk/client-bedrock-runtime';
 import { PrismaService } from '../../prisma/prisma.service';
 import { McpService } from '../mcp/mcp.service';
+import { DaxService } from '../dax/dax.service';
+import type { DaxCreateRunRequest, DaxPersonaPreset } from '../dax/dax.types';
 
 type ChatCompletionMessage = {
   role: 'system' | 'user' | 'assistant';
@@ -26,6 +28,7 @@ export class ChatService {
     private prisma: PrismaService,
     private configService: ConfigService,
     private mcpService: McpService,
+    private daxService: DaxService,
   ) {}
 
   async createConversation(
@@ -34,6 +37,7 @@ export class ChatService {
     personaId: string,
     options: {
       projectId?: string;
+      repoPath?: string;
       title?: string;
       memoryMode?: string;
     } = {},
@@ -52,7 +56,14 @@ export class ChatService {
         personaId: resolvedPersonaId,
         title: options.title || 'New Conversation',
         memoryMode: options.memoryMode || 'session',
-        metadata: {},
+        metadata: options.repoPath
+          ? {
+              targeting: {
+                mode: 'explicit_repo_path',
+                repoPath: options.repoPath,
+              },
+            }
+          : {},
       },
     });
 
@@ -183,6 +194,14 @@ export class ChatService {
       },
     });
 
+    const runHandoff = this.shouldHandoffToDaxRun(content)
+      ? await this.createDaxRunHandoff(conversation as any, content, {
+          userId,
+          provider: options.provider,
+          model: options.model,
+        })
+      : null;
+
     let assistantReply = '';
     let providerUsed = options.provider ?? 'unknown';
     let modelUsed = options.model ?? 'unknown';
@@ -241,29 +260,65 @@ export class ChatService {
       }
     }
 
-    try {
-      const completion = await this.generateAssistantReply(conversation, content, {
-        ...options,
-        mcpToolResult,
-      });
-      assistantReply = completion.content;
-      providerUsed = completion.provider;
-      modelUsed = completion.model;
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'unknown provider/inference error';
-      this.logger.error(
-        `Provider inference failed (${String(options.provider || 'default')}): ${String(error)}`,
-      );
-      throw new BadGatewayException(
-        `Model inference failed. Configure a working provider/model. Root cause: ${errorMessage}`,
-      );
+    if (runHandoff) {
+      assistantReply = [
+        'This request needs live execution, so I started a DAX run for it.',
+        '',
+        `Run ID: ${runHandoff.runId}`,
+        '',
+        'Open the live run console to watch progress, handle approvals, and review the final outcome.',
+      ].join('\n');
+      providerUsed = 'dax';
+      modelUsed = options.model || 'dax-run';
+    } else {
+      try {
+        const completion = await this.generateAssistantReply(conversation, content, {
+          ...options,
+          mcpToolResult,
+        });
+        assistantReply = completion.content;
+        providerUsed = completion.provider;
+        modelUsed = completion.model;
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : 'unknown provider/inference error';
+        this.logger.error(
+          `Provider inference failed (${String(options.provider || 'default')}): ${String(error)}`,
+        );
+        throw new BadGatewayException(
+          `Model inference failed. Configure a working provider/model. Root cause: ${errorMessage}`,
+        );
+      }
     }
+
+    const handoffTargetPath = runHandoff
+      ? `/runs/${runHandoff.runId}${
+          runHandoff.targeting
+            ? `?${new URLSearchParams({
+                targetMode: runHandoff.targeting.mode,
+                ...(typeof runHandoff.targeting.repoPath === 'string'
+                  ? { repoPath: runHandoff.targeting.repoPath }
+                  : {}),
+              }).toString()}`
+            : ''
+        }`
+      : undefined;
 
     const assistantMetadata: Record<string, unknown> = {
       provider: providerUsed,
       model: modelUsed,
       personaId: conversation.personaId,
+      ...(runHandoff
+        ? {
+            handoff: {
+              type: 'dax_run',
+              runId: runHandoff.runId,
+              status: runHandoff.status,
+              targetPath: handoffTargetPath,
+              targeting: runHandoff.targeting,
+            },
+          }
+        : {}),
       ...(mcpPreflight ? { mcp: mcpPreflight } : {}),
       ...(mcpToolResult ? { mcpTool: mcpToolResult } : {}),
     };
@@ -284,6 +339,300 @@ export class ChatService {
       assistantMessage,
       jobId: `job_${Date.now()}`,
     };
+  }
+
+  private shouldHandoffToDaxRun(input: string): boolean {
+    const normalized = input.trim().toLowerCase();
+    if (!normalized) return false;
+
+    const explicitExecutionPhrases = [
+      'run this',
+      'start a run',
+      'open a live run',
+      'execute this',
+      'make this change',
+      'apply this patch',
+      'modify the file',
+      'edit the file',
+      'inspect the repo',
+      'inspect the repository',
+      'check the codebase',
+      'scan the repo',
+      'fix the bug',
+      'debug the issue',
+    ];
+
+    if (explicitExecutionPhrases.some((phrase) => normalized.includes(phrase))) {
+      return true;
+    }
+
+    const executionVerbs = /(create|modify|edit|update|patch|run|execute|inspect|scan|fix|debug|append|write)\b/;
+    const executionTargets = /(repo|repository|codebase|file|files|project|workspace|command|shell|patch)\b/;
+    const nonExecutionPrompts = /^(explain|what is|how does|summarize|rewrite|brainstorm|translate|review)\b/;
+
+    if (nonExecutionPrompts.test(normalized)) {
+      return false;
+    }
+
+    return executionVerbs.test(normalized) && executionTargets.test(normalized);
+  }
+
+  private async createDaxRunHandoff(
+    conversation: {
+      id: string;
+      workspaceId: string;
+      projectId?: string | null;
+      personaId: string;
+      persona?: { id?: string; name?: string; config?: unknown } | null;
+      metadata?: unknown;
+    },
+    content: string,
+    options: {
+      userId: string;
+      provider?: string;
+      model?: string;
+    },
+  ) {
+    const personaPreset = this.buildDaxPersonaPreset(
+      {
+        id: conversation.personaId,
+        name: conversation.persona?.name,
+        config: conversation.persona?.config,
+      },
+      options,
+    );
+    const repoPath = await this.resolveChatRepoPath(
+      conversation.workspaceId,
+      conversation.projectId || undefined,
+      conversation.metadata,
+    );
+
+    const request: DaxCreateRunRequest = {
+      intent: {
+        input: content,
+        ...(repoPath ? { repoPath } : {}),
+      },
+      personaPreset,
+      metadata: {
+        source: 'soothsayer',
+        workspaceId: conversation.workspaceId,
+        projectId: conversation.projectId || undefined,
+        chatId: conversation.id,
+        targeting: repoPath
+          ? {
+              mode: 'explicit_repo_path',
+              repoPath,
+            }
+          : {
+              mode: 'default_cwd',
+            },
+      },
+    };
+
+    const created = await this.daxService.createRun({ id: options.userId } as any, request);
+    return {
+      ...created,
+      targeting: repoPath
+        ? {
+            mode: 'explicit_repo_path' as const,
+            repoPath,
+          }
+        : {
+            mode: 'default_cwd' as const,
+          },
+    };
+  }
+
+  private buildDaxPersonaPreset(
+    persona: {
+      id: string;
+      name?: string;
+      config?: unknown;
+    },
+    options: {
+      provider?: string;
+      model?: string;
+    },
+  ): DaxPersonaPreset {
+    type DaxCapabilityClass = NonNullable<DaxPersonaPreset['preferredCapabilityClasses']>[number];
+
+    const config =
+      persona.config && typeof persona.config === 'object'
+        ? (persona.config as Record<string, unknown>)
+        : {};
+
+    const expertiseTags = Array.isArray(config.expertiseTags)
+      ? config.expertiseTags.filter((value): value is string => typeof value === 'string')
+      : [];
+    const toolPreferences = Array.isArray(config.toolPreferences)
+      ? config.toolPreferences.filter(
+          (value): value is { toolId: string; priority?: string } =>
+            typeof value === 'object' &&
+            value !== null &&
+            'toolId' in value &&
+            typeof (value as { toolId?: unknown }).toolId === 'string',
+        )
+      : [];
+    const approvalDefaults =
+      config.approvalDefaults && typeof config.approvalDefaults === 'object'
+        ? (config.approvalDefaults as Record<string, unknown>)
+        : {};
+    const requireApprovalForTier =
+      typeof approvalDefaults.requireApprovalForTier === 'number'
+        ? approvalDefaults.requireApprovalForTier
+        : undefined;
+    const verbosity = this.mapPersonaVerbosity(config.verbosityLevel);
+    const tone = this.mapPersonaTone(config.communicationStyle);
+    const riskLevel = this.mapPersonaRisk(config.riskTolerance);
+
+    const preferredCapabilityClasses = new Set<DaxCapabilityClass>();
+    for (const tag of expertiseTags) {
+      const normalized = tag.toLowerCase();
+      if (normalized.includes('architect') || normalized.includes('analysis')) preferredCapabilityClasses.add('analysis');
+      if (normalized.includes('plan') || normalized.includes('roadmap') || normalized.includes('strategy'))
+        preferredCapabilityClasses.add('planning');
+      if (normalized.includes('code') || normalized.includes('backend') || normalized.includes('frontend'))
+        preferredCapabilityClasses.add('code');
+      if (normalized.includes('refactor')) preferredCapabilityClasses.add('refactor');
+      if (normalized.includes('review') || normalized.includes('audit') || normalized.includes('security'))
+        preferredCapabilityClasses.add('review');
+      if (normalized.includes('docs') || normalized.includes('documentation')) preferredCapabilityClasses.add('docs');
+    }
+    for (const tool of toolPreferences) {
+      const normalized = tool.toolId.toLowerCase();
+      if (normalized.includes('shell') || normalized.includes('terminal') || normalized.includes('command')) {
+        preferredCapabilityClasses.add('shell');
+      }
+      if (normalized.includes('refactor')) preferredCapabilityClasses.add('refactor');
+      if (normalized.includes('review') || normalized.includes('analyzer')) preferredCapabilityClasses.add('review');
+      if (normalized.includes('docs')) preferredCapabilityClasses.add('docs');
+    }
+
+    return {
+      personaId: persona.id,
+      providerHint: options.provider,
+      modelHint: options.model,
+      verbosity,
+      tone,
+      riskLevel,
+      approvalMode:
+        requireApprovalForTier !== undefined
+          ? requireApprovalForTier <= 1
+            ? 'strict'
+            : requireApprovalForTier <= 2
+              ? 'balanced'
+              : 'relaxed'
+          : riskLevel === 'high' || riskLevel === 'critical'
+            ? 'strict'
+            : 'balanced',
+      preferredCapabilityClasses: Array.from(preferredCapabilityClasses),
+      eli12: false,
+    };
+  }
+
+  private mapPersonaVerbosity(value: unknown): DaxPersonaPreset['verbosity'] {
+    const normalized = typeof value === 'string' ? value.toLowerCase() : '';
+    if (normalized.includes('concise') || normalized.includes('brief')) return 'concise';
+    if (normalized.includes('detail') || normalized.includes('thorough')) return 'detailed';
+    return 'balanced';
+  }
+
+  private mapPersonaTone(value: unknown): DaxPersonaPreset['tone'] {
+    const normalized = typeof value === 'string' ? value.toLowerCase() : '';
+    if (normalized.includes('formal')) return 'formal';
+    if (normalized.includes('technical')) return 'technical';
+    if (normalized.includes('direct')) return 'direct';
+    return 'friendly';
+  }
+
+  private mapPersonaRisk(value: unknown): DaxPersonaPreset['riskLevel'] {
+    const normalized = typeof value === 'string' ? value.toLowerCase() : '';
+    if (normalized.includes('high') || normalized.includes('aggressive')) return 'high';
+    if (normalized.includes('critical')) return 'critical';
+    if (normalized.includes('low') || normalized.includes('cautious')) return 'low';
+    return 'medium';
+  }
+
+  private async resolveChatRepoPath(
+    workspaceId: string,
+    projectId?: string,
+    conversationMetadata?: unknown,
+  ): Promise<string | undefined> {
+    const metadataRepoPath = this.extractRepoPathFromTargetingMetadata(conversationMetadata);
+    if (metadataRepoPath) {
+      return metadataRepoPath;
+    }
+
+    if (projectId) {
+      const project = await this.prisma.project.findFirst({
+        where: {
+          id: projectId,
+          workspaceId,
+          deletedAt: null,
+        },
+        select: {
+          rootPath: true,
+          settings: true,
+        },
+      });
+
+      const projectRepoPath =
+        (typeof project?.rootPath === 'string' && project.rootPath.trim()
+          ? project.rootPath.trim()
+          : undefined) || this.extractRepoPathFromSettings(project?.settings);
+
+      if (projectRepoPath) {
+        return projectRepoPath;
+      }
+    }
+
+    const workspace = await this.prisma.workspace.findFirst({
+      where: {
+        id: workspaceId,
+        deletedAt: null,
+      },
+      select: {
+        settings: true,
+      },
+    });
+
+    return this.extractRepoPathFromSettings(workspace?.settings);
+  }
+
+  private extractRepoPathFromTargetingMetadata(metadata: unknown): string | undefined {
+    if (!metadata || typeof metadata !== 'object') {
+      return undefined;
+    }
+
+    const raw = metadata as Record<string, unknown>;
+    const targeting =
+      raw.targeting && typeof raw.targeting === 'object'
+        ? (raw.targeting as Record<string, unknown>)
+        : null;
+
+    if (targeting && typeof targeting.repoPath === 'string' && targeting.repoPath.trim()) {
+      return targeting.repoPath.trim();
+    }
+
+    return undefined;
+  }
+
+  private extractRepoPathFromSettings(settings: unknown): string | undefined {
+    if (!settings || typeof settings !== 'object') {
+      return undefined;
+    }
+
+    const raw = settings as Record<string, unknown>;
+    const candidates = ['repoPath', 'defaultRepoPath', 'targetRepoPath'] as const;
+
+    for (const key of candidates) {
+      const value = raw[key];
+      if (typeof value === 'string' && value.trim()) {
+        return value.trim();
+      }
+    }
+
+    return undefined;
   }
 
   private async resolvePersonaId(params: {

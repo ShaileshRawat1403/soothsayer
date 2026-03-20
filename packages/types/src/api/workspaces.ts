@@ -50,6 +50,8 @@ export interface WorkspaceSettingsRequest {
   enabledToolIds?: string[];
   maxConcurrentJobs?: number;
   retentionDays?: number;
+  defaultProvider?: string;
+  defaultModel?: string;
 }
 
 export interface WorkspaceResponse {

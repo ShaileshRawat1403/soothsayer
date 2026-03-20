@@ -70,6 +70,8 @@ const envSchema = z.object({
   BEDROCK_MAX_RETRIES: z.coerce.number().min(0).max(10).optional(),
   BEDROCK_BASE_BACKOFF_MS: z.coerce.number().positive().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
+  DAX_BASE_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
+  DAX_REQUEST_TIMEOUT_MS: z.coerce.number().positive().optional(),
 
   // Integrations
   SLACK_BOT_TOKEN: z.string().optional(),

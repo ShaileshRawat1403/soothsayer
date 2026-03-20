@@ -1,356 +1,188 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
-import { useAuthStore } from '@/stores/auth.store';
-import { useAIProviderStore, AIProvider } from '@/stores/ai-provider.store';
-import { useTheme } from '@/components/common/ThemeProvider';
-import { useWorkspaceStore } from '@/stores/workspace.store';
-import { apiHelpers } from '@/lib/api';
-import { cn } from '@/lib/utils';
-import {
-  User,
-  Bell,
-  Shield,
-  Palette,
-  Key,
-  Globe,
-  Cpu,
-  Webhook,
-  Save,
+import { useState, useMemo, useEffect } from 'react';
+import { 
+  Cloud, 
+  Laptop, 
+  Server, 
+  Bot, 
+  Cpu, 
+  Zap, 
+  Globe, 
+  Webhook, 
+  Settings as SettingsIcon,
   Eye,
   EyeOff,
-  Check,
-  X,
-  RefreshCw,
-  Zap,
-  Server,
-  Cloud,
-  Laptop,
-  ChevronRight,
-  ExternalLink,
-  AlertCircle,
-  CheckCircle,
-  Info,
-  Plus,
   Trash2,
+  Plus,
+  RefreshCw,
+  Save,
+  CheckCircle2,
+  AlertCircle,
+  Github,
+  MessageSquare,
+  ClipboardList,
+  Layout,
+  FileText,
+  Gamepad2,
+  HardDrive,
+  ChevronRight,
+  Monitor,
+  Moon,
+  Sun,
+  Palette,
+  ShieldCheck,
+  Activity,
+  History,
+  Lock,
+  Loader2,
+  ChevronDown,
+  User,
+  Key,
+  Shield,
+  X,
+  ChevronUp,
+  Box,
+  Command,
+  ArrowUpRight
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/stores/auth.store';
+import { useAIProviderStore, type AIProvider } from '@/stores/ai-provider.store';
+import { useWorkspaceStore } from '@/stores/workspace.store';
+import { useTheme } from '@/components/common/ThemeProvider';
+import { apiHelpers } from '@/lib/api';
+import { motion, AnimatePresence } from 'framer-motion';
 
-type IntegrationKey =
-  | 'github'
-  | 'slack'
-  | 'google_drive'
-  | 'notion'
-  | 'linear'
-  | 'discord'
-  | 'jira'
-  ;
+const iconMap: Record<string, React.ReactNode> = {
+  bot: <Bot className="h-4 w-4" />,
+  cpu: <Cpu className="h-4 w-4" />,
+  server: <Server className="h-4 w-4" />,
+  laptop: <Laptop className="h-4 w-4" />,
+  zap: <Zap className="h-4 w-4" />,
+  globe: <Globe className="h-4 w-4" />,
+  webhook: <Webhook className="h-4 w-4" />,
+  cloud: <Cloud className="h-4 w-4" />,
+  settings: <SettingsIcon className="h-4 w-4" />,
+};
 
-const tabs = [
-  { id: 'ai-providers', label: 'AI Providers', icon: Cpu, badge: 'New' },
-  { id: 'profile', label: 'Profile', icon: User },
-  { id: 'notifications', label: 'Notifications', icon: Bell },
-  { id: 'security', label: 'Security', icon: Shield },
-  { id: 'appearance', label: 'Appearance', icon: Palette },
-  { id: 'api', label: 'API Keys', icon: Key },
-  { id: 'integrations', label: 'Integrations', icon: Webhook },
-];
+type IntegrationKey = 'github' | 'slack' | 'google_drive' | 'jira' | 'notion' | 'linear' | 'discord';
+
+interface SettingsTab {
+  id: 'profile' | 'appearance' | 'notifications' | 'ai-providers' | 'integrations' | 'governance';
+  label: string;
+  icon: any;
+  badge?: string;
+}
 
 export function SettingsPage() {
-  type IntegrationState = {
-    configured: boolean;
-    connected: boolean;
-    message: string;
-    accountName?: string;
-    connectedAt?: string;
-    lastTestAt?: string;
-    lastTestStatus?: 'pass' | 'fail' | 'not_configured';
-  };
-
-  const location = useLocation();
+  const [activeTab, setActiveTab] = useState<'profile' | 'appearance' | 'notifications' | 'ai-providers' | 'integrations' | 'governance'>('ai-providers');
   const { user, updateUser } = useAuthStore();
-  const { currentWorkspace } = useWorkspaceStore();
-  const { theme, setTheme } = useTheme();
-  const [activeTab, setActiveTab] = useState('ai-providers');
-  const [showApiKey, setShowApiKey] = useState<Record<string, boolean>>({});
-  const [integrationStatus, setIntegrationStatus] = useState<Record<string, IntegrationState>>({});
-  const [oauthReadiness, setOauthReadiness] = useState<Record<string, { ready: boolean; missing: string[] }>>({});
-  const [testingIntegration, setTestingIntegration] = useState<string | null>(null);
-  const [manualTokenByIntegration, setManualTokenByIntegration] = useState<Record<string, string>>({});
-  const [manualAccountByIntegration, setManualAccountByIntegration] = useState<Record<string, string>>({});
-  const [manualCloudIdByIntegration, setManualCloudIdByIntegration] = useState<Record<string, string>>({});
-  const [savingManualFor, setSavingManualFor] = useState<string | null>(null);
-  const oauthIntegrations = useMemo(
-    () => new Set<IntegrationKey>(['github', 'slack', 'google_drive', 'jira', 'notion', 'linear', 'discord']),
-    [],
-  );
-  
-  const {
-    providers,
-    activeProvider,
-    connectionStatus,
-    setActiveProvider,
-    updateProviderConfig,
-    testConnection,
-    isConnecting,
-    addModelToProvider,
+  const { 
+    providers, 
+    activeProvider, 
+    connectionStatus, 
+    updateProviderConfig, 
+    addModelToProvider, 
     removeModelFromProvider,
+    testConnection,
+    setActiveProvider
   } = useAIProviderStore();
+  const { currentWorkspace, updateWorkspace } = useWorkspaceStore();
+  const { theme, setTheme } = useTheme();
 
-  const [newModelByProvider, setNewModelByProvider] = useState<
-    Record<string, { id: string; name: string; contextLength: string }>
-  >({});
+  const [expandedProvider, setExpandedProvider] = useState<AIProvider | null>(null);
+  const [showApiKey, setShowApiKey] = useState<Record<string, boolean>>({});
+  const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
+  const [newModelByProvider, setNewModelByProvider] = useState<Record<string, { id: string; name: string; contextLength: string }>>({});
+  const [testingIntegration, setTestingIntegration] = useState<IntegrationKey | null>(null);
 
   const [profileForm, setProfileForm] = useState({
     name: user?.name || '',
     email: user?.email || '',
-    timezone: 'America/New_York',
-    language: 'en',
   });
 
-  const [notifications, setNotifications] = useState({
-    emailDigest: true,
-    commandAlerts: true,
-    workflowUpdates: true,
-    approvalRequests: true,
-    securityAlerts: true,
+  const [governanceForm, setGovernanceForm] = useState({
+    defaultProvider: (currentWorkspace?.settings as any)?.defaultProvider || 'openai',
+    defaultModel: (currentWorkspace?.settings as any)?.defaultModel || 'gpt-4-turbo-preview',
   });
 
-  useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const integration = params.get('integration');
-    const connected = params.get('connected');
-    const error = params.get('error');
-    if (!integration || connected === null) return;
+  const [signals, setSignals] = useState({
+    executionAlerts: true,
+    approvalGated: true,
+    systemFaults: true,
+    handoffSync: false,
+    auditLogging: true,
+    realtimeMetrics: true
+  });
 
-    if (connected === '1') {
-      toast.success(`${integration} connected`);
-      setActiveTab('integrations');
-    } else {
-      toast.error(error ? decodeURIComponent(error) : `${integration} connection failed`);
-      setActiveTab('integrations');
-    }
-  }, [location.search]);
+  const tabs: SettingsTab[] = [
+    { id: 'ai-providers', label: 'Engines', icon: Cpu },
+    { id: 'governance', label: 'Governance', icon: ShieldCheck, badge: 'V2' },
+    { id: 'integrations', label: 'Nodes', icon: Webhook },
+    { id: 'profile', label: 'Identity', icon: User },
+    { id: 'appearance', label: 'Interface', icon: Palette },
+    { id: 'notifications', label: 'Signals', icon: Activity },
+  ];
 
-  useEffect(() => {
-    if (activeTab !== 'integrations') return;
-    let mounted = true;
-
-    const load = async () => {
-      try {
-        const [statusResponse, readinessResponse] = await Promise.all([
-          apiHelpers.getIntegrationStatus(currentWorkspace?.id),
-          apiHelpers.getOAuthReadiness(),
-        ]);
-        const list = (statusResponse.data || []) as Array<{
-          name: string;
-          configured: boolean;
-          connected: boolean;
-          message: string;
-          accountName?: string;
-          connectedAt?: string;
-          lastTestAt?: string;
-          lastTestStatus?: 'pass' | 'fail' | 'not_configured';
-        }>;
-        if (!mounted) return;
-        const next: Record<string, IntegrationState> = {};
-        for (const row of list) {
-          next[row.name] = {
-            configured: Boolean(row.configured),
-            connected: Boolean(row.connected),
-            message: String(row.message || ''),
-            accountName: row.accountName ? String(row.accountName) : undefined,
-            connectedAt: row.connectedAt ? String(row.connectedAt) : undefined,
-            lastTestAt: row.lastTestAt ? String(row.lastTestAt) : undefined,
-            lastTestStatus: row.lastTestStatus,
-          };
-        }
-        setIntegrationStatus(next);
-
-        const readinessList = (readinessResponse.data || []) as Array<{
-          name: string;
-          ready: boolean;
-          missing: string[];
-        }>;
-        const readinessMap: Record<string, { ready: boolean; missing: string[] }> = {};
-        for (const row of readinessList) {
-          readinessMap[row.name] = {
-            ready: Boolean(row.ready),
-            missing: Array.isArray(row.missing) ? row.missing.map(String) : [],
-          };
-        }
-        setOauthReadiness(readinessMap);
-      } catch (error) {
-        if (!mounted) return;
-        const msg = error instanceof Error ? error.message : 'Failed to fetch integration status';
-        toast.error(msg);
-      }
-    };
-
-    load();
-    return () => {
-      mounted = false;
-    };
-  }, [activeTab, currentWorkspace?.id]);
-
-  const formatDateTime = (value?: string) => {
-    if (!value) return '';
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return '';
-    return parsed.toLocaleString();
+  const handleSaveProfile = () => {
+    updateUser({ name: profileForm.name });
+    toast.success('Identity synchronized');
   };
 
-  const testIntegration = async (name: IntegrationKey) => {
+  const handleSaveGovernance = async () => {
+    if (!currentWorkspace?.id) return;
+    setIsUpdatingSettings(true);
+    try {
+      const newSettings = {
+        ...currentWorkspace.settings,
+        defaultProvider: governanceForm.defaultProvider || undefined,
+        defaultModel: governanceForm.defaultModel || undefined,
+      };
+      await apiHelpers.updateWorkspace(currentWorkspace.id, { settings: newSettings } as any);
+      updateWorkspace(currentWorkspace.id, { settings: newSettings } as any);
+      toast.success('Policy applied');
+    } catch (error) {
+      toast.error('Sync failed');
+    } finally {
+      setIsUpdatingSettings(false);
+    }
+  };
+
+  const handleTestIntegration = async (name: IntegrationKey) => {
     setTestingIntegration(name);
     try {
-      const response = await apiHelpers.testIntegration(name, currentWorkspace?.id);
-      const row = response.data as IntegrationState;
-      setIntegrationStatus((prev) => ({
-        ...prev,
-        [name]: {
-          configured: Boolean(row.configured),
-          connected: Boolean(row.connected),
-          message: String(row.message || ''),
-          accountName: row.accountName,
-          connectedAt: row.connectedAt,
-          lastTestAt: row.lastTestAt,
-          lastTestStatus: row.lastTestStatus,
-        },
-      }));
-      if (row.connected) {
-        toast.success(`${name} connected`);
-      } else {
-        toast.error(`${name}: ${row.message || 'not connected'}`);
-      }
+      await apiHelpers.testIntegration(name, currentWorkspace?.id);
+      toast.success(`${name} verified`);
     } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Integration test failed';
-      toast.error(msg);
+      toast.error(`${name} node fault`);
     } finally {
       setTestingIntegration(null);
     }
   };
 
-  const connectOAuthIntegration = async (
-    name: 'github' | 'slack' | 'google_drive' | 'jira' | 'notion' | 'linear' | 'discord',
-  ) => {
-    try {
-      const response = await apiHelpers.getIntegrationConnectUrl(name, currentWorkspace?.id);
-      const payload = response.data as { authUrl?: string };
-      if (!payload?.authUrl) {
-        throw new Error('Missing OAuth URL');
-      }
-      window.location.href = payload.authUrl;
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Failed to start OAuth flow';
-      toast.error(msg);
-    }
-  };
-
-  const disconnectOAuthIntegration = async (
-    name: 'github' | 'slack' | 'google_drive' | 'jira' | 'notion' | 'linear' | 'discord',
-  ) => {
-    try {
-      await apiHelpers.disconnectIntegration(name, currentWorkspace?.id);
-      await testIntegration(name);
-      toast.success(`${name} disconnected`);
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Failed to disconnect integration';
-      toast.error(msg);
-    }
-  };
-
-  const saveManualToken = async (name: IntegrationKey) => {
-    const accessToken = (manualTokenByIntegration[name] || '').trim();
-    if (!accessToken) {
-      toast.error('Access token is required');
-      return;
-    }
-    setSavingManualFor(name);
-    try {
-      await apiHelpers.setIntegrationManualToken(name, {
-        workspaceId: currentWorkspace?.id,
-        accessToken,
-        accountName: (manualAccountByIntegration[name] || '').trim() || undefined,
-        cloudId: name === 'jira' ? (manualCloudIdByIntegration[name] || '').trim() || undefined : undefined,
-      });
-      await testIntegration(name);
-      toast.success(`${name} manual token saved`);
-    } catch (error) {
-      const msg = error instanceof Error ? error.message : 'Failed to save manual token';
-      toast.error(msg);
-    } finally {
-      setSavingManualFor(null);
-    }
-  };
-
-  const handleSaveProfile = () => {
-    updateUser({ name: profileForm.name });
-    toast.success('Profile updated successfully');
-  };
-
-  const handleTestConnection = async (providerId: AIProvider) => {
-    const result = await testConnection(providerId);
-    if (result) {
-      toast.success(`Connected to ${providers.find(p => p.id === providerId)?.name}`);
-    } else {
-      toast.error('Connection failed. Please check your configuration.');
-    }
-  };
-
-  const handleAddModel = (providerId: AIProvider) => {
-    const entry = newModelByProvider[providerId] || { id: '', name: '', contextLength: '8192' };
-    const modelId = entry.id.trim();
-    const modelName = entry.name.trim();
-    const contextLength = Number.parseInt(entry.contextLength, 10);
-
-    if (!modelId || !modelName) {
-      toast.error('Model ID and Model Name are required');
-      return;
-    }
-    if (!Number.isFinite(contextLength) || contextLength <= 0) {
-      toast.error('Context length must be a positive number');
-      return;
-    }
-
-    addModelToProvider(providerId, {
-      id: modelId,
-      name: modelName,
-      contextLength,
-      capabilities: ['chat', 'code'],
-    });
-
-    setNewModelByProvider((prev) => ({
-      ...prev,
-      [providerId]: { id: '', name: '', contextLength: '8192' },
-    }));
-    toast.success(`Added model "${modelName}"`);
-  };
-
-  const mockApiKey = 'sk-soothsayer-xxxx-xxxx-xxxx-xxxxxxxxxxxx';
-
   return (
-    <div className="flex h-full">
-      {/* Sidebar */}
-      <div className="w-64 border-r border-border bg-card/50">
-        <div className="p-4">
-          <h2 className="text-lg font-semibold">Settings</h2>
-          <p className="text-sm text-muted-foreground">Manage your preferences</p>
+    <div className="flex h-full bg-background animate-in-up">
+      {/* Sidebar - Pro Minimal */}
+      <div className="w-60 border-r border-border/30 bg-card/20 backdrop-blur-xl shrink-0">
+        <div className="p-8">
+          <h2 className="text-[9px] font-black uppercase tracking-[0.3em] text-muted-foreground/40 leading-none">Configuration</h2>
         </div>
-        <nav className="space-y-1 px-2">
+        <nav className="space-y-0.5 px-4">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all',
+                'group flex w-full items-center gap-3 rounded-lg px-3.5 py-2 transition-all active-scale',
                 activeTab === tab.id
-                  ? 'bg-primary text-primary-foreground shadow-sm'
-                  : 'hover:bg-accent'
+                  ? 'bg-primary text-primary-foreground shadow-md'
+                  : 'text-muted-foreground/60 hover:text-foreground hover:bg-muted/40'
               )}
             >
-              <tab.icon className="h-4 w-4" />
-              <span className="flex-1 text-left">{tab.label}</span>
+              <tab.icon className="h-4 w-4 shrink-0 transition-transform group-hover:scale-110 duration-300" />
+              <span className="text-[10px] font-black uppercase tracking-widest truncate">{tab.label}</span>
               {tab.badge && (
-                <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400">
+                <span className="ml-auto rounded-full bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 text-[8px] font-black text-amber-600">
                   {tab.badge}
                 </span>
               )}
@@ -359,673 +191,269 @@ export function SettingsPage() {
         </nav>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-auto">
-        <div className="p-6">
-          {/* AI Providers Tab */}
-          {activeTab === 'ai-providers' && (
-            <div className="max-w-4xl">
-              <div className="mb-6">
-                <h3 className="text-2xl font-bold">AI Providers</h3>
-                <p className="text-muted-foreground">
-                  Configure AI models for chat, code generation, and analysis
-                </p>
-              </div>
-
-              {/* Provider Categories */}
-              <div className="mb-8">
-                <div className="grid grid-cols-3 gap-4 mb-6">
-                  <div className="rounded-xl border border-border bg-gradient-to-br from-blue-500/10 to-purple-500/10 p-4">
-                    <Cloud className="h-8 w-8 text-blue-500 mb-2" />
-                    <h4 className="font-semibold">Cloud Providers</h4>
-                    <p className="text-sm text-muted-foreground">OpenAI, Anthropic, Groq</p>
-                  </div>
-                  <div className="rounded-xl border border-border bg-gradient-to-br from-green-500/10 to-emerald-500/10 p-4">
-                    <Laptop className="h-8 w-8 text-green-500 mb-2" />
-                    <h4 className="font-semibold">Local Models</h4>
-                    <p className="text-sm text-muted-foreground">Ollama, LM Studio</p>
-                  </div>
-                  <div className="rounded-xl border border-border bg-gradient-to-br from-orange-500/10 to-amber-500/10 p-4">
-                    <Server className="h-8 w-8 text-orange-500 mb-2" />
-                    <h4 className="font-semibold">Custom Endpoints</h4>
-                    <p className="text-sm text-muted-foreground">Any OpenAI-compatible API</p>
-                  </div>
+      {/* Content Viewport */}
+      <div className="flex-1 overflow-auto scrollbar-none">
+        <div className="p-12 max-w-4xl mx-auto">
+          <AnimatePresence mode="wait">
+            {activeTab === 'ai-providers' && (
+              <motion.div key="ai-providers" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="space-y-10">
+                <div className="space-y-1">
+                  <h3 className="text-3xl font-black tracking-tighter uppercase">Inference Infrastructure</h3>
+                  <p className="text-[13px] font-medium text-muted-foreground/60 leading-relaxed">Manage decentralized inference nodes and model schemas.</p>
                 </div>
-              </div>
 
-              {/* Provider List */}
-              <div className="space-y-4">
-                {providers.map((provider) => {
-                  const status = connectionStatus[provider.id];
-                  const isActive = activeProvider === provider.id;
-                  
-                  return (
-                    <div
-                      key={provider.id}
-                      className={cn(
-                        'rounded-xl border-2 p-4 transition-all',
-                        isActive
-                          ? 'border-primary bg-primary/5 shadow-sm'
-                          : 'border-border hover:border-primary/50'
-                      )}
-                    >
-                      <div className="flex items-start gap-4">
-                        {/* Provider Icon & Info */}
-                        <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-secondary text-3xl">
-                          {provider.icon}
-                        </div>
-                        
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-semibold text-lg">{provider.name}</h4>
-                            {provider.isLocal && (
-                              <span className="rounded-full bg-green-500/20 px-2 py-0.5 text-xs font-medium text-green-600 dark:text-green-400">
-                                Local
-                              </span>
-                            )}
-                            {isActive && (
-                              <span className="rounded-full bg-primary/20 px-2 py-0.5 text-xs font-medium text-primary">
-                                Active
-                              </span>
-                            )}
+                <div className="grid gap-3">
+                  {providers.map((provider) => {
+                    const status = connectionStatus[provider.id];
+                    const isActive = activeProvider === provider.id;
+                    const isExpanded = expandedProvider === provider.id;
+                    return (
+                      <div key={provider.id} className={cn(
+                        "group rounded-2xl border border-border/40 transition-all duration-500 overflow-hidden",
+                        isActive ? "border-primary/20 bg-primary/[0.01]" : "bg-card/20",
+                        isExpanded && "ring-1 ring-primary/10 shadow-lg"
+                      )}>
+                        <div 
+                          onClick={() => setExpandedProvider(isExpanded ? null : provider.id)}
+                          className="p-6 flex items-center justify-between cursor-pointer hover:bg-muted/[0.02] transition-colors"
+                        >
+                          <div className="flex items-center gap-5">
+                            <div className={cn(
+                              "flex h-9 w-9 items-center justify-center rounded-xl border border-border/40 transition-all duration-500 group-hover:scale-105",
+                              isActive ? "bg-primary text-white shadow-md shadow-primary/20" : "bg-muted/30 text-primary"
+                            )}>
+                              {iconMap[provider.icon] || <Bot className="h-4 w-4" />}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2.5">
+                                <h4 className="font-black uppercase text-xs tracking-widest leading-none">{provider.name}</h4>
+                                {isActive && <div className="h-1 w-1 rounded-full bg-primary shadow-[0_0_6px_rgba(0,0,0,0.4)]" />}
+                              </div>
+                              <p className="text-[9px] font-black text-muted-foreground/40 uppercase tracking-[0.2em] mt-1.5 leading-none">{provider.isLocal ? 'Local Runtime' : 'Cloud Node'}</p>
+                            </div>
                           </div>
-                          <p className="text-sm text-muted-foreground mb-3">
-                            {provider.description}
-                          </p>
-                          
-                          {/* Configuration */}
-                          <div className="space-y-3">
-                            {!provider.isLocal && (
-                              <div className="flex items-center gap-2">
-                                <label className="text-sm font-medium w-24">API Key</label>
-                                <div className="relative flex-1 max-w-md">
-                                  <input
-                                    type={showApiKey[provider.id] ? 'text' : 'password'}
-                                    value={provider.apiKey || ''}
-                                    onChange={(e) =>
-                                      updateProviderConfig(provider.id, { apiKey: e.target.value })
-                                    }
-                                    placeholder={`Enter your ${provider.name} API key`}
-                                    className="h-9 w-full rounded-lg border border-input bg-background px-3 pr-10 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
-                                  />
-                                  <button
-                                    onClick={() =>
-                                      setShowApiKey((prev) => ({
-                                        ...prev,
-                                        [provider.id]: !prev[provider.id],
-                                      }))
-                                    }
-                                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                                  >
-                                    {showApiKey[provider.id] ? (
-                                      <EyeOff className="h-4 w-4" />
-                                    ) : (
-                                      <Eye className="h-4 w-4" />
-                                    )}
+                          <div className="flex items-center gap-4">
+                            <div className={cn(
+                              "h-1.5 w-1.5 rounded-full transition-all duration-500",
+                              status === 'connected' ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]" : "bg-muted-foreground/20"
+                            )} />
+                            <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground/40 transition-transform duration-300", isExpanded && "rotate-180")} />
+                          </div>
+                        </div>
+
+                        <AnimatePresence>
+                          {isExpanded && (
+                            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="border-t border-border/20 overflow-hidden">
+                              <div className="p-8 space-y-10">
+                                <p className="text-xs font-medium text-muted-foreground/80 leading-relaxed italic border-l-2 border-primary/10 pl-6">"{provider.description}"</p>
+                                <div className="grid gap-6 sm:grid-cols-2">
+                                  {!provider.isLocal && (
+                                    <div className="space-y-3">
+                                      <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Access Identity</label>
+                                      <div className="relative group/key">
+                                        <input 
+                                          type={showApiKey[provider.id] ? 'text' : 'password'}
+                                          value={provider.apiKey || ''}
+                                          onChange={e => updateProviderConfig(provider.id, { apiKey: e.target.value })}
+                                          placeholder="sk-..."
+                                          className="w-full h-10 rounded-xl border border-border/60 bg-background px-4 pr-10 text-[11px] font-mono focus:ring-4 focus:ring-primary/5 outline-none transition-all"
+                                        />
+                                        <button onClick={(e) => { e.stopPropagation(); setShowApiKey(prev => ({ ...prev, [provider.id]: !prev[provider.id] })); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/40 hover:text-primary transition-colors">
+                                          {showApiKey[provider.id] ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+                                  <div className="space-y-3">
+                                    <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Gateway Endpoint</label>
+                                    <input 
+                                      value={provider.baseUrl}
+                                      onChange={e => updateProviderConfig(provider.id, { baseUrl: e.target.value })}
+                                      className="w-full h-10 rounded-xl border border-border/60 bg-background px-4 text-[11px] font-mono focus:ring-4 focus:ring-primary/5 outline-none transition-all"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="flex justify-end gap-2 pt-4 border-t border-border/20">
+                                  <button onClick={() => testConnection(provider.id)} className="button-professional border border-border/60 hover:bg-muted text-foreground">Verify Handshake</button>
+                                  <button onClick={() => { setActiveProvider(provider.id); toast.success('Execution path updated'); }} className={cn("button-professional", isActive ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : "bg-primary text-white shadow-lg shadow-primary/10")}>
+                                    {isActive ? 'Established' : 'Apply Authority'}
                                   </button>
                                 </div>
                               </div>
-                            )}
-                            
-                            <div className="flex items-center gap-2">
-                              <label className="text-sm font-medium w-24">Endpoint</label>
-                              <input
-                                type="text"
-                                value={provider.baseUrl}
-                                onChange={(e) =>
-                                  updateProviderConfig(provider.id, { baseUrl: e.target.value })
-                                }
-                                placeholder="API endpoint URL"
-                                className="h-9 flex-1 max-w-md rounded-lg border border-input bg-background px-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-ring"
-                              />
-                            </div>
-                            
-                            {/* Models */}
-                            <div className="flex items-start gap-2">
-                              <label className="text-sm font-medium w-24 pt-2">Models</label>
-                              <div className="flex-1 space-y-2">
-                                <div className="flex flex-wrap gap-2">
-                                  {provider.models.map((model) => (
-                                    <span
-                                      key={model.id}
-                                      className="inline-flex items-center gap-1 rounded-lg bg-secondary px-2.5 py-1 text-xs font-medium"
-                                    >
-                                      {model.name}
-                                      <button
-                                        type="button"
-                                        onClick={() => removeModelFromProvider(provider.id, model.id)}
-                                        className="text-muted-foreground hover:text-foreground"
-                                        title={`Remove ${model.name}`}
-                                      >
-                                        <Trash2 className="h-3 w-3" />
-                                      </button>
-                                    </span>
-                                  ))}
-                                </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    );
+                  })}
+                </div>
+              </motion.div>
+            )}
 
-                                <div className="grid gap-2 sm:grid-cols-3">
-                                  <input
-                                    type="text"
-                                    placeholder="Model ID (e.g. gpt-4o-mini)"
-                                    value={newModelByProvider[provider.id]?.id || ''}
-                                    onChange={(e) =>
-                                      setNewModelByProvider((prev) => ({
-                                        ...prev,
-                                        [provider.id]: {
-                                          id: e.target.value,
-                                          name: prev[provider.id]?.name || '',
-                                          contextLength: prev[provider.id]?.contextLength || '8192',
-                                        },
-                                      }))
-                                    }
-                                    className="h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                                  />
-                                  <input
-                                    type="text"
-                                    placeholder="Model name"
-                                    value={newModelByProvider[provider.id]?.name || ''}
-                                    onChange={(e) =>
-                                      setNewModelByProvider((prev) => ({
-                                        ...prev,
-                                        [provider.id]: {
-                                          id: prev[provider.id]?.id || '',
-                                          name: e.target.value,
-                                          contextLength: prev[provider.id]?.contextLength || '8192',
-                                        },
-                                      }))
-                                    }
-                                    className="h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                                  />
-                                  <div className="flex gap-2">
-                                    <input
-                                      type="number"
-                                      min={1}
-                                      placeholder="Context"
-                                      value={newModelByProvider[provider.id]?.contextLength || '8192'}
-                                      onChange={(e) =>
-                                        setNewModelByProvider((prev) => ({
-                                          ...prev,
-                                          [provider.id]: {
-                                            id: prev[provider.id]?.id || '',
-                                            name: prev[provider.id]?.name || '',
-                                            contextLength: e.target.value,
-                                          },
-                                        }))
-                                      }
-                                      className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                                    />
-                                    <button
-                                      type="button"
-                                      onClick={() => handleAddModel(provider.id)}
-                                      className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 text-sm text-primary-foreground hover:bg-primary/90"
-                                    >
-                                      <Plus className="h-4 w-4" />
-                                      Add
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
+            {activeTab === 'governance' && (
+              <motion.div key="governance" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="space-y-10">
+                <div className="space-y-1">
+                  <h3 className="text-3xl font-black tracking-tighter uppercase">Operational Policy</h3>
+                  <p className="text-[13px] font-medium text-muted-foreground/60 leading-relaxed">Establish decentralized authority fallbacks and workspace directives.</p>
+                </div>
+                <div className="p-10 rounded-[2rem] border border-primary/10 bg-primary/[0.01] space-y-10 shadow-sm relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-10 opacity-[0.03]">
+                    <ShieldCheck className="h-40 w-40" />
+                  </div>
+                  <div className="relative z-10 space-y-8 max-w-xl">
+                    <div className="space-y-6">
+                      <div className="space-y-3">
+                        <label className="text-[9px] font-black uppercase tracking-widest text-primary/60 ml-1">Default Node</label>
+                        <div className="relative group">
+                          <select value={governanceForm.defaultProvider} onChange={e => setGovernanceForm({...governanceForm, defaultProvider: e.target.value})} className="w-full appearance-none rounded-xl border border-border/60 bg-background px-4 py-3.5 text-[11px] font-black uppercase tracking-widest focus:ring-4 focus:ring-primary/5 outline-none transition-all">
+                            {providers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                          </select>
+                          <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 h-4 w-4 text-primary/40 pointer-events-none group-hover:text-primary transition-colors" />
                         </div>
-
-                        {/* Actions */}
-                        <div className="flex flex-col items-end gap-2">
-                          {/* Connection Status */}
-                          <div className="flex items-center gap-2">
-                            {status === 'connected' && (
-                              <span className="flex items-center gap-1 text-sm text-green-600">
-                                <CheckCircle className="h-4 w-4" />
-                                Connected
-                              </span>
-                            )}
-                            {status === 'error' && (
-                              <span className="flex items-center gap-1 text-sm text-red-600">
-                                <AlertCircle className="h-4 w-4" />
-                                Error
-                              </span>
-                            )}
-                            {status === 'disconnected' && (
-                              <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                                <Info className="h-4 w-4" />
-                                Not connected
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleTestConnection(provider.id)}
-                              disabled={isConnecting}
-                              className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-accent transition-colors disabled:opacity-50"
-                            >
-                              <RefreshCw className={cn("h-4 w-4", isConnecting && "animate-spin")} />
-                              Test
-                            </button>
-                            
-                            {!isActive ? (
-                              <button
-                                onClick={() => setActiveProvider(provider.id)}
-                                className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 transition-colors"
-                              >
-                                <Zap className="h-4 w-4" />
-                                Activate
-                              </button>
-                            ) : (
-                              <button
-                                disabled
-                                className="flex items-center gap-1.5 rounded-lg bg-green-500/20 px-3 py-1.5 text-sm text-green-600 cursor-default"
-                              >
-                                <Check className="h-4 w-4" />
-                                Active
-                              </button>
-                            )}
-                          </div>
+                      </div>
+                      <div className="space-y-3">
+                        <label className="text-[9px] font-black uppercase tracking-widest text-primary/60 ml-1">Schema Priority</label>
+                        <div className="relative group">
+                          <select value={governanceForm.defaultModel} onChange={e => setGovernanceForm({...governanceForm, defaultModel: e.target.value})} className="w-full appearance-none rounded-xl border border-border/60 bg-background px-4 py-3.5 text-[11px] font-black uppercase tracking-widest focus:ring-4 focus:ring-primary/5 outline-none transition-all">
+                            {providers.find(p => p.id === governanceForm.defaultProvider)?.models.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                          </select>
+                          <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 h-4 w-4 text-primary/40 pointer-events-none group-hover:text-primary transition-colors" />
                         </div>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-
-              {/* Help Section */}
-              <div className="mt-8 rounded-xl border border-border bg-secondary/30 p-4">
-                <h4 className="flex items-center gap-2 font-semibold mb-2">
-                  <Info className="h-5 w-5 text-blue-500" />
-                  Getting Started
-                </h4>
-                <div className="grid gap-4 md:grid-cols-2 text-sm text-muted-foreground">
-                  <div>
-                    <h5 className="font-medium text-foreground mb-1">Cloud Providers</h5>
-                    <p>Get an API key from your provider's dashboard and paste it above. We recommend starting with OpenAI or Anthropic for the best experience.</p>
-                  </div>
-                  <div>
-                    <h5 className="font-medium text-foreground mb-1">Local Models</h5>
-                    <p>Install <a href="https://ollama.ai" target="_blank" className="text-primary hover:underline">Ollama</a> or <a href="https://lmstudio.ai" target="_blank" className="text-primary hover:underline">LM Studio</a>, run a model locally, then connect here for private, offline AI.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Profile Tab */}
-          {activeTab === 'profile' && (
-            <div className="max-w-2xl">
-              <h3 className="mb-6 text-2xl font-bold">Profile Settings</h3>
-              <div className="space-y-6">
-                <div className="flex items-center gap-6">
-                  <div className="relative">
-                    <div className="flex h-24 w-24 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-purple-600 text-4xl font-bold text-white shadow-lg">
-                      {user?.name?.charAt(0) || 'U'}
-                    </div>
-                    <button className="absolute -bottom-2 -right-2 rounded-lg bg-secondary p-2 shadow-sm hover:bg-accent transition-colors">
-                      <Palette className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <div>
-                    <h4 className="text-xl font-semibold">{user?.name || 'User'}</h4>
-                    <p className="text-muted-foreground">{user?.email}</p>
-                    <button className="mt-2 rounded-lg bg-secondary px-4 py-2 text-sm font-medium hover:bg-accent transition-colors">
-                      Change Avatar
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium">Full Name</label>
-                    <input
-                      type="text"
-                      value={profileForm.name}
-                      onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium">Email</label>
-                    <input
-                      type="email"
-                      value={profileForm.email}
-                      onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
-                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  onClick={handleSaveProfile}
-                  className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-                >
-                  <Save className="h-4 w-4" />
-                  Save Changes
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Appearance Tab */}
-          {activeTab === 'appearance' && (
-            <div className="max-w-2xl">
-              <h3 className="mb-6 text-2xl font-bold">Appearance</h3>
-              <div className="space-y-6">
-                <div>
-                  <label className="mb-3 block text-sm font-medium">Theme</label>
-                  <div className="grid grid-cols-3 gap-4">
-                    {(['light', 'dark', 'system'] as const).map((t) => (
-                      <button
-                        key={t}
-                        onClick={() => setTheme(t)}
-                        className={cn(
-                          'rounded-xl border-2 p-6 text-center transition-all hover:scale-105',
-                          theme === t
-                            ? 'border-primary bg-primary/10 shadow-md'
-                            : 'border-border hover:border-primary/50'
-                        )}
-                      >
-                        <div className="mb-3 text-4xl">
-                          {t === 'light' && '☀️'}
-                          {t === 'dark' && '🌙'}
-                          {t === 'system' && '💻'}
-                        </div>
-                        <div className="text-sm font-medium capitalize">{t}</div>
-                        {theme === t && (
-                          <div className="mt-2 flex justify-center">
-                            <Check className="h-5 w-5 text-primary" />
-                          </div>
-                        )}
+                    <div className="pt-6 border-t border-primary/10 flex justify-end">
+                      <button onClick={handleSaveGovernance} disabled={isUpdatingSettings} className="button-professional bg-primary text-white h-11 px-10 shadow-xl shadow-primary/10 flex items-center gap-2 active-scale">
+                        {isUpdatingSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                        Apply Policy Node
                       </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Other tabs remain similar but enhanced */}
-          {activeTab === 'notifications' && (
-            <div className="max-w-2xl">
-              <h3 className="mb-6 text-2xl font-bold">Notification Preferences</h3>
-              <div className="space-y-4">
-                {Object.entries(notifications).map(([key, value]) => (
-                  <div
-                    key={key}
-                    className="flex items-center justify-between rounded-xl border border-border p-4 transition-colors hover:bg-accent/50"
-                  >
-                    <div>
-                      <div className="font-medium">
-                        {key.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase())}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        Receive notifications for {key.toLowerCase().replace(/([A-Z])/g, ' $1')}
-                      </div>
                     </div>
-                    <button
-                      onClick={() => setNotifications({ ...notifications, [key]: !value })}
-                      className={cn(
-                        'relative h-7 w-12 rounded-full transition-colors',
-                        value ? 'bg-primary' : 'bg-secondary'
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-transform',
-                          value && 'translate-x-5'
-                        )}
-                      />
-                    </button>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
+                </div>
+              </motion.div>
+            )}
 
-          {activeTab === 'security' && (
-            <div className="max-w-2xl">
-              <h3 className="mb-6 text-2xl font-bold">Security</h3>
-              <div className="space-y-4">
-                <div className="rounded-xl border border-border p-6">
-                  <h4 className="font-semibold mb-4">Change Password</h4>
-                  <div className="space-y-3">
-                    <input
-                      type="password"
-                      placeholder="Current password"
-                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                    <input
-                      type="password"
-                      placeholder="New password"
-                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                    <input
-                      type="password"
-                      placeholder="Confirm new password"
-                      className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                    />
-                    <button className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors">
-                      Update Password
-                    </button>
-                  </div>
+            {activeTab === 'integrations' && (
+              <motion.div key="integrations" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="space-y-10">
+                <div className="space-y-1">
+                  <h3 className="text-3xl font-black tracking-tighter uppercase">External Nodes</h3>
+                  <p className="text-[13px] font-medium text-muted-foreground/60 leading-relaxed">Connect external repositories and communication protocol layers.</p>
                 </div>
-                
-                <div className="rounded-xl border border-border p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className="font-semibold">Two-Factor Authentication</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Add an extra layer of security to your account
-                      </p>
-                    </div>
-                    <button className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium hover:bg-accent transition-colors">
-                      Enable 2FA
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'api' && (
-            <div className="max-w-2xl">
-              <h3 className="mb-6 text-2xl font-bold">API Keys</h3>
-              <div className="rounded-xl border border-border p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h4 className="font-semibold">Personal API Key</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Use this key to access the Soothsayer API
-                    </p>
-                  </div>
-                </div>
-                <div className="rounded-lg bg-secondary p-4 font-mono text-sm">
-                  {showApiKey['personal'] ? mockApiKey : '••••••••••••••••••••••••••••••••'}
-                </div>
-                <div className="mt-4 flex gap-2">
-                  <button
-                    onClick={() => setShowApiKey(prev => ({ ...prev, personal: !prev.personal }))}
-                    className="rounded-lg bg-secondary px-4 py-2 text-sm hover:bg-accent transition-colors"
-                  >
-                    {showApiKey['personal'] ? 'Hide' : 'Show'}
-                  </button>
-                  <button className="rounded-lg bg-secondary px-4 py-2 text-sm hover:bg-accent transition-colors">
-                    Copy
-                  </button>
-                  <button className="rounded-lg bg-secondary px-4 py-2 text-sm hover:bg-accent transition-colors">
-                    Regenerate
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'integrations' && (
-            <div className="max-w-2xl">
-              <h3 className="mb-6 text-2xl font-bold">Integrations</h3>
-              <div className="space-y-4">
-                {[
-                  { key: 'github', name: 'GitHub', icon: '🐙', description: 'Connect repositories and sync code' },
-                  { key: 'slack', name: 'Slack', icon: '💬', description: 'Get notifications in Slack' },
-                  { key: 'jira', name: 'Jira', icon: '📋', description: 'Sync issues and projects' },
-                  { key: 'linear', name: 'Linear', icon: '📐', description: 'Connect your Linear workspace' },
-                  { key: 'notion', name: 'Notion', icon: '📝', description: 'Sync with Notion pages' },
-                  { key: 'discord', name: 'Discord', icon: '🎮', description: 'Bot integration for Discord' },
-                  { key: 'google_drive', name: 'Google Drive', icon: '📁', description: 'Access files from Google Drive' },
-                ].map((integration) => {
-                  const oauthState = oauthReadiness[integration.key];
-                  const oauthReady = oauthState?.ready ?? false;
-                  const missingKeys = oauthState?.missing || [];
-                  const showOAuthUnavailable =
-                    oauthIntegrations.has(integration.key as IntegrationKey) && !oauthReady;
-                  const status = integrationStatus[integration.key];
-                  const guidedOAuth = integration.key === 'github' || integration.key === 'google_drive';
-                  return <div
-                    key={integration.key}
-                    className="rounded-xl border border-border p-4 transition-colors hover:bg-accent/50"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-secondary text-2xl">
-                          {integration.icon}
+                <div className="grid gap-3">
+                  {[
+                    { id: 'github', name: 'GitHub', icon: <Github className="h-4 w-4" />, desc: 'Code repository synchronization and PR audit.' },
+                    { id: 'slack', name: 'Slack', icon: <MessageSquare className="h-4 w-4" />, desc: 'Real-time trace alerts and signal notifications.' },
+                    { id: 'jira', name: 'Jira', icon: <ClipboardList className="h-4 w-4" />, desc: 'Issue tracking and execution history mapping.' },
+                    { id: 'linear', name: 'Linear', icon: <Layout className="h-4 w-4" />, desc: 'Project management and task lifecycle audit.' },
+                    { id: 'notion', name: 'Notion', icon: <FileText className="h-4 w-4" />, desc: 'Knowledge base and document trace integration.' },
+                    { id: 'discord', name: 'Discord', icon: <Gamepad2 className="h-4 w-4" />, desc: 'Community interaction and bot orchestration.' },
+                    { id: 'google_drive', name: 'Google Drive', icon: <HardDrive className="h-4 w-4" />, desc: 'Cloud resource access and artifact storage.' }
+                  ].map(node => (
+                    <div key={node.id} className="p-6 rounded-2xl border border-border/40 bg-card/20 flex items-center justify-between group hover-glow transition-all duration-300">
+                      <div className="flex items-center gap-6">
+                        <div className="h-10 w-10 rounded-xl bg-secondary flex items-center justify-center text-primary border border-border/40 transition-transform group-hover:scale-105 duration-500">
+                          {node.icon}
                         </div>
                         <div>
-                          <h4 className="font-semibold">{integration.name}</h4>
-                          <p className="text-sm text-muted-foreground">{integration.description}</p>
-                          <p
-                            className={cn(
-                              'mt-1 text-xs',
-                              status?.connected
-                                ? 'text-green-600'
-                                : status?.configured
-                                  ? 'text-amber-600'
-                                  : 'text-muted-foreground',
-                            )}
-                          >
-                            {status?.message || 'Not configured'}
-                          </p>
-                          {status?.accountName && (
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              Connected as: <span className="font-medium">{status.accountName}</span>
-                            </p>
-                          )}
-                          {status?.lastTestAt && (
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              Last test: {formatDateTime(status.lastTestAt)}
-                              {status.lastTestStatus ? ` (${status.lastTestStatus})` : ''}
-                            </p>
-                          )}
-                          {showOAuthUnavailable && (
-                            <p className="mt-1 text-xs text-amber-600">
-                              OAuth unavailable. Admin must configure: {missingKeys.join(', ')}
-                            </p>
-                          )}
-                          {guidedOAuth && oauthReady && !status?.connected && (
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              Recommended: click <span className="font-medium">Connect OAuth</span> and sign in on
-                              the provider page.
-                            </p>
-                          )}
+                          <h4 className="text-[11px] font-black uppercase tracking-widest">{node.name}</h4>
+                          <p className="text-[11px] font-medium text-muted-foreground/60 mt-1 leading-none">{node.desc}</p>
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        {oauthIntegrations.has(integration.key as IntegrationKey) && (
-                          status?.connected ? (
-                            <button
-                              onClick={() =>
-                                disconnectOAuthIntegration(
-                                  integration.key as
-                                    | 'github'
-                                    | 'slack'
-                                    | 'google_drive'
-                                    | 'jira'
-                                    | 'notion'
-                                    | 'linear'
-                                    | 'discord',
-                                )
-                              }
-                              className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium hover:bg-accent transition-colors"
-                            >
-                              Disconnect
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() =>
-                                connectOAuthIntegration(
-                                  integration.key as
-                                    | 'github'
-                                    | 'slack'
-                                    | 'google_drive'
-                                    | 'jira'
-                                    | 'notion'
-                                    | 'linear'
-                                    | 'discord',
-                                )
-                              }
-                              disabled={!oauthReady}
-                              title={!oauthReady ? `Missing: ${missingKeys.join(', ')}` : 'Connect via OAuth'}
-                              className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors"
-                            >
-                              Connect OAuth
-                            </button>
-                          )
-                        )}
-                        <button
-                          onClick={() => testIntegration(integration.key as IntegrationKey)}
-                          disabled={testingIntegration === integration.key}
-                          className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
-                        >
-                          {testingIntegration === integration.key ? 'Testing...' : 'Test'}
+                        <button onClick={() => handleTestIntegration(node.id as any)} className="button-professional border border-border/60 hover:bg-muted text-foreground">
+                          {testingIntegration === node.id ? 'Handshaking...' : 'Verify'}
                         </button>
+                        <button className="button-professional bg-primary text-white shadow-lg shadow-primary/10">Establish Link</button>
                       </div>
                     </div>
-                    <div className="mt-3 w-full border-t border-border pt-3">
-                      <p className="mb-2 text-xs text-muted-foreground">
-                        Manual token mode (alternative to OAuth)
-                      </p>
-                      <div className="grid gap-2 sm:grid-cols-3">
-                        <input
-                          type="password"
-                          placeholder="Access token / PAT"
-                          value={manualTokenByIntegration[integration.key] || ''}
-                          onChange={(e) =>
-                            setManualTokenByIntegration((prev) => ({ ...prev, [integration.key]: e.target.value }))
-                          }
-                          className="h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Account name (optional)"
-                          value={manualAccountByIntegration[integration.key] || ''}
-                          onChange={(e) =>
-                            setManualAccountByIntegration((prev) => ({ ...prev, [integration.key]: e.target.value }))
-                          }
-                          className="h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                        />
-                        <div className="flex gap-2">
-                          {integration.key === 'jira' && (
-                            <input
-                              type="text"
-                              placeholder="Jira cloudId (optional)"
-                              value={manualCloudIdByIntegration[integration.key] || ''}
-                              onChange={(e) =>
-                                setManualCloudIdByIntegration((prev) => ({ ...prev, [integration.key]: e.target.value }))
-                              }
-                              className="h-9 w-full rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                            />
-                          )}
-                          <button
-                            onClick={() => saveManualToken(integration.key as IntegrationKey)}
-                            disabled={savingManualFor === integration.key}
-                            className="rounded-lg bg-secondary px-4 py-2 text-sm font-medium hover:bg-accent transition-colors disabled:opacity-50"
-                          >
-                            {savingManualFor === integration.key ? 'Saving...' : 'Save Token'}
-                          </button>
-                        </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'notifications' && (
+              <motion.div key="notifications" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="space-y-10">
+                <div className="space-y-1">
+                  <h3 className="text-3xl font-black tracking-tighter uppercase">Operational Signals</h3>
+                  <p className="text-[13px] font-medium text-muted-foreground/60">Manage real-time alerts and decentralized execution state updates.</p>
+                </div>
+                <div className="grid gap-2">
+                  {Object.entries(signals).map(([key, active]) => (
+                    <button 
+                      key={key} 
+                      onClick={() => setSignals(s => ({ ...s, [key]: !active }))}
+                      className="group flex items-center justify-between p-6 rounded-2xl border border-border/40 bg-card/20 hover:bg-card/40 transition-all text-left active-scale"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={cn("h-1.5 w-1.5 rounded-full transition-all duration-500", active ? "bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]" : "bg-muted-foreground/20")} />
+                        <span className="text-xs font-black uppercase tracking-widest text-foreground/80 group-hover:text-primary transition-colors">
+                          {key.replace(/([A-Z])/g, ' $1')}
+                        </span>
                       </div>
+                      <div className={cn("h-5 w-9 rounded-full transition-all duration-300 flex items-center px-1", active ? "bg-primary shadow-lg shadow-primary/10" : "bg-muted")}>
+                        <div className={cn("h-3 w-3 rounded-full bg-background shadow-sm transition-transform duration-300", active ? "translate-x-4" : "")} />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'profile' && (
+              <motion.div key="profile" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="space-y-10">
+                <div className="space-y-1">
+                  <h3 className="text-3xl font-black tracking-tighter uppercase">Identity Profile</h3>
+                  <p className="text-[13px] font-medium text-muted-foreground/60 leading-relaxed">Configure operator profile and synchronization nodes.</p>
+                </div>
+                <div className="p-10 rounded-[2rem] border border-border/40 bg-card/20 space-y-10 shadow-sm">
+                  <div className="flex items-center gap-8">
+                    <div className="h-20 w-20 rounded-[2rem] bg-primary text-white flex items-center justify-center text-3xl font-black shadow-xl shadow-primary/10 group overflow-hidden">
+                      <motion.div initial={false} whileHover={{ scale: 1.1 }} className="flex items-center justify-center w-full h-full">
+                        {user?.name?.charAt(0) || 'O'}
+                      </motion.div>
                     </div>
-                  </div>;
-                })}
-              </div>
-            </div>
-          )}
+                    <div>
+                      <h4 className="font-black uppercase text-xl tracking-tight leading-none">{user?.name}</h4>
+                      <p className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-[0.2em] mt-2.5 leading-none">{user?.email} • Operator Synchronized</p>
+                    </div>
+                  </div>
+                  <div className="grid gap-8 sm:grid-cols-2 pt-10 border-t border-border/20">
+                    <div className="space-y-3">
+                      <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Handle</label>
+                      <input value={profileForm.name} onChange={e => setProfileForm({...profileForm, name: e.target.value})} className="w-full h-11 rounded-xl border border-border/60 bg-background px-5 text-xs font-black uppercase tracking-widest focus:ring-4 focus:ring-primary/5 outline-none transition-all" />
+                    </div>
+                    <div className="space-y-3">
+                      <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 ml-1">Email Protocol</label>
+                      <input value={profileForm.email} disabled className="w-full h-11 rounded-xl border border-border bg-muted/50 px-5 text-xs font-bold opacity-40 cursor-not-allowed" />
+                    </div>
+                  </div>
+                  <div className="pt-4 flex justify-end">
+                    <button onClick={handleSaveProfile} className="button-professional bg-primary text-white h-11 px-10 shadow-xl shadow-primary/10 active-scale">Synchronize Identity</button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'appearance' && (
+              <motion.div key="appearance" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="space-y-10">
+                <div className="space-y-1">
+                  <h3 className="text-3xl font-black tracking-tighter uppercase">Interface Logic</h3>
+                  <p className="text-[13px] font-medium text-muted-foreground/60">Customize the workstation visual layer and telemetry.</p>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  {(['light', 'dark', 'system'] as const).map(t => (
+                    <button key={t} onClick={() => setTheme(t)} className={cn("p-10 rounded-[2rem] border border-border/40 flex flex-col items-center gap-6 transition-all duration-500 active-scale group", theme === t ? "bg-primary text-white shadow-xl shadow-primary/10" : "bg-card/30 text-muted-foreground hover:border-primary/20")}>
+                      <div className={cn("h-12 w-12 rounded-2xl flex items-center justify-center transition-all duration-500", theme === t ? "bg-white/10 text-white" : "bg-muted/50 group-hover:text-primary")}>
+                        {t === 'light' && <Sun className="h-6 w-6" />}
+                        {t === 'dark' && <Moon className="h-6 w-6" />}
+                        {t === 'system' && <Monitor className="h-6 w-6" />}
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-[0.3em]">{t}</span>
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </div>
