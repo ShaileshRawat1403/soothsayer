@@ -2,6 +2,27 @@
 
 This note captures the current milestone outcome for the first DAX-powered Soothsayer workstation slice.
 
+## Quick Launch
+
+```bash
+# 1. Ensure DAX server is running at http://127.0.0.1:4096
+curl http://127.0.0.1:4096/health
+
+# 2. Prisma setup
+npx -y pnpm@8.12.0 --filter @soothsayer/api prisma:generate
+npx -y pnpm@8.12.0 --filter @soothsayer/api prisma:push
+
+# 3. Start API and Web
+npx -y pnpm@8.12.0 --filter @soothsayer/api dev &
+npx -y pnpm@8.12.0 --filter @soothsayer/web exec vite
+```
+
+Navigate to:
+
+- `/runs/new` - Create a new DAX run
+- `/runs/:id` - Run console for live execution monitoring
+- `/dax` - DAX overview page
+
 ## Proven End to End
 
 - Direct run creation from `/runs/new`
