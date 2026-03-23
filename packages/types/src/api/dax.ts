@@ -255,6 +255,11 @@ export interface DaxRunListItem {
   workflowId?: string;
   provider?: string;
   model?: string;
+  terminalReason?: string;
+  terminalReasonLabel?: string;
+  failureCode?: string;
+  failureLabel?: string;
+  failureDescription?: string;
 }
 
 export interface DaxPendingApprovalSummary {

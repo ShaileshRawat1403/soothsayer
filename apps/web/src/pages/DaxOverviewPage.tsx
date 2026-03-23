@@ -12,6 +12,7 @@ import {
   History,
   XCircle,
   RefreshCw,
+  ShieldAlert,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -310,6 +311,7 @@ function TraceRow({
   recoveryStatus?: DaxRecoverySummary;
 }) {
   const needsRecovery = recoveryStatus?.needsRecovery === true;
+  const isContractMutation = run.failureCode === 'contract_mutation';
 
   return (
     <Link
@@ -320,13 +322,15 @@ function TraceRow({
         <div
           className={cn(
             'h-1.5 w-1.5 rounded-full shrink-0',
-            needsRecovery
-              ? 'bg-amber-500/60 shadow-[0_0_8px_rgba(245,158,11,0.3)]'
-              : run.status === 'completed'
-                ? 'bg-emerald-500/60 shadow-[0_0_8px_rgba(16,185,129,0.3)]'
-                : run.status === 'failed'
-                  ? 'bg-rose-500/60 shadow-[0_0_8px_rgba(244,63,94,0.3)]'
-                  : 'bg-primary animate-pulse'
+            isContractMutation
+              ? 'bg-red-600 shadow-[0_0_8px_rgba(220,38,38,0.5)]'
+              : needsRecovery
+                ? 'bg-amber-500/60 shadow-[0_0_8px_rgba(245,158,11,0.3)]'
+                : run.status === 'completed'
+                  ? 'bg-emerald-500/60 shadow-[0_0_8px_rgba(16,185,129,0.3)]'
+                  : run.status === 'failed'
+                    ? 'bg-rose-500/60 shadow-[0_0_8px_rgba(244,63,94,0.3)]'
+                    : 'bg-primary animate-pulse'
           )}
         />
 
@@ -350,7 +354,13 @@ function TraceRow({
       </div>
 
       <div className="flex items-center gap-8 shrink-0 ml-10">
-        {needsRecovery && (
+        {isContractMutation && (
+          <div className="rounded-lg px-2 py-1 text-label-sm bg-red-500/10 text-red-600 border border-red-500/20 flex items-center gap-1">
+            <ShieldAlert className="h-3 w-3" />
+            {run.failureLabel || 'Governance Violation'}
+          </div>
+        )}
+        {needsRecovery && !isContractMutation && (
           <div className="rounded-lg px-2 py-1 text-label-sm bg-amber-500/10 text-amber-600 border border-amber-500/20 flex items-center gap-1">
             <RefreshCw className="h-3 w-3" />
             Recovery

@@ -298,6 +298,11 @@ export class DaxService {
       workflowId: undefined,
       provider: undefined,
       model: undefined,
+      terminalReason: card.terminalReason,
+      terminalReasonLabel: card.terminalReasonLabel,
+      failureCode: card.failureCode,
+      failureLabel: card.failureLabel,
+      failureDescription: card.failureDescription,
     });
 
     const adaptPendingApproval = (
