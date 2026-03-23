@@ -1,4 +1,4 @@
-import { Activity, CircleDot, PauseCircle, ShieldAlert, RefreshCw } from 'lucide-react';
+import { Activity, CircleDot, PauseCircle, ShieldAlert, RefreshCw, ShieldX } from 'lucide-react';
 import { cn, formatDate } from '@/lib/utils';
 import type { DaxRecoverySummary, DaxRunSnapshot } from '@/types/dax';
 
@@ -66,11 +66,32 @@ export function RunHeader({
                 Restored
               </div>
             )}
+            {snapshot.failureCode === 'contract_mutation' && (
+              <div className="rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] bg-rose-500/10 text-rose-600 border border-rose-500/20 flex items-center gap-1.5">
+                <ShieldX className="h-3 w-3" />
+                {snapshot.failureLabel || 'Contract Mutated'}
+              </div>
+            )}
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Activity className="h-3.5 w-3.5" />
               Stream {streamState}
             </div>
           </div>
+
+          {snapshot.failureCode === 'contract_mutation' && (
+            <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 px-4 py-3 flex items-start gap-3">
+              <ShieldX className="h-5 w-5 text-rose-500 shrink-0 mt-0.5" />
+              <div>
+                <div className="font-semibold text-rose-600 text-sm">
+                  Execution Contract Violation
+                </div>
+                <p className="text-xs text-rose-600/80 mt-1">
+                  {snapshot.failureDescription ||
+                    'This run was terminated because the workflow attempted to change its locked execution contract after initialization.'}
+                </p>
+              </div>
+            </div>
+          )}
 
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">{snapshot.title || 'DAX Run'}</h1>

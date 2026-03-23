@@ -143,6 +143,9 @@ export class DaxService {
             timestamp: detail.lastEvent.timestamp,
           }
         : null,
+      failureCode: detail.failureCode,
+      failureLabel: detail.failureLabel,
+      failureDescription: detail.failureDescription,
     };
   }
 

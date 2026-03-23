@@ -1,4 +1,4 @@
-import { CheckCircle2, CircleSlash, FileText, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, CircleSlash, FileText, ShieldCheck, ShieldX } from 'lucide-react';
 import { formatDate } from '@/lib/utils';
 import type { DaxRunSummary } from '@/types/dax';
 
@@ -65,12 +65,28 @@ export function RunSummaryCard({ summary }: RunSummaryCardProps) {
         </div>
       </div>
 
-      <div className="mt-4 rounded-xl border border-border bg-background/70 p-4">
-        <div className="text-xs uppercase tracking-wide text-muted-foreground">Outcome</div>
-        <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">
-          {summary.outcome?.summaryText || 'DAX did not return summary text for this run.'}
-        </p>
-      </div>
+      {summary.terminalReason === 'contract_mutation' ||
+      summary.outcome?.terminalReason === 'contract_mutation' ? (
+        <div className="mt-4 rounded-xl border border-rose-500/20 bg-rose-500/5 p-4">
+          <div className="flex items-center gap-2">
+            <ShieldX className="h-4 w-4 text-rose-500" />
+            <div className="text-xs uppercase tracking-wide text-rose-600 font-semibold">
+              Governance Violation
+            </div>
+          </div>
+          <p className="mt-3 whitespace-pre-wrap text-sm text-rose-600/90">
+            {summary.outcome?.summaryText ||
+              'This run was terminated because the workflow attempted to change its locked execution contract after initialization. This is a governance safeguard to ensure workflow integrity.'}
+          </p>
+        </div>
+      ) : (
+        <div className="mt-4 rounded-xl border border-border bg-background/70 p-4">
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">Outcome</div>
+          <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">
+            {summary.outcome?.summaryText || 'DAX did not return summary text for this run.'}
+          </p>
+        </div>
+      )}
     </section>
   );
 }

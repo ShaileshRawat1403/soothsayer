@@ -128,6 +128,9 @@ export interface DaxRunSnapshot {
     cursor: string;
     timestamp: string;
   } | null;
+  failureCode?: string;
+  failureLabel?: string;
+  failureDescription?: string;
 }
 
 export interface DaxApprovalContext {
@@ -209,9 +212,13 @@ export interface DaxRunSummary {
   approvalCount: number;
   artifactCount: number;
   trust?: DaxRunTrustState;
+  terminalReason?: string;
+  terminalReasonLabel?: string;
+  terminalReasonSeverity?: 'info' | 'success' | 'warning' | 'error';
   outcome?: {
     summaryText?: string;
     result?: 'success' | 'failure' | 'partial';
+    terminalReason?: string;
   };
 }
 
@@ -338,6 +345,9 @@ export interface SoothsayerWorkflowCard {
   terminalReason?: string;
   terminalReasonLabel?: string;
   terminalReasonSeverity?: 'info' | 'success' | 'warning' | 'error';
+  failureCode?: string;
+  failureLabel?: string;
+  failureDescription?: string;
   createdAt: string;
   completedAt?: string;
 }
@@ -390,6 +400,9 @@ export interface SoothsayerRunDetail {
   terminalReasonLabel?: string;
   terminalReasonDescription?: string;
   terminalReasonSeverity?: 'info' | 'success' | 'warning' | 'error';
+  failureCode?: string;
+  failureLabel?: string;
+  failureDescription?: string;
   approvals: {
     pending: number;
     approved: number;
