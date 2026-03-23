@@ -59,6 +59,7 @@ export function useRunConsole(runId: string, enabled = true, repoPath?: string) 
   const [isApproving, setIsApproving] = useState(false);
   const [recoverySummary, setRecoverySummary] = useState<DaxRecoverySummary | null>(null);
   const [isRecovering, setIsRecovering] = useState(false);
+  const [hasRecoveredThisSession, setHasRecoveredThisSession] = useState(false);
   const lastCursorRef = useRef<string | undefined>(undefined);
   const latestStatusRef = useRef<DaxRunStatus | null>(null);
 
@@ -112,6 +113,7 @@ export function useRunConsole(runId: string, enabled = true, repoPath?: string) 
       const result = response.data;
       if (result.success) {
         toast.success('Workflow recovered successfully');
+        setHasRecoveredThisSession(true);
         await Promise.all([refreshSnapshot(), refreshApprovals()]);
         return true;
       } else {
@@ -127,8 +129,7 @@ export function useRunConsole(runId: string, enabled = true, repoPath?: string) 
     }
   };
 
-  const checkAndRecover = async (): Promise<boolean> => {
-    const recovery = await refreshRecovery();
+  const handleRecoveryIfNeeded = async (recovery: DaxRecoverySummary | null): Promise<boolean> => {
     if (recovery?.needsRecovery) {
       return attemptRecovery();
     }
@@ -140,9 +141,8 @@ export function useRunConsole(runId: string, enabled = true, repoPath?: string) 
     try {
       const [recovery, nextSnapshot] = await Promise.all([refreshRecovery(), refreshSnapshot()]);
 
-      if (recovery?.needsRecovery && !recovery.hasState) {
-        await attemptRecovery();
-      } else {
+      const recovered = await handleRecoveryIfNeeded(recovery);
+      if (!recovered) {
         await refreshApprovals();
       }
 
@@ -166,6 +166,7 @@ export function useRunConsole(runId: string, enabled = true, repoPath?: string) 
     setSnapshot(null);
     setRecoverySummary(null);
     setIsRecovering(false);
+    setHasRecoveredThisSession(false);
     lastCursorRef.current = undefined;
     latestStatusRef.current = null;
 
@@ -334,6 +335,7 @@ export function useRunConsole(runId: string, enabled = true, repoPath?: string) 
     isApproving,
     isLoading,
     isRecovering,
+    hasRecoveredThisSession,
     loadRun,
     recoverySummary,
     resolveApproval,

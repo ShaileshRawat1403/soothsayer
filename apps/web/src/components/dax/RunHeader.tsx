@@ -18,6 +18,7 @@ interface RunHeaderProps {
   onRefresh: () => void;
   recoverySummary?: DaxRecoverySummary | null;
   isRecovering?: boolean;
+  hasRecoveredThisSession?: boolean;
   targetContext?: {
     mode: 'explicit_repo_path' | 'default_cwd';
     repoPath?: string;
@@ -32,6 +33,7 @@ export function RunHeader({
   onRefresh,
   recoverySummary,
   isRecovering,
+  hasRecoveredThisSession,
   targetContext,
 }: RunHeaderProps) {
   return (
@@ -59,9 +61,9 @@ export function RunHeader({
                 Needs Recovery
               </div>
             )}
-            {!isRecovering && !recoverySummary?.needsRecovery && recoverySummary && (
+            {!isRecovering && hasRecoveredThisSession && (
               <div className="rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                State Restored
+                Restored
               </div>
             )}
             <div className="flex items-center gap-2 text-xs text-muted-foreground">

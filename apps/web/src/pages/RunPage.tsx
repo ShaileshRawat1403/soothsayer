@@ -69,6 +69,7 @@ export function RunPage() {
     isApproving,
     isLoading,
     isRecovering,
+    hasRecoveredThisSession,
     loadRun,
     recoverySummary,
     resolveApproval,
@@ -254,6 +255,7 @@ export function RunPage() {
         onRefresh={() => void loadRun()}
         recoverySummary={recoverySummary}
         isRecovering={isRecovering}
+        hasRecoveredThisSession={hasRecoveredThisSession}
         targetContext={targetContext}
       />
 

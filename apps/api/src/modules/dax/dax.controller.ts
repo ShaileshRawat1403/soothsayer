@@ -35,7 +35,7 @@ export class DaxController {
 
   @Get('runs/:id')
   async getRun(@Param('id') id: string, @Query('repoPath') repoPath?: string) {
-    return this.daxService.getRun(id, repoPath);
+    return this.daxService.getRunSnapshot(id, repoPath);
   }
 
   @Get('runs/:id/events')

@@ -79,6 +79,70 @@ export class DaxService {
     });
   }
 
+  async getRunSnapshot(runId: string, repoPath?: string): Promise<DaxRunSnapshot> {
+    const soothsayerDetail = await this.getRun(runId, repoPath);
+    return this.adaptSoothsayerRunDetailToSnapshot(soothsayerDetail);
+  }
+
+  private adaptSoothsayerRunDetailToSnapshot(detail: SoothsayerRunDetail): DaxRunSnapshot {
+    return {
+      schemaVersion: 'v1',
+      authority: 'dax',
+      sourceSystem: detail.sourceSystem as DaxRunSnapshot['sourceSystem'] | undefined,
+      runId: detail.runId,
+      status: detail.status,
+      createdAt: detail.createdAt,
+      updatedAt: detail.updatedAt,
+      startedAt: detail.startedAt,
+      completedAt: detail.completedAt,
+      title: detail.title,
+      currentStep: detail.progress
+        ? {
+            stepId: detail.progress.currentStep,
+            status: 'running' as const,
+            title: detail.progress.currentStepLabel || detail.progress.currentStep,
+            detail: detail.progress.currentStepDescription,
+          }
+        : undefined,
+      pendingApprovalCount: detail.approvals?.pending ?? 0,
+      trust: detail.trust
+        ? {
+            score: undefined,
+            posture: detail.trust.posture as 'low' | 'guarded' | 'moderate' | 'strong' | undefined,
+            blocked: detail.trust.blocked,
+            reasons: detail.trust.postureDescription
+              ? [detail.trust.postureDescription]
+              : undefined,
+          }
+        : undefined,
+      artifactSummary: detail.artifacts
+        ? {
+            total: detail.artifacts.total,
+            byType: undefined,
+            latestArtifactIds: detail.artifacts.latestIds,
+          }
+        : undefined,
+      executionProfile: detail.workflow
+        ? {
+            personaId: 'unknown',
+            provider: 'unknown',
+            model: 'unknown',
+            approvalMode: 'strict',
+            riskLevel: 'medium',
+            isFallback: false,
+          }
+        : undefined,
+      lastEvent: detail.lastEvent
+        ? {
+            eventId: detail.lastEvent.eventId,
+            sequence: detail.lastEvent.sequence,
+            cursor: detail.lastEvent.cursor,
+            timestamp: detail.lastEvent.timestamp,
+          }
+        : null,
+    };
+  }
+
   async getApprovals(runId: string, repoPath?: string): Promise<SoothsayerApprovalDetail[]> {
     return this.requestJson<SoothsayerApprovalDetail[]>(
       `/soothsayer/runs/${encodeURIComponent(runId)}/approvals`,
