@@ -41,6 +41,7 @@ export function DaxOverviewPage() {
     'all'
   );
   const [showRecoveryOnly, setShowRecoveryOnly] = useState(false);
+  const [showGovernanceOnly, setShowGovernanceOnly] = useState(false);
 
   const workspaceSettings =
     currentWorkspace?.settings && typeof currentWorkspace.settings === 'object'
@@ -112,6 +113,9 @@ export function DaxOverviewPage() {
     if (filterStatus !== 'all') {
       runs = runs.filter((r) => r.status === filterStatus);
     }
+    if (showGovernanceOnly) {
+      runs = runs.filter((r) => r.failureCode === 'contract_mutation');
+    }
     if (showRecoveryOnly) {
       runs = runs.filter((r) => recoveryStatus[r.runId]?.needsRecovery === true);
     }
@@ -128,12 +132,17 @@ export function DaxOverviewPage() {
       seen.add(r.runId);
       return true;
     });
-  }, [overview, searchQuery, filterStatus, showRecoveryOnly, recoveryStatus]);
+  }, [overview, searchQuery, filterStatus, showRecoveryOnly, showGovernanceOnly, recoveryStatus]);
 
   const recoveryCount = useMemo(() => {
     const allRuns = [...(overview?.activeRuns || []), ...(overview?.recentRuns || [])];
     return allRuns.filter((r) => recoveryStatus[r.runId]?.needsRecovery).length;
   }, [overview, recoveryStatus]);
+
+  const governanceCount = useMemo(() => {
+    const allRuns = [...(overview?.activeRuns || []), ...(overview?.recentRuns || [])];
+    return allRuns.filter((r) => r.failureCode === 'contract_mutation').length;
+  }, [overview]);
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-8 p-10 animate-in-up">
@@ -275,6 +284,20 @@ export function DaxOverviewPage() {
               >
                 <RefreshCw className="h-3 w-3" />
                 Recovery ({recoveryCount})
+              </button>
+            )}
+            {governanceCount > 0 && (
+              <button
+                onClick={() => setShowGovernanceOnly(!showGovernanceOnly)}
+                className={cn(
+                  'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-label-sm transition-all border',
+                  showGovernanceOnly
+                    ? 'bg-red-500/10 text-red-600 border-red-500/20'
+                    : 'bg-muted/20 text-interactive border-border/40 hover:text-red-600'
+                )}
+              >
+                <ShieldAlert className="h-3 w-3" />
+                Governance ({governanceCount})
               </button>
             )}
           </div>
