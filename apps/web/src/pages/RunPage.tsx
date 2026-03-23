@@ -68,7 +68,9 @@ export function RunPage() {
     events,
     isApproving,
     isLoading,
+    isRecovering,
     loadRun,
+    recoverySummary,
     resolveApproval,
     snapshot,
     streamState,
@@ -250,6 +252,8 @@ export function RunPage() {
         snapshot={snapshot}
         streamState={streamState}
         onRefresh={() => void loadRun()}
+        recoverySummary={recoverySummary}
+        isRecovering={isRecovering}
         targetContext={targetContext}
       />
 

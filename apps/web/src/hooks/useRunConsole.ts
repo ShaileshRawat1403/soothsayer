@@ -10,6 +10,7 @@ import {
 import type {
   DaxApprovalDecision,
   DaxApprovalRecord,
+  DaxRecoverySummary,
   DaxRunSnapshot,
   DaxRunStatus,
   DaxRunSummary,
@@ -51,15 +52,19 @@ export function useRunConsole(runId: string, enabled = true, repoPath?: string) 
   const [events, setEvents] = useState<DaxStreamEvent[]>([]);
   const [approvals, setApprovals] = useState<DaxApprovalRecord[]>([]);
   const [summary, setSummary] = useState<DaxRunSummary | null>(null);
-  const [streamState, setStreamState] = useState<'connecting' | 'reconnecting' | 'live' | 'closed'>('closed');
+  const [streamState, setStreamState] = useState<'connecting' | 'reconnecting' | 'live' | 'closed'>(
+    'closed'
+  );
   const [isLoading, setIsLoading] = useState(enabled);
   const [isApproving, setIsApproving] = useState(false);
+  const [recoverySummary, setRecoverySummary] = useState<DaxRecoverySummary | null>(null);
+  const [isRecovering, setIsRecovering] = useState(false);
   const lastCursorRef = useRef<string | undefined>(undefined);
   const latestStatusRef = useRef<DaxRunStatus | null>(null);
 
   const activeApproval = useMemo(
     () => approvals.find((approval) => approval.status === 'pending') || null,
-    [approvals],
+    [approvals]
   );
 
   const refreshSnapshot = async () => {
@@ -87,10 +92,60 @@ export function useRunConsole(runId: string, enabled = true, repoPath?: string) 
     }
   };
 
+  const refreshRecovery = async (): Promise<DaxRecoverySummary | null> => {
+    try {
+      const response = await apiHelpers.getDaxRecoverySummary(runId, repoPath);
+      const recovery = response.data;
+      setRecoverySummary(recovery);
+      return recovery;
+    } catch {
+      setRecoverySummary(null);
+      return null;
+    }
+  };
+
+  const attemptRecovery = async (): Promise<boolean> => {
+    if (isRecovering) return false;
+    setIsRecovering(true);
+    try {
+      const response = await apiHelpers.recoverDaxRun(runId, repoPath);
+      const result = response.data;
+      if (result.success) {
+        toast.success('Workflow recovered successfully');
+        await Promise.all([refreshSnapshot(), refreshApprovals()]);
+        return true;
+      } else {
+        toast.error(result.error || 'Recovery failed');
+        return false;
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Recovery failed';
+      toast.error(message);
+      return false;
+    } finally {
+      setIsRecovering(false);
+    }
+  };
+
+  const checkAndRecover = async (): Promise<boolean> => {
+    const recovery = await refreshRecovery();
+    if (recovery?.needsRecovery) {
+      return attemptRecovery();
+    }
+    return false;
+  };
+
   const loadRun = async () => {
     setIsLoading(true);
     try {
-      const [nextSnapshot] = await Promise.all([refreshSnapshot(), refreshApprovals()]);
+      const [recovery, nextSnapshot] = await Promise.all([refreshRecovery(), refreshSnapshot()]);
+
+      if (recovery?.needsRecovery && !recovery.hasState) {
+        await attemptRecovery();
+      } else {
+        await refreshApprovals();
+      }
+
       if (isTerminalRunStatus(nextSnapshot.status)) {
         await refreshSummary();
       } else {
@@ -109,6 +164,8 @@ export function useRunConsole(runId: string, enabled = true, repoPath?: string) 
     setApprovals([]);
     setSummary(null);
     setSnapshot(null);
+    setRecoverySummary(null);
+    setIsRecovering(false);
     lastCursorRef.current = undefined;
     latestStatusRef.current = null;
 
@@ -198,13 +255,27 @@ export function useRunConsole(runId: string, enabled = true, repoPath?: string) 
           if (reconnectAttempts > maxReconnectAttempts) {
             break;
           }
-          await delayWithAbort(Math.min(1000 * 2 ** (reconnectAttempts - 1), 5000), controller.signal);
+          await delayWithAbort(
+            Math.min(1000 * 2 ** (reconnectAttempts - 1), 5000),
+            controller.signal
+          );
         } catch (error) {
           if (controller.signal.aborted) {
             return;
           }
 
           reconnectAttempts += 1;
+
+          const recovery = await refreshRecovery();
+          if (recovery?.needsRecovery) {
+            const recovered = await attemptRecovery();
+            if (recovered) {
+              reconnectAttempts = 0;
+              setStreamState('connecting');
+              continue;
+            }
+          }
+
           if (reconnectAttempts > maxReconnectAttempts) {
             setStreamState('closed');
             const message = error instanceof Error ? error.message : 'Run stream disconnected';
@@ -213,7 +284,10 @@ export function useRunConsole(runId: string, enabled = true, repoPath?: string) 
           }
 
           setStreamState('reconnecting');
-          await delayWithAbort(Math.min(1000 * 2 ** (reconnectAttempts - 1), 5000), controller.signal);
+          await delayWithAbort(
+            Math.min(1000 * 2 ** (reconnectAttempts - 1), 5000),
+            controller.signal
+          );
         }
       }
     })();
@@ -232,11 +306,16 @@ export function useRunConsole(runId: string, enabled = true, repoPath?: string) 
     setIsApproving(true);
     try {
       await readData(
-        apiHelpers.resolveDaxRunApproval(runId, activeApproval.approvalId, {
-          decision,
-          comment,
-          requestId: activeApproval.approvalId,
-        }, repoPath),
+        apiHelpers.resolveDaxRunApproval(
+          runId,
+          activeApproval.approvalId,
+          {
+            decision,
+            comment,
+            requestId: activeApproval.approvalId,
+          },
+          repoPath
+        )
       );
       await Promise.all([refreshApprovals(), refreshSnapshot()]);
       toast.success(`Approval ${decision === 'approve' ? 'approved' : 'denied'}`);
@@ -254,7 +333,9 @@ export function useRunConsole(runId: string, enabled = true, repoPath?: string) 
     events,
     isApproving,
     isLoading,
+    isRecovering,
     loadRun,
+    recoverySummary,
     resolveApproval,
     snapshot,
     streamState,

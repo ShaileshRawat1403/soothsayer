@@ -6,6 +6,8 @@ import type {
   DaxCreateRunRequest,
   DaxCreateRunResponse,
   DaxHealthResponse,
+  DaxRecoveryResult,
+  DaxRecoverySummary,
   DaxRunOverviewResponse,
   DaxResolveApprovalRequest,
   DaxRunEvent,
@@ -91,7 +93,7 @@ export async function streamDaxRunEvents(
     signal?: AbortSignal;
     onOpen?: () => void;
     onEvent: (event: DaxStreamEvent) => void;
-  },
+  }
 ): Promise<void> {
   const token = useAuthStore.getState().token;
   if (!token) {
@@ -107,7 +109,9 @@ export async function streamDaxRunEvents(
   }
 
   const response = await fetch(
-    resolveApiUrl(`/dax/runs/${encodeURIComponent(runId)}/events${params.size ? `?${params.toString()}` : ''}`),
+    resolveApiUrl(
+      `/dax/runs/${encodeURIComponent(runId)}/events${params.size ? `?${params.toString()}` : ''}`
+    ),
     {
       method: 'GET',
       headers: {
@@ -115,7 +119,7 @@ export async function streamDaxRunEvents(
         Accept: 'text/event-stream',
       },
       signal: options.signal,
-    },
+    }
   );
 
   if (!response.ok) {
@@ -182,10 +186,10 @@ api.interceptors.response.use(
   },
   async (error: AxiosError) => {
     const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
-    
+
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
-      
+
       const refreshToken = useAuthStore.getState().refreshToken;
       if (refreshToken) {
         try {
@@ -195,7 +199,12 @@ api.interceptors.response.use(
           const payload = response.data as WrappedResponse<{
             accessToken: string;
             refreshToken: string;
-            user?: { id: string; email: string; name: string; role?: 'ADMIN' | 'MEMBER' | 'VIEWER' };
+            user?: {
+              id: string;
+              email: string;
+              name: string;
+              role?: 'ADMIN' | 'MEMBER' | 'VIEWER';
+            };
           }>;
           const refreshData = payload?.data ?? (response.data as typeof payload.data);
           const { accessToken, refreshToken: newRefreshToken } = refreshData;
@@ -218,11 +227,11 @@ api.interceptors.response.use(
             accessToken,
             newRefreshToken
           );
-          
+
           if (originalRequest.headers) {
             originalRequest.headers.Authorization = `Bearer ${accessToken}`;
           }
-          
+
           return api(originalRequest);
         } catch (refreshError) {
           useAuthStore.getState().logout();
@@ -242,7 +251,7 @@ api.interceptors.response.use(
         ? JSON.stringify(error.response.data)
         : error.message) ||
       'Request failed';
-    
+
     return Promise.reject(new Error(errorMessage));
   }
 );
@@ -250,27 +259,25 @@ api.interceptors.response.use(
 // API helper functions
 export const apiHelpers = {
   // Auth
-  login: (email: string, password: string) =>
-    api.post('/auth/login', { email, password }),
-  
+  login: (email: string, password: string) => api.post('/auth/login', { email, password }),
+
   register: (data: { email: string; password: string; name: string }) =>
     api.post('/auth/register', data),
-  
+
   logout: () => api.post('/auth/logout'),
-  
+
   // Workspaces
   getWorkspaces: () => api.get('/workspaces'),
   getWorkspace: (id: string) => api.get(`/workspaces/${id}`),
-  createWorkspace: (data: { name: string; description?: string }) =>
-    api.post('/workspaces', data),
+  createWorkspace: (data: { name: string; description?: string }) => api.post('/workspaces', data),
   updateWorkspace: (id: string, data: Partial<{ name: string; description: string }>) =>
     api.patch(`/workspaces/${id}`, data),
   deleteWorkspace: (id: string) => api.delete(`/workspaces/${id}`),
-  
+
   // Projects
   getProjects: () => api.get('/projects'),
   getProject: (projectId: string) => api.get(`/projects/${projectId}`),
-  
+
   // Personas
   getPersonas: (params?: {
     workspaceId?: string;
@@ -283,12 +290,11 @@ export const apiHelpers = {
   }) => api.get('/personas', { params }),
   getPersona: (id: string) => api.get(`/personas/${id}`),
   createPersona: (data: Record<string, unknown>) => api.post('/personas', data),
-  updatePersona: (id: string, data: Record<string, unknown>) =>
-    api.patch(`/personas/${id}`, data),
+  updatePersona: (id: string, data: Record<string, unknown>) => api.patch(`/personas/${id}`, data),
   deletePersona: (id: string) => api.delete(`/personas/${id}`),
   getRecommendedPersona: (context: string) =>
     api.get('/personas/recommend', { params: { input: context } }),
-  
+
   // Conversations
   getConversations: (workspaceId: string) =>
     api.get('/chat/conversations', { params: { workspaceId } }),
@@ -299,10 +305,9 @@ export const apiHelpers = {
     personaId: string;
     projectId?: string;
     repoPath?: string;
-  }) =>
-    api.post('/chat/conversations', data),
+  }) => api.post('/chat/conversations', data),
   deleteConversation: (id: string) => api.delete(`/chat/conversations/${id}`),
-  
+
   // Chat
   sendMessage: (
     conversationId: string,
@@ -316,20 +321,22 @@ export const apiHelpers = {
     },
     options?: {
       signal?: AbortSignal;
-    },
+    }
   ) =>
     api.post(`/chat/conversations/${conversationId}/messages`, payload, {
       timeout: Number.isFinite(CHAT_TIMEOUT_MS) ? CHAT_TIMEOUT_MS : 600000,
       signal: options?.signal,
     }),
-  
+
   // Commands
   getCommands: (workspaceId: string) => api.get('/commands', { params: { workspaceId } }),
-  executeCommand: (commandId: string, data: { workspaceId: string; projectId?: string; parameters: Record<string, unknown> }) =>
-    api.post(`/commands/${commandId}/execute`, data),
+  executeCommand: (
+    commandId: string,
+    data: { workspaceId: string; projectId?: string; parameters: Record<string, unknown> }
+  ) => api.post(`/commands/${commandId}/execute`, data),
   executeTerminalCommand: (data: { workspaceId: string; command: string; cwd?: string }) =>
     api.post('/commands/execute-terminal', data),
-  
+
   // Workflows
   getWorkflows: () => api.get('/workflows'),
   getWorkflow: (id: string) => api.get(`/workflows/${id}`),
@@ -350,11 +357,11 @@ export const apiHelpers = {
       trigger?: Record<string, unknown>;
       steps?: Array<Record<string, unknown>>;
       status?: 'draft' | 'active' | 'paused' | 'archived';
-    },
+    }
   ) => api.patch(`/workflows/${id}`, payload),
   bootstrapWorkflowTemplates: (workspaceId?: string) =>
     api.post('/workflows/bootstrap/templates', workspaceId ? { workspaceId } : {}),
-  
+
   // Tools
   getTools: () => api.get('/tools'),
   getTool: (id: string) => api.get(`/tools/${id}`),
@@ -375,18 +382,18 @@ export const apiHelpers = {
   getOAuthReadiness: () => api.get('/integrations/oauth-readiness'),
   testIntegration: (
     name: 'slack' | 'github' | 'google_drive' | 'jira' | 'linear' | 'notion' | 'discord',
-    workspaceId?: string,
+    workspaceId?: string
   ) => api.post(`/integrations/${name}/test`, workspaceId ? { workspaceId } : {}),
   getIntegrationConnectUrl: (
     name: 'github' | 'slack' | 'google_drive' | 'jira' | 'notion' | 'linear' | 'discord',
-    workspaceId?: string,
+    workspaceId?: string
   ) =>
     api.get(`/integrations/${name}/connect`, {
       params: workspaceId ? { workspaceId } : undefined,
     }),
   disconnectIntegration: (
     name: 'github' | 'slack' | 'google_drive' | 'jira' | 'notion' | 'linear' | 'discord',
-    workspaceId?: string,
+    workspaceId?: string
   ) =>
     api.delete(`/integrations/${name}`, {
       params: workspaceId ? { workspaceId } : undefined,
@@ -398,13 +405,13 @@ export const apiHelpers = {
       accessToken: string;
       accountName?: string;
       cloudId?: string;
-    },
+    }
   ) => api.post(`/integrations/${name}/manual`, payload),
-  
+
   // Analytics
   getAnalytics: () => api.get('/analytics'),
   getAnalyticsById: (id: string) => api.get(`/analytics/${id}`),
-  
+
   // Files
   getFiles: () => api.get('/files'),
   getFile: (id: string) => api.get(`/files/${id}`),
@@ -438,19 +445,29 @@ export const apiHelpers = {
     runId: string,
     approvalId: string,
     payload: DaxResolveApprovalRequest,
-    repoPath?: string,
+    repoPath?: string
   ) =>
     api.post(`/dax/runs/${runId}/approvals/${approvalId}`, payload, {
       params: repoPath ? { repoPath } : undefined,
     }),
   getDaxRunSummary: (runId: string, repoPath?: string) =>
-    api.get<DaxRunSummary>(`/dax/runs/${runId}/summary`, {
-      params: repoPath ? { repoPath } : undefined,
+    api.get<DaxRunSummary>(`/dax/runs/${encodeURIComponent(runId)}/summary`, {
+      params: { repoPath },
     }),
   getDaxRunArtifacts: (runId: string, repoPath?: string) =>
-    api.get<DaxArtifactRecord[]>(`/dax/runs/${runId}/artifacts`, {
-      params: repoPath ? { repoPath } : undefined,
+    api.get<DaxArtifactRecord[]>(`/dax/runs/${encodeURIComponent(runId)}/artifacts`, {
+      params: { repoPath },
     }),
+  getDaxRecoverySummary: (runId: string, repoPath?: string) =>
+    api.get<DaxRecoverySummary>(`/dax/runs/${encodeURIComponent(runId)}/recovery`, {
+      params: { repoPath },
+    }),
+  recoverDaxRun: (runId: string, repoPath?: string) =>
+    api.post<DaxRecoveryResult>(`/dax/runs/${encodeURIComponent(runId)}/recover`, undefined, {
+      params: { repoPath },
+    }),
+  getDaxBatchRecoveryStatus: (runIds: string[], repoPath?: string) =>
+    api.post<Record<string, DaxRecoverySummary>>('/dax/runs/recovery-status', { runIds, repoPath }),
 };
 
 export default api;

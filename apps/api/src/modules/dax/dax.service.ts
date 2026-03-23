@@ -23,6 +23,11 @@ import type {
   DaxResolveApprovalResponse,
   DaxRunSnapshot,
   DaxRunSummary,
+  SoothsayerOverview,
+  SoothsayerRunDetail,
+  SoothsayerApprovalDetail,
+  DaxRecoverySummary,
+  DaxRecoveryResult,
 } from './dax.types';
 
 @Injectable()
@@ -37,7 +42,7 @@ export class DaxService {
 
     if (!normalizedRepoPath) {
       this.logger.warn(
-        `Creating DAX run without explicit repoPath; falling back to DAX cwd (user=${user.id})`,
+        `Creating DAX run without explicit repoPath; falling back to DAX cwd (user=${user.id})`
       );
     }
 
@@ -68,35 +73,40 @@ export class DaxService {
     });
   }
 
-  async getRun(runId: string, repoPath?: string): Promise<DaxRunSnapshot> {
-    return this.requestJson<DaxRunSnapshot>(`/runs/${encodeURIComponent(runId)}`, {
+  async getRun(runId: string, repoPath?: string): Promise<SoothsayerRunDetail> {
+    return this.requestJson<SoothsayerRunDetail>(`/soothsayer/runs/${encodeURIComponent(runId)}`, {
       headers: this.buildTargetHeaders(repoPath),
     });
   }
 
-  async getApprovals(runId: string, repoPath?: string): Promise<DaxApprovalsResponse> {
-    return this.requestJson<DaxApprovalsResponse>(`/runs/${encodeURIComponent(runId)}/approvals`, {
-      headers: this.buildTargetHeaders(repoPath),
-    });
+  async getApprovals(runId: string, repoPath?: string): Promise<SoothsayerApprovalDetail[]> {
+    return this.requestJson<SoothsayerApprovalDetail[]>(
+      `/soothsayer/runs/${encodeURIComponent(runId)}/approvals`,
+      {
+        headers: this.buildTargetHeaders(repoPath),
+      }
+    );
   }
 
   async resolveApproval(
     runId: string,
     approvalId: string,
     payload: DaxResolveApprovalRequest,
-    repoPath?: string,
+    repoPath?: string
   ): Promise<DaxResolveApprovalResponse> {
     return this.requestJson<DaxResolveApprovalResponse>(
-      `/runs/${encodeURIComponent(runId)}/approvals/${encodeURIComponent(approvalId)}`,
+      `/soothsayer/runs/${encodeURIComponent(runId)}/approvals/${encodeURIComponent(approvalId)}`,
       {
         method: 'POST',
         headers: this.buildTargetHeaders(repoPath),
         body: JSON.stringify(payload),
-      },
+      }
     );
   }
 
   async getSummary(runId: string, repoPath?: string): Promise<DaxRunSummary> {
+    // Note: If you want to use the new soothsayer summary, there might not be a /soothsayer/runs/:id/summary route.
+    // However, getRunDetail provides a lot of this information. DAX still has generic routes.
     return this.requestJson<DaxRunSummary>(`/runs/${encodeURIComponent(runId)}/summary`, {
       headers: this.buildTargetHeaders(repoPath),
     });
@@ -118,10 +128,29 @@ export class DaxService {
     };
   }
 
-  async getOverview(repoPath?: string): Promise<DaxRunOverviewResponse> {
-    return this.requestJson<DaxRunOverviewResponse>('/runs/overview', {
+  async getOverview(repoPath?: string): Promise<SoothsayerOverview> {
+    return this.requestJson<SoothsayerOverview>('/soothsayer/overview', {
       headers: this.buildTargetHeaders(repoPath),
     });
+  }
+
+  async getRecoverySummary(runId: string, repoPath?: string): Promise<DaxRecoverySummary> {
+    return this.requestJson<DaxRecoverySummary>(
+      `/soothsayer/runs/${encodeURIComponent(runId)}/recovery`,
+      {
+        headers: this.buildTargetHeaders(repoPath),
+      }
+    );
+  }
+
+  async recoverRun(runId: string, repoPath?: string): Promise<DaxRecoveryResult> {
+    return this.requestJson<DaxRecoveryResult>(
+      `/soothsayer/runs/${encodeURIComponent(runId)}/recover`,
+      {
+        method: 'POST',
+        headers: this.buildTargetHeaders(repoPath),
+      }
+    );
   }
 
   async getEventStream(runId: string, cursor?: string, repoPath?: string): Promise<Response> {
@@ -151,7 +180,7 @@ export class DaxService {
 
   private async requestRaw(
     path: string,
-    init: RequestInit & { timeoutMs?: number } = {},
+    init: RequestInit & { timeoutMs?: number } = {}
   ): Promise<Response> {
     const controller = new AbortController();
     const timeoutMs =
@@ -204,7 +233,7 @@ export class DaxService {
       }
 
       this.logger.error(
-        `DAX request failed for ${path}: ${error instanceof Error ? error.message : String(error)}`,
+        `DAX request failed for ${path}: ${error instanceof Error ? error.message : String(error)}`
       );
       throw new BadGatewayException('Failed to reach DAX');
     } finally {

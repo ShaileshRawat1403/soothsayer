@@ -1,6 +1,6 @@
-import { Activity, CircleDot, PauseCircle, ShieldAlert } from 'lucide-react';
+import { Activity, CircleDot, PauseCircle, ShieldAlert, RefreshCw } from 'lucide-react';
 import { cn, formatDate } from '@/lib/utils';
-import type { DaxRunSnapshot } from '@/types/dax';
+import type { DaxRecoverySummary, DaxRunSnapshot } from '@/types/dax';
 
 const statusTone: Record<DaxRunSnapshot['status'], string> = {
   created: 'bg-slate-500/10 text-slate-600 dark:text-slate-300',
@@ -16,6 +16,8 @@ interface RunHeaderProps {
   snapshot: DaxRunSnapshot;
   streamState: 'connecting' | 'reconnecting' | 'live' | 'closed';
   onRefresh: () => void;
+  recoverySummary?: DaxRecoverySummary | null;
+  isRecovering?: boolean;
   targetContext?: {
     mode: 'explicit_repo_path' | 'default_cwd';
     repoPath?: string;
@@ -24,15 +26,44 @@ interface RunHeaderProps {
   };
 }
 
-export function RunHeader({ snapshot, streamState, onRefresh, targetContext }: RunHeaderProps) {
+export function RunHeader({
+  snapshot,
+  streamState,
+  onRefresh,
+  recoverySummary,
+  isRecovering,
+  targetContext,
+}: RunHeaderProps) {
   return (
     <section className="rounded-2xl border border-border bg-card p-5 shadow-sm">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div className="space-y-3">
           <div className="flex flex-wrap items-center gap-3">
-            <div className={cn('rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em]', statusTone[snapshot.status])}>
+            <div
+              className={cn(
+                'rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em]',
+                statusTone[snapshot.status]
+              )}
+            >
               {snapshot.status.replace('_', ' ')}
             </div>
+            {isRecovering && (
+              <div className="rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] bg-blue-500/10 text-blue-600 border border-blue-500/20 flex items-center gap-1.5">
+                <RefreshCw className="h-3 w-3 animate-spin" />
+                Recovering
+              </div>
+            )}
+            {!isRecovering && recoverySummary?.needsRecovery && (
+              <div className="rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] bg-amber-500/10 text-amber-600 border border-amber-500/20 flex items-center gap-1.5">
+                <RefreshCw className="h-3 w-3" />
+                Needs Recovery
+              </div>
+            )}
+            {!isRecovering && !recoverySummary?.needsRecovery && recoverySummary && (
+              <div className="rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                State Restored
+              </div>
+            )}
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Activity className="h-3.5 w-3.5" />
               Stream {streamState}
@@ -40,9 +71,7 @@ export function RunHeader({ snapshot, streamState, onRefresh, targetContext }: R
           </div>
 
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {snapshot.title || 'DAX Run'}
-            </h1>
+            <h1 className="text-2xl font-semibold tracking-tight">{snapshot.title || 'DAX Run'}</h1>
             <p className="mt-1 text-sm text-muted-foreground">
               Run ID: <span className="font-mono text-xs">{snapshot.runId}</span>
             </p>
@@ -128,7 +157,9 @@ export function RunHeader({ snapshot, streamState, onRefresh, targetContext }: R
             {snapshot.trust?.blocked && (
               <div className="flex items-start gap-2">
                 <ShieldAlert className="mt-0.5 h-4 w-4 text-rose-500" />
-                <div>{snapshot.trust.reasons?.[0] || 'Trust system marked this run as blocked.'}</div>
+                <div>
+                  {snapshot.trust.reasons?.[0] || 'Trust system marked this run as blocked.'}
+                </div>
               </div>
             )}
           </div>

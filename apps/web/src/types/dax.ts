@@ -17,11 +17,14 @@ export type {
   DaxRunSummary,
   DaxStreamEvent,
   DaxRunTargetingSummary,
+  SoothsayerApprovalDetail,
+  SoothsayerOverview,
+  SoothsayerRunDetail,
+  SoothsayerWorkflowCard,
+  DaxRecoverySummary,
+  DaxRecoveryResult,
 } from '@soothsayer/types';
 
 import type { DaxResolveApprovalRequest as SharedDaxResolveApprovalRequest } from '@soothsayer/types';
 
-export type DaxResolveApprovalRequest = Omit<
-  SharedDaxResolveApprovalRequest,
-  'actorId' | 'source'
->;
+export type DaxResolveApprovalRequest = Omit<SharedDaxResolveApprovalRequest, 'actorId' | 'source'>;

@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Param,
-  Post,
-  Query,
-  Res,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Res, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { GetCurrentUser, type CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -18,6 +9,7 @@ import type {
   DaxCreateRunRequest,
   DaxResolveApprovalRequest,
 } from './dax.types';
+import type { DaxRecoverySummary } from '@soothsayer/types';
 
 @ApiTags('dax')
 @Controller('dax')
@@ -37,10 +29,7 @@ export class DaxController {
   }
 
   @Post('runs')
-  async createRun(
-    @GetCurrentUser() user: CurrentUser,
-    @Body() payload: DaxCreateRunRequest,
-  ) {
+  async createRun(@GetCurrentUser() user: CurrentUser, @Body() payload: DaxCreateRunRequest) {
     return this.daxService.createRun(user, payload);
   }
 
@@ -54,7 +43,7 @@ export class DaxController {
     @Param('id') id: string,
     @Query('cursor') cursor: string | undefined,
     @Query('repoPath') repoPath: string | undefined,
-    @Res() res: Response,
+    @Res() res: Response
   ) {
     const upstream = await this.daxService.getEventStream(id, cursor, repoPath);
 
@@ -104,7 +93,7 @@ export class DaxController {
     @Param('approvalId') approvalId: string,
     @GetCurrentUser() user: CurrentUser,
     @Query('repoPath') repoPath: string | undefined,
-    @Body() payload: { decision: DaxApprovalDecision; comment?: string; requestId?: string },
+    @Body() payload: { decision: DaxApprovalDecision; comment?: string; requestId?: string }
   ) {
     const request: DaxResolveApprovalRequest = {
       decision: payload.decision,
@@ -125,5 +114,43 @@ export class DaxController {
   @Get('runs/:id/artifacts')
   async getArtifacts(@Param('id') id: string, @Query('repoPath') repoPath?: string) {
     return this.daxService.getArtifacts(id, repoPath);
+  }
+
+  @Get('runs/:id/recovery')
+  async getRecoverySummary(@Param('id') id: string, @Query('repoPath') repoPath?: string) {
+    return this.daxService.getRecoverySummary(id, repoPath);
+  }
+
+  @Post('runs/:id/recover')
+  async recoverRun(@Param('id') id: string, @Query('repoPath') repoPath?: string) {
+    return this.daxService.recoverRun(id, repoPath);
+  }
+
+  @Post('runs/recovery-status')
+  async getBatchRecoveryStatus(
+    @Body() payload: { runIds: string[]; repoPath?: string }
+  ): Promise<Record<string, DaxRecoverySummary>> {
+    const { runIds, repoPath } = payload;
+    if (!Array.isArray(runIds) || runIds.length === 0) {
+      return {};
+    }
+
+    const results: Record<string, DaxRecoverySummary> = {};
+    await Promise.all(
+      runIds.map(async (runId) => {
+        try {
+          const summary = await this.daxService.getRecoverySummary(runId, repoPath);
+          results[runId] = summary;
+        } catch {
+          results[runId] = {
+            hasState: false,
+            isTerminal: false,
+            needsRecovery: false,
+            eventCount: 0,
+          };
+        }
+      })
+    );
+    return results;
   }
 }

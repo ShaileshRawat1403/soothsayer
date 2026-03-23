@@ -285,3 +285,138 @@ export interface DaxStreamEvent extends DaxRunEvent {
   sseEvent?: string;
   sseId?: string;
 }
+
+export interface SoothsayerApprovalDetail {
+  approvalId: string;
+  runId: string;
+  type: string;
+  typeLabel?: string;
+  typeDescription?: string;
+  typeIcon?: string;
+  status: string;
+  risk: string;
+  riskLabel?: string;
+  riskDescription?: string;
+  riskSeverity?: number;
+  riskColor?: string;
+  title: string;
+  titleEnriched?: string;
+  reason: string;
+  context: {
+    stepId?: string;
+    filePath?: string;
+    command?: string;
+    toolName?: string;
+    diffPreview?: string;
+    notes?: string[];
+  };
+  createdAt: string;
+  updatedAt: string;
+  whatHappensNext?: {
+    afterApprove: string;
+    afterDeny?: string;
+  };
+}
+
+export interface SoothsayerWorkflowCard {
+  runId: string;
+  title?: string;
+  workflowClass: string;
+  workflowClassLabel?: string;
+  workflowClassDescription?: string;
+  status: DaxRunStatus;
+  trustPosture: string;
+  trustPostureLabel?: string;
+  progress: {
+    currentStep: string;
+    currentStepLabel?: string;
+    currentStepDescription?: string;
+    currentStepIndex: number;
+    totalSteps: number;
+    percentage: number;
+  };
+  terminalReason?: string;
+  terminalReasonLabel?: string;
+  terminalReasonSeverity?: 'info' | 'success' | 'warning' | 'error';
+  createdAt: string;
+  completedAt?: string;
+}
+
+export interface SoothsayerOverview {
+  activeRuns: SoothsayerWorkflowCard[];
+  recentRuns: SoothsayerWorkflowCard[];
+  pendingApprovals: SoothsayerApprovalDetail[];
+  authorityMetrics: {
+    dax_state_machine: number;
+    dax_legacy: number;
+    total: number;
+  };
+}
+
+export interface SoothsayerRunDetail {
+  runId: string;
+  status: DaxRunStatus;
+  authority: string;
+  sourceSystem?: string;
+  title?: string;
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+  startedAt?: string;
+  completedAt?: string;
+  progress: {
+    currentStep: string;
+    currentStepLabel?: string;
+    currentStepDescription?: string;
+    totalSteps: number;
+    percentage: number;
+  };
+  trust: {
+    posture: string;
+    postureLabel?: string;
+    postureDescription?: string;
+    blocked: boolean;
+  };
+  workflow: {
+    class: string;
+    classLabel?: string;
+    classDescription?: string;
+    stepGraph: string[];
+    currentStepIndex: number;
+    trustPosture: string;
+    trustPostureLabel?: string;
+  } | null;
+  terminalReason?: string;
+  terminalReasonLabel?: string;
+  terminalReasonDescription?: string;
+  terminalReasonSeverity?: 'info' | 'success' | 'warning' | 'error';
+  approvals: {
+    pending: number;
+    approved: number;
+    denied: number;
+  };
+  artifacts: {
+    total: number;
+    latestIds: string[];
+  };
+  lastEvent?: {
+    eventId: string;
+    sequence: number;
+    cursor: string;
+    timestamp: string;
+  };
+}
+
+export interface DaxRecoverySummary {
+  hasState: boolean;
+  isTerminal: boolean;
+  needsRecovery: boolean;
+  eventCount: number;
+}
+
+export interface DaxRecoveryResult {
+  success: boolean;
+  recoveredRunState?: Record<string, any>;
+  recoveredApprovals?: number;
+  error?: string;
+}

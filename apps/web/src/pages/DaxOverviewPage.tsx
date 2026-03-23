@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   History,
   XCircle,
+  RefreshCw,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -22,6 +23,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import type {
   DaxHealthResponse,
   DaxPendingApprovalSummary,
+  DaxRecoverySummary,
   DaxRunListItem,
   DaxRunOverviewResponse,
 } from '@/types/dax';
@@ -31,11 +33,13 @@ export function DaxOverviewPage() {
   const [health, setHealth] = useState<DaxHealthResponse | null>(null);
   const [overview, setOverview] = useState<DaxRunOverviewResponse | null>(null);
   const [globalOverview, setGlobalOverview] = useState<DaxRunOverviewResponse | null>(null);
+  const [recoveryStatus, setRecoveryStatus] = useState<Record<string, DaxRecoverySummary>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'running' | 'completed' | 'failed'>(
     'all'
   );
+  const [showRecoveryOnly, setShowRecoveryOnly] = useState(false);
 
   const workspaceSettings =
     currentWorkspace?.settings && typeof currentWorkspace.settings === 'object'
@@ -64,6 +68,24 @@ export function DaxOverviewPage() {
         setHealth(healthResponse.data);
         setOverview(overviewResponse.data);
         setGlobalOverview(globalOverviewResponse.data);
+
+        const allRunIds = [
+          ...(overviewResponse.data.activeRuns || []).map((r: DaxRunListItem) => r.runId),
+          ...(overviewResponse.data.recentRuns || []).map((r: DaxRunListItem) => r.runId),
+        ];
+        if (allRunIds.length > 0) {
+          try {
+            const recoveryResponse = await apiHelpers.getDaxBatchRecoveryStatus(
+              allRunIds,
+              inferredRepoPath
+            );
+            if (mounted) {
+              setRecoveryStatus(recoveryResponse.data);
+            }
+          } catch {
+            // Recovery status is non-critical, don't fail the page load
+          }
+        }
       } catch (error) {
         toast.error('Authority handshake failed');
       } finally {
@@ -89,6 +111,9 @@ export function DaxOverviewPage() {
     if (filterStatus !== 'all') {
       runs = runs.filter((r) => r.status === filterStatus);
     }
+    if (showRecoveryOnly) {
+      runs = runs.filter((r) => recoveryStatus[r.runId]?.needsRecovery === true);
+    }
     if (searchQuery) {
       runs = runs.filter(
         (r) =>
@@ -102,7 +127,12 @@ export function DaxOverviewPage() {
       seen.add(r.runId);
       return true;
     });
-  }, [overview, searchQuery, filterStatus]);
+  }, [overview, searchQuery, filterStatus, showRecoveryOnly, recoveryStatus]);
+
+  const recoveryCount = useMemo(() => {
+    const allRuns = [...(overview?.activeRuns || []), ...(overview?.recentRuns || [])];
+    return allRuns.filter((r) => recoveryStatus[r.runId]?.needsRecovery).length;
+  }, [overview, recoveryStatus]);
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-8 p-10 animate-in-up">
@@ -232,6 +262,20 @@ export function DaxOverviewPage() {
                 </button>
               ))}
             </div>
+            {recoveryCount > 0 && (
+              <button
+                onClick={() => setShowRecoveryOnly(!showRecoveryOnly)}
+                className={cn(
+                  'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-label-sm transition-all border',
+                  showRecoveryOnly
+                    ? 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                    : 'bg-muted/20 text-interactive border-border/40 hover:text-amber-600'
+                )}
+              >
+                <RefreshCw className="h-3 w-3" />
+                Recovery ({recoveryCount})
+              </button>
+            )}
           </div>
         </div>
 
@@ -241,7 +285,14 @@ export function DaxOverviewPage() {
               <span className="text-label-sm">No matching signals found</span>
             </div>
           ) : (
-            filteredRuns.map((run) => <TraceRow key={run.runId} run={run} to={runLink(run)} />)
+            filteredRuns.map((run) => (
+              <TraceRow
+                key={run.runId}
+                run={run}
+                to={runLink(run)}
+                recoveryStatus={recoveryStatus[run.runId]}
+              />
+            ))
           )}
         </div>
       </section>
@@ -249,7 +300,17 @@ export function DaxOverviewPage() {
   );
 }
 
-function TraceRow({ run, to }: { run: DaxRunListItem; to: string }) {
+function TraceRow({
+  run,
+  to,
+  recoveryStatus,
+}: {
+  run: DaxRunListItem;
+  to: string;
+  recoveryStatus?: DaxRecoverySummary;
+}) {
+  const needsRecovery = recoveryStatus?.needsRecovery === true;
+
   return (
     <Link
       to={to}
@@ -259,11 +320,13 @@ function TraceRow({ run, to }: { run: DaxRunListItem; to: string }) {
         <div
           className={cn(
             'h-1.5 w-1.5 rounded-full shrink-0',
-            run.status === 'completed'
-              ? 'bg-emerald-500/60 shadow-[0_0_8px_rgba(16,185,129,0.3)]'
-              : run.status === 'failed'
-                ? 'bg-rose-500/60 shadow-[0_0_8px_rgba(244,63,94,0.3)]'
-                : 'bg-primary animate-pulse'
+            needsRecovery
+              ? 'bg-amber-500/60 shadow-[0_0_8px_rgba(245,158,11,0.3)]'
+              : run.status === 'completed'
+                ? 'bg-emerald-500/60 shadow-[0_0_8px_rgba(16,185,129,0.3)]'
+                : run.status === 'failed'
+                  ? 'bg-rose-500/60 shadow-[0_0_8px_rgba(244,63,94,0.3)]'
+                  : 'bg-primary animate-pulse'
           )}
         />
 
@@ -287,6 +350,12 @@ function TraceRow({ run, to }: { run: DaxRunListItem; to: string }) {
       </div>
 
       <div className="flex items-center gap-8 shrink-0 ml-10">
+        {needsRecovery && (
+          <div className="rounded-lg px-2 py-1 text-label-sm bg-amber-500/10 text-amber-600 border border-amber-500/20 flex items-center gap-1">
+            <RefreshCw className="h-3 w-3" />
+            Recovery
+          </div>
+        )}
         <div
           className={cn(
             'px-3 py-1 rounded-lg text-label-sm border',

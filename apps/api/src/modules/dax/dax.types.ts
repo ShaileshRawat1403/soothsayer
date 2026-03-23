@@ -20,4 +20,10 @@ export type {
   DaxRunStatus,
   DaxRunSummary,
   DaxRunTargetingSummary,
+  SoothsayerApprovalDetail,
+  SoothsayerOverview,
+  SoothsayerRunDetail,
+  SoothsayerWorkflowCard,
+  DaxRecoverySummary,
+  DaxRecoveryResult,
 } from '@soothsayer/types';
