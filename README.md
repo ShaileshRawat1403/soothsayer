@@ -120,6 +120,20 @@ To enable execution features, start the DAX server and ensure `DAX_BASE_URL=http
 - `/runs/:id` - Run console
 - `/dax` - DAX overview
 
+## DAX Integration Surface
+
+Soothsayer is the **operator plane** for DAX — the surface through which human operators observe, govern, and recover AI-assisted runs. The integration goes beyond simple API calls:
+
+| Surface                              | Description                                                                                                                                                             |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Governed Run Observation**         | Live run console with real-time state, step timelines, and trust scoring                                                                                                |
+| **Recovery / Governance Visibility** | Failed-run recovery summaries with legal transition paths and replay artifacts                                                                                          |
+| **Approval Triage**                  | Risk-prioritized inbox for pending governance decisions                                                                                                                 |
+| **DAX Run Console**                  | Structured audit trail aligned with Soothsayer's Replay V3 UI                                                                                                           |
+| **FastMCP-Backed Execution**         | DAX's external substrate exposes governed tools (run.create/get, approvals, recovery) via FastMCP — Soothsayer uses these internally for programmatic run orchestration |
+
+See [docs/GOVERNED_FAILURE_VISIBILITY.md](docs/GOVERNED_FAILURE_VISIBILITY.md) for recovery workflow details.
+
 ## Documentation Hub
 
 - **[docs/README.md](docs/README.md)** - Root documentation index
