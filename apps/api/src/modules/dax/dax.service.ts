@@ -13,11 +13,14 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import type { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type {
+  DaxApprovalRecord,
   DaxApprovalsResponse,
   DaxArtifactRecord,
   DaxCreateRunRequest,
   DaxCreateRunResponse,
   DaxHealthResponse,
+  DaxPendingApprovalSummary,
+  DaxRunListItem,
   DaxRunOverviewResponse,
   DaxResolveApprovalRequest,
   DaxResolveApprovalResponse,
@@ -235,6 +238,86 @@ export class DaxService {
       },
       timeoutMs: 0,
     });
+  }
+
+  async getApprovalsResponse(runId: string, repoPath?: string): Promise<DaxApprovalsResponse> {
+    const approvals = await this.getApprovals(runId, repoPath);
+    return {
+      runId,
+      approvals: approvals.map((a) => ({
+        approvalId: a.approvalId,
+        runId: a.runId,
+        type: a.type as DaxApprovalRecord['type'],
+        status: a.status as DaxApprovalRecord['status'],
+        risk: a.risk as DaxApprovalRecord['risk'],
+        title: a.titleEnriched || a.title,
+        reason: a.reason,
+        context: {
+          stepId: a.context?.stepId,
+          filePath: a.context?.filePath,
+          command: a.context?.command,
+          toolName: a.context?.toolName,
+          diffPreview: a.context?.diffPreview,
+          notes: a.context?.notes,
+        },
+        createdAt: a.createdAt,
+        updatedAt: a.updatedAt,
+      })),
+    };
+  }
+
+  async getOverviewResponse(repoPath?: string): Promise<DaxRunOverviewResponse> {
+    const overview = await this.getOverview(repoPath);
+
+    const adaptWorkflowCard = (card: (typeof overview.activeRuns)[number]): DaxRunListItem => ({
+      runId: card.runId,
+      title: card.title,
+      status: card.status,
+      sourceSystem: 'soothsayer',
+      sourceSurface: 'chat',
+      createdAt: card.createdAt,
+      updatedAt: card.completedAt || card.createdAt,
+      startedAt: undefined,
+      completedAt: card.completedAt,
+      currentStep:
+        card.progress.totalSteps > 0
+          ? {
+              stepId: card.progress.currentStep,
+              status: 'running',
+              title: card.progress.currentStepLabel || card.progress.currentStep,
+            }
+          : undefined,
+      pendingApprovalCount: 0,
+      targeting: undefined,
+      workspaceId: undefined,
+      projectId: undefined,
+      chatId: undefined,
+      workflowId: undefined,
+      provider: undefined,
+      model: undefined,
+    });
+
+    const adaptPendingApproval = (
+      a: (typeof overview.pendingApprovals)[number]
+    ): DaxPendingApprovalSummary => ({
+      approvalId: a.approvalId,
+      runId: a.runId,
+      type: a.type as DaxPendingApprovalSummary['type'],
+      risk: a.risk as DaxPendingApprovalSummary['risk'],
+      title: a.titleEnriched || a.title,
+      reason: a.reason,
+      createdAt: a.createdAt,
+      targeting: undefined,
+      sourceSurface: 'chat',
+      workspaceId: undefined,
+      projectId: undefined,
+    });
+
+    return {
+      activeRuns: overview.activeRuns.map(adaptWorkflowCard),
+      recentRuns: overview.recentRuns.map(adaptWorkflowCard),
+      pendingApprovals: overview.pendingApprovals.map(adaptPendingApproval),
+    };
   }
 
   private async requestJson<T>(path: string, init: RequestInit = {}): Promise<T> {

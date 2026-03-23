@@ -25,7 +25,7 @@ export class DaxController {
 
   @Get('overview')
   async getOverview(@Query('repoPath') repoPath?: string) {
-    return this.daxService.getOverview(repoPath);
+    return this.daxService.getOverviewResponse(repoPath);
   }
 
   @Post('runs')
@@ -84,7 +84,7 @@ export class DaxController {
 
   @Get('runs/:id/approvals')
   async getApprovals(@Param('id') id: string, @Query('repoPath') repoPath?: string) {
-    return this.daxService.getApprovals(id, repoPath);
+    return this.daxService.getApprovalsResponse(id, repoPath);
   }
 
   @Post('runs/:id/approvals/:approvalId')
