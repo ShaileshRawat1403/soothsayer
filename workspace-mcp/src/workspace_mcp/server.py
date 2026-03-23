@@ -11,6 +11,7 @@ from .config import load_runtime_config
 from .policy_loader import load_effective_policy
 from .governor import Governor
 from .mcp_logging import logger
+from .capabilities import to_capability_manifest, get_workflow_bundle, get_capability
 
 from .tools.workspace_info import workspace_info as _workspace_info
 from .tools.repo_search import repo_search as _repo_search
@@ -113,6 +114,26 @@ def _bind_tools(mcp: FastMCP, governor: Governor) -> None:
     @mcp.tool()
     def self_check(run_id: Optional[str] = None, owner_id: Optional[str] = None) -> dict[str, Any]:
         return _self_check(governor, run_id=run_id, owner_id=owner_id).model_dump()
+
+    @mcp.tool()
+    def capability_manifest(workflow: Optional[str] = None) -> dict[str, Any]:
+        """Get the capability manifest for Workspace MCP.
+        
+        Without arguments, returns the full capability manifest.
+        With a workflow argument, returns the tool bundle for that workflow.
+        """
+        if workflow:
+            bundle = get_workflow_bundle(workflow)
+            return {
+                "workflow": workflow,
+                "tool_bundle": bundle,
+                "tools": [
+                    {"tool_id": tool_id, **get_capability(tool_id).__dict__}
+                    for tool_id in bundle
+                    if get_capability(tool_id)
+                ],
+            }
+        return to_capability_manifest()
 
 
 def main(argv: list[str] | None = None) -> int:

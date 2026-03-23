@@ -35,11 +35,11 @@ Phase D (Production): ───────────────────�
 
 **Priority: HIGH**
 
-| Item                       | Description                                   | Repository               |
-| -------------------------- | --------------------------------------------- | ------------------------ | --- |
-| Soothsayer UI completion   | Finalize run detail, summary, overview polish | soothsayer               | ✅  |
-| `repo_analyze` via Picobot | Deterministic repo analysis through ingress   | soothsayer/workspace-mcp | 🔄  |
-| MCP capability cleanup     | Standardize tool pack interface               | workspace-mcp            | ⏳  |
+| Item                       | Description                                   | Repository    |
+| -------------------------- | --------------------------------------------- | ------------- | --- |
+| Soothsayer UI completion   | Finalize run detail, summary, overview polish | soothsayer    | ✅  |
+| `repo_analyze` via Picobot | Deterministic repo analysis through ingress   | picobot       | ✅  |
+| MCP capability cleanup     | Standardize tool pack interface               | workspace-mcp | ✅  |
 
 **Exit criteria:**
 
@@ -47,6 +47,10 @@ Phase D (Production): ───────────────────�
 - [x] Recovery flows work end-to-end
 - [x] Approval UX is complete
 - [x] Governance badge takes priority over recovery badges
+- [x] Picobot classifies repo_analyze intent correctly
+- [x] Workspace MCP has canonical capability manifest
+- [x] Tool registry maps to risk/approval posture
+- [x] Workflow bundles defined for all workflow classes
 
 ---
 
