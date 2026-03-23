@@ -49,27 +49,27 @@ export function RunHeader({
             >
               {snapshot.status.replace('_', ' ')}
             </div>
-            {isRecovering && (
-              <div className="rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] bg-blue-500/10 text-blue-600 border border-blue-500/20 flex items-center gap-1.5">
-                <RefreshCw className="h-3 w-3 animate-spin" />
-                Recovering
+            {snapshot.failureCode === 'contract_mutation' && (
+              <div className="rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] bg-rose-500/10 text-rose-600 border border-rose-500/20 flex items-center gap-1.5">
+                <ShieldX className="h-3 w-3" />
+                {snapshot.failureLabel || 'Contract Mutated'}
               </div>
             )}
-            {!isRecovering && recoverySummary?.needsRecovery && (
+            {!isRecovering && !snapshot.failureCode && recoverySummary?.needsRecovery && (
               <div className="rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] bg-amber-500/10 text-amber-600 border border-amber-500/20 flex items-center gap-1.5">
                 <RefreshCw className="h-3 w-3" />
                 Needs Recovery
               </div>
             )}
-            {!isRecovering && hasRecoveredThisSession && (
+            {!isRecovering && !snapshot.failureCode && hasRecoveredThisSession && (
               <div className="rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
                 Restored
               </div>
             )}
-            {snapshot.failureCode === 'contract_mutation' && (
-              <div className="rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] bg-rose-500/10 text-rose-600 border border-rose-500/20 flex items-center gap-1.5">
-                <ShieldX className="h-3 w-3" />
-                {snapshot.failureLabel || 'Contract Mutated'}
+            {isRecovering && !snapshot.failureCode && (
+              <div className="rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] bg-blue-500/10 text-blue-600 border border-blue-500/20 flex items-center gap-1.5">
+                <RefreshCw className="h-3 w-3 animate-spin" />
+                Recovering
               </div>
             )}
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
