@@ -24,7 +24,7 @@ This document tracks the evolution of The Soothsayer from an AI execution experi
 - **Replay / Audit V3**: Implemented stage-based event grouping and resource snippet previews for file writes.
 
 ### Phase 4: Professional UI/UX Overhaul (March 19, Evening)
-- **Workstation Aesthetic**: Adopted a monochromatic "Apple-style" design with high-fidelity typography and shadows.
+- **Workstation Aesthetic**: Adopted a monochromatic design with high-fidelity typography and shadows.
 - **Emoji Purge**: Replaced all tacky emojis with professional Lucide icons across all surfaces.
 - **Micro-Interactions**: Integrated spring-based animations, staggered entry effects, and smooth terminal auto-scrolling.
 - **Notification Center**: Restored and enhanced the animated signal popover with unread tracking.

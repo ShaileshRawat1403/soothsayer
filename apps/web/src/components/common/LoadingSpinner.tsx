@@ -62,24 +62,20 @@ export function BouncingDots({ className }: BouncingDotsProps) {
   );
 }
 
-interface PulseRingProps {
-  className?: string;
-  color?: string;
+export function Shimmer({ className }: { className?: string }) {
+  return (
+    <div className={cn("relative overflow-hidden before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite] before:bg-gradient-to-r before:from-transparent before:via-white/10 before:to-transparent", className)} />
+  );
 }
 
-export function PulseRing({ className, color = 'currentColor' }: PulseRingProps) {
+export function Skeleton({ className, circle }: { className?: string; circle?: boolean }) {
   return (
-    <div className={cn('relative', className)}>
-      <motion.div
-        className="absolute inset-0 rounded-full bg-primary/20"
-        animate={{ scale: [1, 1.5, 1], opacity: [0.5, 0, 0.5] }}
-        transition={{ repeat: Infinity, duration: 1.5, ease: 'easeOut' }}
-      />
-      <motion.div
-        className="absolute inset-0 rounded-full bg-primary/40 animate-pulse-ring"
-        style={{ animationDelay: '0.5s' }}
-      />
-      <div className="relative h-3 w-3 rounded-full bg-primary" />
+    <div className={cn(
+      "bg-muted/40 animate-pulse",
+      circle ? "rounded-full" : "rounded-xl",
+      className
+    )}>
+      <Shimmer className="h-full w-full" />
     </div>
   );
 }
@@ -93,16 +89,9 @@ export function LoadingSkeleton({ className, lines = 3 }: LoadingSkeletonProps) 
   return (
     <div className={cn('space-y-3', className)}>
       {Array.from({ length: lines }).map((_, i) => (
-        <motion.div
+        <Skeleton
           key={i}
-          className="h-4 rounded bg-muted animate-shimmer"
-          initial={{ opacity: 0.5 }}
-          animate={{ opacity: [0.5, 1, 0.5] }}
-          transition={{
-            repeat: Infinity,
-            duration: 1.5,
-            delay: i * 0.1,
-          }}
+          className="h-4"
           style={{ width: `${100 - i * 15}%` }}
         />
       ))}

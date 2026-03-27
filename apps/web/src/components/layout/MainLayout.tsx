@@ -34,6 +34,7 @@ import {
 import { useTheme } from '@/components/common/ThemeProvider';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Logo } from '@/components/common/Logo';
+import { NodeStatus } from './NodeStatus';
 
 const navItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -361,17 +362,7 @@ export function MainLayout() {
 
           <div className="flex items-center gap-6">
             <div className="hidden md:flex items-center gap-6 pr-6 border-r border-border/20">
-              <div className="flex flex-col items-end">
-                <span className="text-[8px] font-black text-muted-foreground/40 uppercase tracking-[0.2em] leading-none">
-                  Authority
-                </span>
-                <div className="flex items-center gap-1.5 mt-1">
-                  <div className="h-1 w-1 rounded-full bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.4)]" />
-                  <span className="text-[10px] font-black text-foreground uppercase tracking-tight">
-                    Synchronized
-                  </span>
-                </div>
-              </div>
+              <NodeStatus />
             </div>
 
             <div className="relative" ref={notifRef}>

@@ -2,6 +2,11 @@ import { Worker, Queue } from 'bullmq';
 import Redis from 'ioredis';
 import pino from 'pino';
 import { spawn } from 'child_process';
+import dotenv from 'dotenv';
+import path from 'path';
+
+dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+dotenv.config({ path: path.resolve(process.cwd(), 'apps/worker/.env'), override: true });
 
 const logger = pino({
   level: process.env.LOG_LEVEL || 'info',
@@ -11,7 +16,22 @@ const logger = pino({
   },
 });
 
-const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
+const buildRedisUrl = () => {
+  if (process.env.REDIS_URL) return process.env.REDIS_URL;
+
+  const host = process.env.REDIS_HOST;
+  const port = process.env.REDIS_PORT || '6379';
+  const password = process.env.REDIS_PASSWORD;
+  const tls = process.env.REDIS_TLS === 'true';
+
+  if (!host) return 'redis://localhost:6379';
+
+  const protocol = tls ? 'rediss' : 'redis';
+  const auth = password ? `:${encodeURIComponent(password)}@` : '';
+  return `${protocol}://${auth}${host}:${port}`;
+};
+
+const REDIS_URL = buildRedisUrl();
 
 const connection = new Redis(REDIS_URL, {
   maxRetriesPerRequest: null,
@@ -423,11 +443,30 @@ workers.forEach((worker) => {
   });
   
   worker.on('failed', (job, error) => {
-    logger.error({ jobId: job?.id, queue: job?.queueName, error: error.message }, 'Job failed');
+    logger.error(
+      {
+        jobId: job?.id,
+        queue: job?.queueName,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorName: error instanceof Error ? error.name : undefined,
+        errorStack: error instanceof Error ? error.stack : undefined,
+        error,
+      },
+      'Job failed',
+    );
   });
   
   worker.on('error', (error) => {
-    logger.error({ error: error.message }, 'Worker error');
+    logger.error(
+      {
+        queue: worker.name,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        errorName: error instanceof Error ? error.name : undefined,
+        errorStack: error instanceof Error ? error.stack : undefined,
+        error,
+      },
+      'Worker error',
+    );
   });
 });
 
@@ -445,4 +484,4 @@ const shutdown = async () => {
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
-logger.info({ queues: Object.values(QUEUES) }, 'Workers started');
+logger.info({ queues: Object.values(QUEUES), redisUrl: REDIS_URL.replace(/:(?:[^:@/]+)@/, ':***@') }, 'Workers started');

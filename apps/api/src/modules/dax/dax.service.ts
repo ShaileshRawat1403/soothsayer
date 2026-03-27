@@ -91,7 +91,7 @@ export class DaxService {
     return {
       schemaVersion: 'v1',
       authority: 'dax',
-      sourceSystem: detail.sourceSystem as DaxRunSnapshot['sourceSystem'] | undefined,
+      sourceSystem: (detail.sourceSystem as DaxRunSnapshot['sourceSystem']) || 'dax',
       runId: detail.runId,
       status: detail.status,
       createdAt: detail.createdAt,
@@ -125,16 +125,26 @@ export class DaxService {
             latestArtifactIds: detail.artifacts.latestIds,
           }
         : undefined,
-      executionProfile: detail.workflow
+      executionProfile: detail.metadata?.executionProfile
         ? {
-            personaId: 'unknown',
-            provider: 'unknown',
-            model: 'unknown',
-            approvalMode: 'strict',
-            riskLevel: 'medium',
-            isFallback: false,
+            personaId: (detail.metadata.executionProfile as any).personaId || 'standard',
+            provider: (detail.metadata.executionProfile as any).provider || 'openai',
+            model: (detail.metadata.executionProfile as any).model || 'gpt-4',
+            approvalMode: (detail.metadata.executionProfile as any).approvalMode || 'strict',
+            riskLevel: (detail.metadata.executionProfile as any).riskLevel || 'medium',
+            isFallback: !!(detail.metadata.executionProfile as any).isFallback,
+            fallbackReason: (detail.metadata.executionProfile as any).fallbackReason,
           }
-        : undefined,
+        : detail.workflow
+          ? {
+              personaId: 'workflow-managed',
+              provider: 'workflow-managed',
+              model: 'workflow-managed',
+              approvalMode: (detail.workflow as any).approvalMode || 'strict',
+              riskLevel: (detail.workflow as any).riskLevel || 'medium',
+              isFallback: false,
+            }
+          : undefined,
       lastEvent: detail.lastEvent
         ? {
             eventId: detail.lastEvent.eventId,

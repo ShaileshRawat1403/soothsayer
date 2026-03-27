@@ -24,6 +24,30 @@ export class WorkflowsService {
     steps: Array<Record<string, unknown>>;
   }> = [
     {
+      name: 'Repository Intelligence',
+      slug: 'repo-intelligence',
+      description: 'Perform an exhaustive structural analysis of the codebase to map dependencies and architectural patterns.',
+      trigger: { type: 'manual' },
+      templateCategory: 'engineering',
+      steps: [
+        { id: 'scan-structure', name: 'Map Directory Structure', type: 'dax_run', risk: 'read', task: 'Recursively list all directories and key configuration files to understand project topology.' },
+        { id: 'analyze-deps', name: 'Analyze Dependency Graph', type: 'dax_run', risk: 'read', task: 'Inspect package.json, Cargo.toml, or requirements.txt to identify core framework and library usage.' },
+        { id: 'summarize-arch', name: 'Generate Architecture Overview', type: 'analysis', risk: 'read', task: 'Synthesize findings into a high-level architectural report.' },
+      ],
+    },
+    {
+      name: 'Autonomous Bug Fix',
+      slug: 'autonomous-bug-fix',
+      description: 'Automatically investigate, reproduce, and propose a fix for a reported issue.',
+      trigger: { type: 'manual' },
+      templateCategory: 'engineering',
+      steps: [
+        { id: 'repro-issue', name: 'Reproduce Failure', type: 'dax_run', risk: 'execute', task: 'Locate relevant tests or create a minimal reproduction script to confirm the reported bug.' },
+        { id: 'propose-fix', name: 'Implement Solution', type: 'dax_run', risk: 'write', task: 'Apply surgical changes to the source code to resolve the identified issue.' },
+        { id: 'verify-fix', name: 'Verify Integrity', type: 'dax_run', risk: 'execute', task: 'Run the full test suite to ensure the fix is effective and introduces no regressions.' },
+      ],
+    },
+    {
       name: 'Release Checklist',
       slug: 'release-checklist',
       description: 'Pre-release verification workflow for build, test, and deployment checks.',

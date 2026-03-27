@@ -32,7 +32,7 @@ Soothsayer is not just a chatbot; it is a **DAX (Distributed Autonomous eXecutio
 ### Core Pillars
 
 1.  **Autonomous Execution (DAX)**: Real-world action via the DAX Engine, capable of complex multi-step tasks.
-2.  **Operator Authority**: A high-fidelity "Apple-style" UI designed for triage and rapid decision-making.
+2.  **Operator Authority**: A high-fidelity professional UI designed for triage and rapid decision-making.
 3.  **Governance V2**: Fine-grained control over AI providers, behavioral personas, and risk-based approval gates.
 4.  **Audit Integrity**: Immutable signal trails and stage-based replays for every execution path.
 

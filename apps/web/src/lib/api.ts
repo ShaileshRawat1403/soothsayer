@@ -412,6 +412,9 @@ export const apiHelpers = {
   getAnalytics: () => api.get('/analytics'),
   getAnalyticsById: (id: string) => api.get(`/analytics/${id}`),
 
+  // Global Health
+  getGlobalHealth: () => api.get('/health'),
+
   // Files
   getFiles: () => api.get('/files'),
   getFile: (id: string) => api.get(`/files/${id}`),

@@ -14,6 +14,8 @@ interface ErrorResponse {
   error: {
     code: string;
     message: string;
+    operatorDetail?: string;
+    recoveryHint?: string;
     details?: Record<string, unknown>;
     stack?: string;
   };
@@ -40,6 +42,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
     let statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
     let code = 'INTERNAL_ERROR';
     let message = 'An unexpected error occurred';
+    let operatorDetail: string | undefined;
+    let recoveryHint: string | undefined;
     let details: Record<string, unknown> | undefined;
 
     // Handle different exception types
@@ -57,6 +61,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         if (Array.isArray(responseObj.message)) {
           details = { validationErrors: responseObj.message };
           message = 'Validation failed';
+          recoveryHint = 'Check the provided data fields for formatting or constraint violations.';
         }
       }
       
@@ -66,18 +71,26 @@ export class HttpExceptionFilter implements ExceptionFilter {
       statusCode = prismaError.statusCode;
       code = prismaError.code;
       message = prismaError.message;
+      recoveryHint = 'Database constraint violated. Ensure unique fields or referenced records are correct.';
     } else if (exception instanceof PrismaClientValidationError) {
       statusCode = HttpStatus.BAD_REQUEST;
       code = 'VALIDATION_ERROR';
       message = 'Invalid data provided';
+      recoveryHint = 'The request payload does not match the expected schema.';
     } else if (exception instanceof Error) {
       message = exception.message;
+      operatorDetail = exception.name !== 'Error' ? exception.name : undefined;
+    }
+
+    // High-level recovery hints based on codes
+    if (!recoveryHint) {
+      recoveryHint = this.mapToRecoveryHint(code, statusCode);
     }
 
     // Log the error
     if (statusCode >= 500) {
       this.logger.error(
-        `[${requestId}] ${request.method} ${path} - ${statusCode} - ${message}`,
+        `[${requestId}] ${request.method} ${path} - ${statusCode} - ${message} - ${operatorDetail || ''}`,
         exception instanceof Error ? exception.stack : undefined,
       );
     } else {
@@ -88,7 +101,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
       success: false,
       error: {
         code,
-        message,
+        message: this.getUserSafeMessage(code, message),
+        operatorDetail: operatorDetail || message,
+        recoveryHint,
         details,
       },
       meta: {
@@ -153,6 +168,27 @@ export class HttpExceptionFilter implements ExceptionFilter {
       503: 'SERVICE_UNAVAILABLE',
     };
     return statusCodes[status] || 'UNKNOWN_ERROR';
+  }
+
+  private mapToRecoveryHint(code: string, status: number): string {
+    if (code === 'UNAUTHORIZED') return 'Session expired or invalid. Please re-authenticate.';
+    if (code === 'FORBIDDEN') return 'You do not have the required permissions for this operation.';
+    if (code === 'NOT_FOUND') return 'The requested resource could not be located. Verify IDs and paths.';
+    if (code === 'BAD_GATEWAY' || code === 'SERVICE_UNAVAILABLE') {
+      return 'The downstream service (DAX or AI Provider) is currently unreachable. Check engine status.';
+    }
+    if (code === 'TOO_MANY_REQUESTS') return 'Rate limit exceeded. Implement backoff or check provider quotas.';
+    
+    if (status >= 500) return 'Internal system error. Check server logs with the provided Correlation ID.';
+    return 'Verify request parameters and try again.';
+  }
+
+  private getUserSafeMessage(code: string, originalMessage: string): string {
+    // Hide sensitive internal errors from end-users, but keep validation/auth messages
+    if (code === 'INTERNAL_ERROR' || code === 'DATABASE_ERROR') {
+      return 'An internal workstation error occurred. Our engineers have been notified.';
+    }
+    return originalMessage;
   }
 
   private generateRequestId(): string {
