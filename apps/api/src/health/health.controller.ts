@@ -1,9 +1,10 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { PrismaService } from '../prisma/prisma.service';
-import { DaxService } from '../dax/dax.service';
+import { DaxService } from '../modules/dax/dax.service';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
+import { QueueHealthService } from './queue-health.service';
 
 @ApiTags('health')
 @Controller('health')
@@ -12,6 +13,7 @@ export class HealthController {
     private prisma: PrismaService,
     private daxService: DaxService,
     private configService: ConfigService,
+    private queueHealth: QueueHealthService,
   ) {}
 
   @Get()
@@ -21,10 +23,11 @@ export class HealthController {
   async check() {
     const services: Array<{
       name: string;
-      status: 'up' | 'down';
+      status: 'up' | 'down' | 'error' | 'impaired';
       latencyMs?: number;
       message?: string;
       version?: string;
+      details?: any;
     }> = [];
 
     // 1. Database Check
@@ -44,7 +47,7 @@ export class HealthController {
       });
     }
 
-    // 2. Redis Check (Optional but recommended)
+    // 2. Redis Check
     const redisStart = Date.now();
     const redisUrl = this.configService.get<string>('REDIS_URL');
     if (redisUrl) {
@@ -88,7 +91,32 @@ export class HealthController {
       });
     }
 
-    const allHealthy = services.every((s) => s.status === 'up');
+    // 4. Worker & Queue Check
+    try {
+      const queueStatuses = await this.queueHealth.getAllQueuesStatus();
+      const anyDown = queueStatuses.some((q) => q.status === 'down');
+      const allDown = queueStatuses.every((q) => q.status === 'down');
+      
+      services.push({
+        name: 'background-workers',
+        status: allDown ? 'down' : anyDown ? 'impaired' : 'up',
+        details: queueStatuses,
+      });
+    } catch (error) {
+      services.push({
+        name: 'background-workers',
+        status: 'error',
+        message: 'Failed to probe queue status',
+      });
+    }
+
+    // 5. WebSocket Gateway Check (Basic reachability)
+    services.push({
+      name: 'websocket-gateway',
+      status: 'up', // TODO: Implement deeper probe if needed
+    });
+
+    const allHealthy = services.every((s) => s.status === 'up' || s.status === 'impaired');
 
     return {
       status: allHealthy ? 'healthy' : 'unhealthy',

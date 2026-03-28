@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { WebsocketGateway } from '../../websocket/websocket.gateway';
 
 export type NotificationType = 
   | 'approval_request' 
@@ -13,7 +14,10 @@ export type NotificationType =
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly wsGateway: WebsocketGateway,
+  ) {}
 
   async create(params: {
     workspaceId: string;
@@ -37,7 +41,9 @@ export class NotificationsService {
         },
       });
 
-      // TODO: Emit via WebSocket in Phase 5 for real-time polish
+      // Real-time delivery
+      this.wsGateway.emitToUser(params.userId, 'notification:new', notification);
+      
       return notification;
     } catch (error) {
       this.logger.error(`Failed to create notification: ${params.title}`, error);

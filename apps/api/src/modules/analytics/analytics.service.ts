@@ -85,7 +85,7 @@ export class AnalyticsService {
         role: 'assistant',
         conversation: { workspaceId },
       },
-      select: { metadata: true },
+      select: { metadata: true, contentType: true },
       take: 1000, // Sample recent messages
     });
 

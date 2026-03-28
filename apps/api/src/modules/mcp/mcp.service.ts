@@ -326,6 +326,22 @@ export class McpService {
     return this.callTool(name, args);
   }
 
+  async preflight(content: string, options: { conversationId: string; explicitTool?: string; explicitArgs?: any }) {
+    if (options.explicitTool) {
+      return {
+        selectedTool: options.explicitTool,
+        suggestedArgs: options.explicitArgs || {},
+        reason: 'Explicit tool requested',
+      };
+    }
+    // TODO: In Phase 5, add AI-driven tool classification
+    return null;
+  }
+
+  async executeTool(name: string, args: Record<string, unknown>) {
+    return this.callAllowedTool(name, args);
+  }
+
   async callAllowedToolSmart(
     name: string,
     args: Record<string, unknown>,

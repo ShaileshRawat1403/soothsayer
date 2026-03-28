@@ -63,6 +63,7 @@ export interface DaxCreateRunRequest {
     projectId?: string;
     chatId?: string;
     workflowId?: string;
+    policyReason?: string;
     targeting?: {
       mode: 'explicit_repo_path' | 'default_cwd';
       repoPath?: string;

@@ -91,7 +91,7 @@ export class ConversationService {
         take: limit,
         orderBy: { updatedAt: 'desc' },
       }),
-      this.prisma.prisma.conversation.count({ where }),
+      this.prisma.conversation.count({ where }),
     ]);
 
     return {

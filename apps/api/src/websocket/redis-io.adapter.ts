@@ -26,30 +26,47 @@ export class RedisIoAdapter extends IoAdapter {
   }
 
   async connectToRedis(): Promise<void> {
+    const redisUrl = this.configService.get<string>('REDIS_URL');
     const host = this.configService.get<string>('REDIS_HOST', 'localhost');
     const port = this.configService.get<number>('REDIS_PORT', 6379);
     const password = this.configService.get<string>('REDIS_PASSWORD');
     const tlsEnabled = parseBoolean(this.configService.get('REDIS_TLS'));
 
-    const redisOptions: RedisOptions = {
-      host,
-      port,
-      password,
-      connectTimeout: 10000,
-      lazyConnect: true,
-      maxRetriesPerRequest: null,
-      enableReadyCheck: true,
-      enableOfflineQueue: false,
-      retryStrategy: (times) => Math.min(times * 100, 2000),
-      reconnectOnError: () => false,
-    };
+    let pubClient: Redis;
+    let subClient: Redis;
 
-    if (tlsEnabled) {
-      redisOptions.tls = {};
+    if (redisUrl?.trim()) {
+      this.logger.log(`Connecting to Redis via URL (TLS=${redisUrl.startsWith('rediss')})`);
+      pubClient = new Redis(redisUrl, {
+        maxRetriesPerRequest: null,
+        enableReadyCheck: true,
+      });
+      subClient = new Redis(redisUrl, {
+        maxRetriesPerRequest: null,
+        enableReadyCheck: true,
+      });
+    } else {
+      const redisOptions: RedisOptions = {
+        host,
+        port,
+        password,
+        connectTimeout: 10000,
+        lazyConnect: true,
+        maxRetriesPerRequest: null,
+        enableReadyCheck: true,
+        enableOfflineQueue: false,
+        retryStrategy: (times) => Math.min(times * 100, 2000),
+        reconnectOnError: () => false,
+      };
+
+      if (tlsEnabled) {
+        redisOptions.tls = {};
+      }
+
+      this.logger.log(`Connecting to Redis at ${host}:${port} (TLS=${tlsEnabled}, Auth=${!!password})`);
+      pubClient = new Redis(redisOptions);
+      subClient = new Redis(redisOptions);
     }
-
-    const pubClient = new Redis(redisOptions);
-    const subClient = new Redis(redisOptions);
 
     pubClient.on('error', (error) => {
       this.logger.error(`Redis pub client error: ${error.message}`);
@@ -57,16 +74,8 @@ export class RedisIoAdapter extends IoAdapter {
     subClient.on('error', (error) => {
       this.logger.error(`Redis sub client error: ${error.message}`);
     });
-    pubClient.on('end', () => {
-      this.logger.warn('Redis pub client connection ended');
-    });
-    subClient.on('end', () => {
-      this.logger.warn('Redis sub client connection ended');
-    });
 
     await Promise.all([pubClient.connect(), subClient.connect()]);
-    this.logger.log(`Connected Socket.IO adapter to Redis at ${host}:${port} (tls=${tlsEnabled})`);
-
     this.adapterConstructor = createAdapter(pubClient, subClient);
   }
 

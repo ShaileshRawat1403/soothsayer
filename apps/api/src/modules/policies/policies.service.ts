@@ -60,7 +60,7 @@ export class PoliciesService {
       'deployment',
     ];
     
-    return criticalKeywords.some(keyword => input.includes(criticalKeywords.join('|')));
+    return criticalKeywords.some(keyword => input.includes(keyword));
   }
 
   private getLegacyRegexDecision(normalized: string): HandoffDecision {

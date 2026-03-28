@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -38,6 +39,9 @@ const envFilePath = [
       validate: validateEnv,
       envFilePath,
     }),
+
+    // Events
+    EventEmitterModule.forRoot(),
 
     // Rate limiting
     ThrottlerModule.forRootAsync({

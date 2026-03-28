@@ -16,6 +16,8 @@ interface ErrorResponse {
     message: string;
     operatorDetail?: string;
     recoveryHint?: string;
+    operatorAction?: string;
+    retryable?: boolean;
     details?: Record<string, unknown>;
     stack?: string;
   };
@@ -43,7 +45,6 @@ export class HttpExceptionFilter implements ExceptionFilter {
     let code = 'INTERNAL_ERROR';
     let message = 'An unexpected error occurred';
     let operatorDetail: string | undefined;
-    let recoveryHint: string | undefined;
     let details: Record<string, unknown> | undefined;
 
     // Handle different exception types
@@ -61,7 +62,6 @@ export class HttpExceptionFilter implements ExceptionFilter {
         if (Array.isArray(responseObj.message)) {
           details = { validationErrors: responseObj.message };
           message = 'Validation failed';
-          recoveryHint = 'Check the provided data fields for formatting or constraint violations.';
         }
       }
       
@@ -71,21 +71,16 @@ export class HttpExceptionFilter implements ExceptionFilter {
       statusCode = prismaError.statusCode;
       code = prismaError.code;
       message = prismaError.message;
-      recoveryHint = 'Database constraint violated. Ensure unique fields or referenced records are correct.';
     } else if (exception instanceof PrismaClientValidationError) {
       statusCode = HttpStatus.BAD_REQUEST;
       code = 'VALIDATION_ERROR';
       message = 'Invalid data provided';
-      recoveryHint = 'The request payload does not match the expected schema.';
     } else if (exception instanceof Error) {
       message = exception.message;
       operatorDetail = exception.name !== 'Error' ? exception.name : undefined;
     }
 
-    // High-level recovery hints based on codes
-    if (!recoveryHint) {
-      recoveryHint = this.mapToRecoveryHint(code, statusCode);
-    }
+    const { recoveryHint, operatorAction, retryable } = this.getRecoveryInfo(code, statusCode);
 
     // Log the error
     if (statusCode >= 500) {
@@ -104,6 +99,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
         message: this.getUserSafeMessage(code, message),
         operatorDetail: operatorDetail || message,
         recoveryHint,
+        operatorAction,
+        retryable,
         details,
       },
       meta: {
@@ -166,25 +163,78 @@ export class HttpExceptionFilter implements ExceptionFilter {
       500: 'INTERNAL_ERROR',
       502: 'BAD_GATEWAY',
       503: 'SERVICE_UNAVAILABLE',
+      504: 'GATEWAY_TIMEOUT',
     };
     return statusCodes[status] || 'UNKNOWN_ERROR';
   }
 
-  private mapToRecoveryHint(code: string, status: number): string {
-    if (code === 'UNAUTHORIZED') return 'Session expired or invalid. Please re-authenticate.';
-    if (code === 'FORBIDDEN') return 'You do not have the required permissions for this operation.';
-    if (code === 'NOT_FOUND') return 'The requested resource could not be located. Verify IDs and paths.';
-    if (code === 'BAD_GATEWAY' || code === 'SERVICE_UNAVAILABLE') {
-      return 'The downstream service (DAX or AI Provider) is currently unreachable. Check engine status.';
+  private getRecoveryInfo(code: string, status: number): { recoveryHint: string; operatorAction: string; retryable: boolean } {
+    if (code === 'UNAUTHORIZED') {
+      return {
+        recoveryHint: 'Your session has expired or the token is invalid.',
+        operatorAction: 'Please sign in again to continue.',
+        retryable: false,
+      };
     }
-    if (code === 'TOO_MANY_REQUESTS') return 'Rate limit exceeded. Implement backoff or check provider quotas.';
+    if (code === 'FORBIDDEN') {
+      return {
+        recoveryHint: 'Access to this resource is restricted by current policy.',
+        operatorAction: 'Check your workspace permissions or policy rules.',
+        retryable: false,
+      };
+    }
+    if (code === 'NOT_FOUND') {
+      return {
+        recoveryHint: 'The requested resource does not exist or has been deleted.',
+        operatorAction: 'Verify the ID and path before trying again.',
+        retryable: false,
+      };
+    }
+    if (code === 'BAD_GATEWAY' || code === 'SERVICE_UNAVAILABLE') {
+      return {
+        recoveryHint: 'Downstream authority (DAX) or AI provider is unreachable.',
+        operatorAction: 'Check DAX engine logs or provider status pages.',
+        retryable: true,
+      };
+    }
+    if (code === 'GATEWAY_TIMEOUT') {
+      return {
+        recoveryHint: 'The downstream service took too long to respond.',
+        operatorAction: 'Consider simplifying the request or checking engine load.',
+        retryable: true,
+      };
+    }
+    if (code === 'TOO_MANY_REQUESTS') {
+      return {
+        recoveryHint: 'System or provider rate limits have been exceeded.',
+        operatorAction: 'Implement exponential backoff or check account quotas.',
+        retryable: true,
+      };
+    }
+    if (code === 'VALIDATION_ERROR') {
+      return {
+        recoveryHint: 'The data provided does not match the required schema.',
+        operatorAction: 'Correct the input format and re-submit.',
+        retryable: false,
+      };
+    }
     
-    if (status >= 500) return 'Internal system error. Check server logs with the provided Correlation ID.';
-    return 'Verify request parameters and try again.';
+    if (status >= 500) {
+      return {
+        recoveryHint: 'An internal control plane error occurred.',
+        operatorAction: 'Provide the Correlation ID to system administrators.',
+        retryable: false,
+      };
+    }
+
+    return {
+      recoveryHint: 'An unexpected error occurred during processing.',
+      operatorAction: 'Verify the request and try again.',
+      retryable: false,
+    };
   }
 
   private getUserSafeMessage(code: string, originalMessage: string): string {
-    // Hide sensitive internal errors from end-users, but keep validation/auth messages
     if (code === 'INTERNAL_ERROR' || code === 'DATABASE_ERROR') {
       return 'An internal workstation error occurred. Our engineers have been notified.';
     }
