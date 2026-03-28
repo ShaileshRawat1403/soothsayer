@@ -159,7 +159,7 @@ export function DaxOverviewPage() {
             </h1>
           </div>
           <Link
-            to="/runs/new"
+            to="/chat"
             className="btn-primary flex items-center gap-2.5 px-10 h-11 shadow-xl shadow-primary/10"
           >
             Dispatch Trace
