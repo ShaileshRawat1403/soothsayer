@@ -20,6 +20,7 @@ import { DaxModule } from './modules/dax/dax.module';
 import { McpModule } from './modules/mcp/mcp.module';
 import { WebsocketModule } from './websocket/websocket.module';
 import { HealthModule } from './health/health.module';
+import { SystemModule } from './modules/system/system.module';
 import { validateEnv } from './config/env.validation';
 
 const envFilePath = [
@@ -74,6 +75,7 @@ const envFilePath = [
     IntegrationsModule,
     DaxModule,
     McpModule,
+    SystemModule,
 
     // Real-time
     WebsocketModule,

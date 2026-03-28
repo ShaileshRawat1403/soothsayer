@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import { apiHelpers } from '@/lib/api';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { ApprovalInbox } from '@/components/dax/ApprovalInbox';
+import { SystemStats } from '@/components/layout/SystemStats';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import type {
@@ -167,54 +168,8 @@ export function DaxOverviewPage() {
           </Link>
         </div>
 
-        {/* Quick Operational Metrics */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="p-5 rounded-2xl border border-border/40 bg-card/30 flex items-center justify-between hover-glow group transition-all">
-            <div className="space-y-1">
-              <span className="text-label-sm">Active Sync</span>
-              <div className="flex items-center gap-2">
-                <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-xl font-black">
-                  {overview?.activeRuns?.length || 0} Flows
-                </span>
-              </div>
-            </div>
-            <Terminal className="h-5 w-5 text-muted-content group-hover:text-primary transition-colors" />
-          </div>
-          <div className="p-5 rounded-2xl border border-border/40 bg-card/30 flex items-center justify-between hover-glow group transition-all">
-            <div className="space-y-1">
-              <span className="text-label-sm">Gated Intents</span>
-              <div className="flex items-center gap-2">
-                <span className="text-xl font-black text-orange-600">
-                  {globalOverview?.pendingApprovals?.length || 0} Pending
-                </span>
-              </div>
-            </div>
-            <ShieldCheck className="h-5 w-5 text-muted-content group-hover:text-orange-500 transition-colors" />
-          </div>
-          <div className="p-5 rounded-2xl border border-border/40 bg-card/30 flex items-center justify-between hover-glow group transition-all">
-            <div className="space-y-1">
-              <span className="text-label-sm">System Node</span>
-              <div className="flex items-center gap-2">
-                <span className="text-[13px] font-black uppercase tracking-tight">
-                  {health?.version || 'v1.0.0'}
-                </span>
-              </div>
-            </div>
-            <Cpu className="h-5 w-5 text-muted-content group-hover:text-primary transition-colors" />
-          </div>
-          <div className="p-5 rounded-2xl border border-border/40 bg-card/30 flex items-center justify-between hover-glow group transition-all">
-            <div className="space-y-1">
-              <span className="text-label-sm">SLA Status</span>
-              <div className="flex items-center gap-2">
-                <span className="text-[13px] font-black uppercase tracking-tight text-emerald-600/80">
-                  Nominal
-                </span>
-              </div>
-            </div>
-            <HeartPulse className="h-5 w-5 text-muted-content group-hover:text-emerald-500 transition-colors" />
-          </div>
-        </div>
+        {/* Live System Resource Monitor */}
+        <SystemStats />
       </header>
 
       {/* Global Queue Dashboard */}

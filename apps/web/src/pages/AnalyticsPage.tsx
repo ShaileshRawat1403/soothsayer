@@ -28,36 +28,6 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Users,
 };
 
-import { useState, useEffect } from 'react';
-import { cn } from '@/lib/utils';
-import {
-  BarChart3,
-  TrendingUp,
-  TrendingDown,
-  Users,
-  Terminal,
-  GitBranch,
-  MessageSquare,
-  Clock,
-  CheckCircle,
-  AlertCircle,
-  Calendar,
-  Download,
-  Filter,
-  RefreshCw,
-} from 'lucide-react';
-import { apiHelpers } from '@/lib/api';
-import { useWorkspaceStore } from '@/stores/workspace.store';
-import { toast } from 'sonner';
-import { motion } from 'framer-motion';
-
-const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
-  Terminal,
-  GitBranch,
-  MessageSquare,
-  Users,
-};
-
 export function AnalyticsPage() {
   const { currentWorkspace } = useWorkspaceStore();
   const [metrics, setMetrics] = useState<any>(null);
