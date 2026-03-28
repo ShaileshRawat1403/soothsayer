@@ -412,6 +412,13 @@ export const apiHelpers = {
   getAnalytics: () => api.get('/analytics'),
   getAnalyticsById: (id: string) => api.get(`/analytics/${id}`),
 
+  // Notifications
+  getNotifications: (workspaceId: string, unreadOnly?: boolean) =>
+    api.get('/notifications', { params: { workspaceId, unreadOnly } }),
+  markNotificationAsRead: (id: string) => api.patch(`/notifications/${id}/read`),
+  markAllNotificationsAsRead: (workspaceId: string) =>
+    api.patch('/notifications/read-all', null, { params: { workspaceId } }),
+
   // Global Health
   getGlobalHealth: () => api.get('/health'),
 

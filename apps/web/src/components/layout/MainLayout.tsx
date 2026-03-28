@@ -35,6 +35,10 @@ import { useTheme } from '@/components/common/ThemeProvider';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Logo } from '@/components/common/Logo';
 import { NodeStatus } from './NodeStatus';
+import { NotificationPopover } from './NotificationPopover';
+import { useNotificationStore } from '@/stores/notification.store';
+import { socketEvents } from '@/lib/socket';
+import { toast } from 'sonner';
 
 const navItems = [
   { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -55,11 +59,34 @@ export function MainLayout() {
   const { user, logout } = useAuthStore();
   const { currentPersona } = usePersonaStore();
   const { currentWorkspace } = useWorkspaceStore();
+  const { fetchNotifications, unreadCount, addNotification } = useNotificationStore();
   const { resolvedTheme, setTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const notifRef = useRef<HTMLDivElement>(null);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (currentWorkspace?.id) {
+      fetchNotifications();
+    }
+  }, [currentWorkspace?.id, fetchNotifications]);
+
+  useEffect(() => {
+    // Real-time notification listener
+    const unsubscribe = socketEvents.onNotification((notification) => {
+      addNotification(notification);
+      toast.info(notification.title, {
+        description: notification.message,
+        action: notification.actionUrl ? {
+          label: 'View',
+          onClick: () => navigate(notification.actionUrl)
+        } : undefined
+      });
+    });
+
+    return () => unsubscribe?.();
+  }, [addNotification, navigate]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -369,14 +396,25 @@ export function MainLayout() {
               <button
                 onClick={() => setShowNotifications(!showNotifications)}
                 className={cn(
-                  'h-9 w-9 flex items-center justify-center rounded-xl transition-all active-scale',
+                  'h-9 w-9 flex items-center justify-center rounded-xl transition-all active-scale relative',
                   showNotifications
                     ? 'bg-primary text-white shadow-xl shadow-primary/20'
                     : 'text-muted-foreground/60 hover:text-foreground hover:bg-muted/40'
                 )}
               >
                 <Bell className="h-4 w-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 h-4 min-w-[16px] px-1 bg-rose-500 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-background shadow-sm">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
               </button>
+
+              <AnimatePresence>
+                {showNotifications && (
+                  <NotificationPopover onClose={() => setShowNotifications(false)} />
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </header>

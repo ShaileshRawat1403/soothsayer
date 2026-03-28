@@ -127,6 +127,12 @@ export const socketEvents = {
   rejectRequest: (requestId: string, reason?: string) => {
     socket?.emit('approval:reject', { requestId, reason });
   },
+
+  // Notifications
+  onNotification: (callback: (notification: any) => void) => {
+    socket?.on('notification:new', callback);
+    return () => socket?.off('notification:new', callback);
+  },
 };
 
 export default socket;
