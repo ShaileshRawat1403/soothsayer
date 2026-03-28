@@ -47,7 +47,10 @@ export function WorkflowList({
   });
 
   return (
-    <div className="flex w-80 flex-col border-r border-border bg-card z-10 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]">
+    <div className={cn(
+      "flex w-full md:w-80 flex-col border-r border-border bg-card z-10 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]",
+      selectedWorkflowId ? "hidden md:flex" : "flex"
+    )}>
       <div className="p-6 border-b border-border bg-muted/20">
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">

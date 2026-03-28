@@ -145,22 +145,22 @@ export function DaxOverviewPage() {
   }, [overview]);
 
   return (
-    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-8 p-10 animate-in-up">
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-8 p-6 md:p-10 animate-in-up">
       {/* High-Density Authority Header */}
       <header className="flex flex-col gap-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-1">
             <div className="flex items-center gap-2.5 text-label">
               <Activity className="h-3 w-3" />
               DAX Control Plane
             </div>
-            <h1 className="text-4xl font-black tracking-tighter text-foreground uppercase">
+            <h1 className="text-3xl md:text-4xl font-black tracking-tighter text-foreground uppercase">
               Authority Monitor
             </h1>
           </div>
           <Link
             to="/chat"
-            className="btn-primary flex items-center gap-2.5 px-10 h-11 shadow-xl shadow-primary/10"
+            className="btn-primary flex items-center justify-center gap-2.5 px-10 h-11 shadow-xl shadow-primary/10"
           >
             Dispatch Trace
             <Zap className="h-4 w-4 fill-current" />
@@ -168,7 +168,7 @@ export function DaxOverviewPage() {
         </div>
 
         {/* Quick Operational Metrics */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="p-5 rounded-2xl border border-border/40 bg-card/30 flex items-center justify-between hover-glow group transition-all">
             <div className="space-y-1">
               <span className="text-label-sm">Active Sync</span>
@@ -241,28 +241,28 @@ export function DaxOverviewPage() {
 
       {/* Advanced Filter & Trace View */}
       <section className="flex flex-col gap-6">
-        <div className="flex items-center justify-between px-2">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between px-2 gap-4">
           <h2 className="text-[10px] font-black uppercase tracking-widest text-secondary-content leading-none">
             Operational Traces
           </h2>
-          <div className="flex items-center gap-4">
-            <div className="relative group max-w-[240px]">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+            <div className="relative group w-full sm:w-[240px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-secondary-content group-focus-within:text-primary transition-colors" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Filter traces..."
-                className="input-search"
+                className="input-search w-full"
               />
             </div>
-            <div className="flex gap-1 bg-muted/20 p-1 rounded-xl border border-border/40">
+            <div className="flex gap-1 bg-muted/20 p-1 rounded-xl border border-border/40 overflow-x-auto scrollbar-none">
               {(['all', 'running', 'completed', 'failed'] as const).map((s) => (
                 <button
                   key={s}
                   onClick={() => setFilterStatus(s)}
                   className={cn(
-                    'px-4 py-1.5 rounded-lg text-label-sm transition-all',
+                    'px-4 py-1.5 rounded-lg text-label-sm transition-all whitespace-nowrap',
                     filterStatus === s
                       ? 'bg-background text-foreground shadow-sm'
                       : 'text-interactive hover:text-foreground'
@@ -272,34 +272,36 @@ export function DaxOverviewPage() {
                 </button>
               ))}
             </div>
-            {recoveryCount > 0 && (
-              <button
-                onClick={() => setShowRecoveryOnly(!showRecoveryOnly)}
-                className={cn(
-                  'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-label-sm transition-all border',
-                  showRecoveryOnly
-                    ? 'bg-amber-500/10 text-amber-600 border-amber-500/20'
-                    : 'bg-muted/20 text-interactive border-border/40 hover:text-amber-600'
-                )}
-              >
-                <RefreshCw className="h-3 w-3" />
-                Recovery ({recoveryCount})
-              </button>
-            )}
-            {governanceCount > 0 && (
-              <button
-                onClick={() => setShowGovernanceOnly(!showGovernanceOnly)}
-                className={cn(
-                  'flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-label-sm transition-all border',
-                  showGovernanceOnly
-                    ? 'bg-red-500/10 text-red-600 border-red-500/20'
-                    : 'bg-muted/20 text-interactive border-border/40 hover:text-red-600'
-                )}
-              >
-                <ShieldAlert className="h-3 w-3" />
-                Governance ({governanceCount})
-              </button>
-            )}
+            <div className="flex gap-2">
+              {recoveryCount > 0 && (
+                <button
+                  onClick={() => setShowRecoveryOnly(!showRecoveryOnly)}
+                  className={cn(
+                    'flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-lg text-label-sm transition-all border',
+                    showRecoveryOnly
+                      ? 'bg-amber-500/10 text-amber-600 border-amber-500/20'
+                      : 'bg-muted/20 text-interactive border-border/40 hover:text-amber-600'
+                  )}
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  Recovery ({recoveryCount})
+                </button>
+              )}
+              {governanceCount > 0 && (
+                <button
+                  onClick={() => setShowGovernanceOnly(!showGovernanceOnly)}
+                  className={cn(
+                    'flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-4 py-1.5 rounded-lg text-label-sm transition-all border',
+                    showGovernanceOnly
+                      ? 'bg-red-500/10 text-red-600 border-red-500/20'
+                      : 'bg-muted/20 text-interactive border-border/40 hover:text-red-600'
+                  )}
+                >
+                  <ShieldAlert className="h-3 w-3" />
+                  Governance ({governanceCount})
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -339,9 +341,9 @@ function TraceRow({
   return (
     <Link
       to={to}
-      className="group flex items-center justify-between p-5 rounded-2xl border border-border/40 bg-card/20 hover-lift hover-glow transition-all duration-300 active:scale-[0.995]"
+      className="group flex flex-col sm:flex-row sm:items-center justify-between p-5 rounded-2xl border border-border/40 bg-card/20 hover-lift hover-glow transition-all duration-300 active:scale-[0.995] gap-4"
     >
-      <div className="flex items-center gap-8 min-w-0 flex-1">
+      <div className="flex items-center gap-4 md:gap-8 min-w-0 flex-1">
         <div
           className={cn(
             'h-1.5 w-1.5 rounded-full shrink-0',
@@ -357,8 +359,8 @@ function TraceRow({
           )}
         />
 
-        <div className="flex items-center gap-10 flex-1 min-w-0">
-          <div className="min-w-[120px] font-mono text-mono-sm uppercase tracking-widest shrink-0">
+        <div className="flex items-center gap-4 md:gap-10 flex-1 min-w-0">
+          <div className="hidden xs:block min-w-[100px] md:min-w-[120px] font-mono text-mono-sm uppercase tracking-widest shrink-0">
             {run.runId.substring(0, 12)}
           </div>
           <div className="min-w-0 flex-1">
@@ -376,11 +378,12 @@ function TraceRow({
         </div>
       </div>
 
-      <div className="flex items-center gap-8 shrink-0 ml-10">
+      <div className="flex items-center justify-between sm:justify-end gap-4 md:gap-8 shrink-0 sm:ml-10">
         {isContractMutation && (
           <div className="rounded-lg px-2 py-1 text-label-sm bg-red-500/10 text-red-600 border border-red-500/20 flex items-center gap-1">
             <ShieldAlert className="h-3 w-3" />
-            {run.failureLabel || 'Governance Violation'}
+            <span className="hidden xs:inline">{run.failureLabel || 'Governance Violation'}</span>
+            <span className="xs:hidden">Violation</span>
           </div>
         )}
         {needsRecovery && !isContractMutation && (

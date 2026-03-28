@@ -28,6 +28,36 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   Users,
 };
 
+import { useState, useEffect } from 'react';
+import { cn } from '@/lib/utils';
+import {
+  BarChart3,
+  TrendingUp,
+  TrendingDown,
+  Users,
+  Terminal,
+  GitBranch,
+  MessageSquare,
+  Clock,
+  CheckCircle,
+  AlertCircle,
+  Calendar,
+  Download,
+  Filter,
+  RefreshCw,
+} from 'lucide-react';
+import { apiHelpers } from '@/lib/api';
+import { useWorkspaceStore } from '@/stores/workspace.store';
+import { toast } from 'sonner';
+import { motion } from 'framer-motion';
+
+const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
+  Terminal,
+  GitBranch,
+  MessageSquare,
+  Users,
+};
+
 export function AnalyticsPage() {
   const { currentWorkspace } = useWorkspaceStore();
   const [metrics, setMetrics] = useState<any>(null);
@@ -84,17 +114,17 @@ export function AnalyticsPage() {
   ];
 
   return (
-    <div className="p-10 space-y-10 animate-in-up">
+    <div className="p-6 md:p-10 space-y-8 md:space-y-10 animate-in-up">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <div className="flex items-center gap-2.5 text-label mb-1">
             <BarChart3 className="h-3 w-3" />
             Audit & Intelligence
           </div>
-          <h1 className="text-3xl font-black tracking-tighter uppercase">Operator Metrics</h1>
+          <h1 className="text-2xl md:text-3xl font-black tracking-tighter uppercase">Operator Metrics</h1>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button 
             onClick={fetchMetrics}
             disabled={isLoading}
@@ -111,7 +141,7 @@ export function AnalyticsPage() {
             <option value="7d">Historical (7d)</option>
             <option value="30d">Aggregate (30d)</option>
           </select>
-          <button className="flex h-10 items-center gap-2.5 rounded-xl bg-primary px-6 text-[10px] font-black uppercase tracking-widest text-primary-foreground shadow-lg shadow-primary/10 hover:scale-105 active:scale-95 transition-all">
+          <button className="flex-1 md:flex-none flex h-10 items-center justify-center gap-2.5 rounded-xl bg-primary px-6 text-[10px] font-black uppercase tracking-widest text-primary-foreground shadow-lg shadow-primary/10 hover:scale-105 active:scale-95 transition-all">
             <Download className="h-3.5 w-3.5" />
             Export Audit Trail
           </button>
@@ -119,11 +149,11 @@ export function AnalyticsPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 md:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => {
           const IconComponent = iconMap[stat.icon];
           return (
-            <div key={stat.label} className="rounded-2xl border border-border/40 bg-card/30 p-6 hover-glow transition-all">
+            <div key={stat.label} className="rounded-2xl border border-border/40 bg-card/30 p-5 md:p-6 hover-glow transition-all">
               <div className="flex items-center justify-between mb-4">
                 <div className="h-10 w-10 flex items-center justify-center rounded-xl bg-primary/5 text-primary">
                   {IconComponent && <IconComponent className="h-5 w-5" />}
@@ -137,7 +167,7 @@ export function AnalyticsPage() {
                 </div>
               </div>
               <div className="space-y-1">
-                <div className="text-3xl font-black tracking-tight">{stat.value}</div>
+                <div className="text-2xl md:text-3xl font-black tracking-tight">{stat.value}</div>
                 <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">{stat.label}</div>
               </div>
             </div>
@@ -145,9 +175,9 @@ export function AnalyticsPage() {
         })}
       </div>
 
-      <div className="grid gap-8 lg:grid-cols-2 pb-20">
+      <div className="grid gap-6 md:gap-8 lg:grid-cols-2 pb-20">
         {/* Provider Distribution */}
-        <div className="rounded-3xl border border-border/40 bg-card/20 p-8 space-y-6">
+        <div className="rounded-3xl border border-border/40 bg-card/20 p-6 md:p-8 space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Inference Infrastructure</h3>
             <span className="text-[9px] font-bold text-emerald-600 uppercase bg-emerald-500/5 px-2 py-0.5 rounded-full border border-emerald-500/10">Active Load</span>
@@ -172,14 +202,14 @@ export function AnalyticsPage() {
                 </div>
               );
             })}
-            {!metrics?.providerMetrics?.usage && (
+            {(!metrics?.providerMetrics?.usage || Object.keys(metrics.providerMetrics.usage).length === 0) && (
               <div className="py-10 text-center text-label-sm text-muted-foreground/40 italic">No historical traces found</div>
             )}
           </div>
         </div>
 
         {/* Blocked Reasons / Policy Violations */}
-        <div className="rounded-3xl border border-border/40 bg-card/20 p-8 space-y-6">
+        <div className="rounded-3xl border border-border/40 bg-card/20 p-6 md:p-8 space-y-6">
           <div className="flex items-center justify-between">
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Governance Violations</h3>
             <AlertCircle className="h-4 w-4 text-rose-500/40" />

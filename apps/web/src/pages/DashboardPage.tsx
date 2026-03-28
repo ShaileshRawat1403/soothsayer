@@ -42,41 +42,41 @@ export function DashboardPage() {
   const { currentPersona } = usePersonaStore();
 
   return (
-    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-12 p-12 animate-in-up">
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-8 md:gap-12 p-6 md:p-12 animate-in-up">
       {/* Header */}
       <section className="flex flex-col gap-3">
         <div className="flex items-center gap-2.5 text-label">
           <div className="h-1.5 w-1.5 rounded-full bg-emerald-500/60 shadow-[0_0_8px_rgba(16,185,129,0.2)]" />
           Node Operational
         </div>
-        <h1 className="text-5xl font-black tracking-tighter text-foreground">
+        <h1 className="text-3xl md:text-5xl font-black tracking-tighter text-foreground">
           Welcome, {user?.name?.split(' ')[0] || 'Operator'}
         </h1>
-        <p className="text-base font-medium text-secondary-content max-w-xl leading-relaxed">
+        <p className="text-sm md:text-base font-medium text-secondary-content max-w-xl leading-relaxed">
           Inference handshake established. Accessing decentralized execution context.
         </p>
       </section>
 
       {/* Primary Grid */}
-      <div className="grid gap-10 lg:grid-cols-3">
+      <div className="grid gap-6 md:gap-10 lg:grid-cols-3">
         {/* Quick Access */}
         <section className="lg:col-span-2 grid gap-4 sm:grid-cols-2">
           {quickActions.map((action) => (
             <Link
               key={action.path}
               to={action.path}
-              className="group flex items-center justify-between p-7 rounded-2xl border border-border/40 bg-card/20 hover-lift hover-glow"
+              className="group flex items-center justify-between p-5 md:p-7 rounded-2xl border border-border/40 bg-card/20 hover-lift hover-glow"
             >
-              <div className="flex items-center gap-5">
+              <div className="flex items-center gap-4 md:gap-5">
                 <div
                   className={cn(
-                    'flex h-11 w-11 items-center justify-center rounded-[1.25rem] transition-all duration-500 group-hover:scale-110',
+                    'flex h-10 w-10 md:h-11 md:w-11 items-center justify-center rounded-[1.25rem] transition-all duration-500 group-hover:scale-110',
                     action.color
                   )}
                 >
-                  <action.icon className="h-5.5 w-5.5" />
+                  <action.icon className="h-5 w-5 md:h-5.5 md:w-5.5" />
                 </div>
-                <span className="text-[13px] font-black uppercase tracking-widest text-secondary-content group-hover:text-foreground transition-colors duration-300">
+                <span className="text-[11px] md:text-[13px] font-black uppercase tracking-widest text-secondary-content group-hover:text-foreground transition-colors duration-300">
                   {action.label}
                 </span>
               </div>
@@ -87,22 +87,22 @@ export function DashboardPage() {
 
         {/* Status Profile */}
         <section className="flex flex-col">
-          <div className="flex-1 rounded-[2rem] border border-primary/5 bg-primary/[0.01] p-10 flex flex-col justify-between relative overflow-hidden group hover-glow">
+          <div className="flex-1 rounded-[2rem] border border-primary/5 bg-primary/[0.01] p-8 md:p-10 flex flex-col justify-between relative overflow-hidden group hover-glow">
             <div className="relative z-10">
-              <span className="text-label-sm block mb-8 opacity-60">Authority Node</span>
-              <div className="flex items-center gap-5">
-                <div className="h-14 w-14 rounded-2xl bg-primary text-white flex items-center justify-center shadow-xl shadow-primary/10 transition-transform duration-500 group-hover:scale-105 group-hover:rotate-3">
-                  <Zap className="h-7 w-7 fill-current" />
+              <span className="text-label-sm block mb-6 md:mb-8 opacity-60">Authority Node</span>
+              <div className="flex items-center gap-4 md:gap-5">
+                <div className="h-12 w-12 md:h-14 md:w-14 rounded-2xl bg-primary text-white flex items-center justify-center shadow-xl shadow-primary/10 transition-transform duration-500 group-hover:scale-105 group-hover:rotate-3">
+                  <Zap className="h-6 w-6 md:h-7 md:w-7 fill-current" />
                 </div>
                 <div>
-                  <h3 className="text-2xl font-black tracking-tight leading-none uppercase">
+                  <h3 className="text-xl md:text-2xl font-black tracking-tight leading-none uppercase">
                     {currentPersona?.name || 'Standard'}
                   </h3>
                   <p className="text-label-sm mt-2">{currentPersona?.category || 'General'}</p>
                 </div>
               </div>
             </div>
-            <Link to="/personas" className="relative z-10 mt-12 btn-primary text-center py-3">
+            <Link to="/personas" className="relative z-10 mt-8 md:mt-12 btn-primary text-center py-3">
               Switch Identity
             </Link>
           </div>
@@ -110,17 +110,17 @@ export function DashboardPage() {
       </div>
 
       {/* Metrics Row */}
-      <section className="grid gap-6 sm:grid-cols-3">
+      <section className="grid gap-4 md:gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {stats.map((stat) => (
           <div
             key={stat.label}
-            className="p-8 rounded-2xl border border-border/40 bg-card/10 flex items-center justify-between hover-glow group transition-all"
+            className="p-6 md:p-8 rounded-2xl border border-border/40 bg-card/10 flex items-center justify-between hover-glow group transition-all"
           >
             <div className="space-y-1">
               <span className="text-label">{stat.label}</span>
-              <div className="text-3xl font-black text-foreground">{stat.value}</div>
+              <div className="text-2xl md:text-3xl font-black text-foreground">{stat.value}</div>
             </div>
-            <stat.icon className="h-6 w-6 text-muted-content group-hover:text-primary transition-colors duration-500" />
+            <stat.icon className="h-5 w-5 md:h-6 md:w-6 text-muted-content group-hover:text-primary transition-colors duration-500" />
           </div>
         ))}
       </section>

@@ -188,6 +188,7 @@ export function WorkflowsPage() {
         onStatusChange={updateStatus}
         latestRun={latestRunReference}
         inferredRepoPath={inferredWorkflowRepoPath}
+        onBack={() => setSelectedWorkflowId(null)}
       />
     </div>
   );
