@@ -46,6 +46,7 @@ const navItems = [
   { path: '/terminal', icon: Terminal, label: 'Terminal' },
   { path: '/workflows', icon: GitBranch, label: 'Workflows' },
   { path: '/dax', icon: Activity, label: 'Control' },
+  { path: '/picobot', icon: Bot, label: 'Picobot' },
   { path: '/personas', icon: Users, label: 'Personas' },
   { path: '/analytics', icon: BarChart3, label: 'Audit' },
   { path: '/settings', icon: Settings, label: 'Settings' },

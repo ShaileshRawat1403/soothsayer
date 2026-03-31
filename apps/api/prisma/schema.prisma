@@ -165,6 +165,7 @@ model Workspace {
   files              FileRecord[]
   notifications      Notification[]
   integrationConnections IntegrationConnection[]
+  picobot            PicobotInstance?
 
   @@unique([organizationId, slug])
   @@index([organizationId])
@@ -826,4 +827,116 @@ model IntegrationConnection {
   @@unique([workspaceId, provider])
   @@index([provider])
   @@index([status])
+}
+
+// ============================================
+// PICOBOT INTEGRATION
+// ============================================
+
+model PicobotInstance {
+  id             String    @id @default(cuid())
+  workspaceId    String    @unique
+  name           String    @default("Picobot")
+  description    String?
+  url            String?
+  apiKey         String?
+  status         String    @default("offline")
+  health         Json      @default("{}")
+  lastSeenAt     DateTime?
+  config         Json      @default("{}")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  workspace  Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  channels  PicobotChannel[]
+  sessions  PicobotSession[]
+  activities PicobotActivity[]
+  commands  PicobotCommand[]
+
+  @@index([workspaceId])
+  @@index([status])
+}
+
+model PicobotChannel {
+  id             String    @id @default(cuid())
+  picobotId      String
+  channelType    String
+  name           String
+  enabled        Boolean   @default(true)
+  status         String    @default("disconnected")
+  config         Json      @default("{}")
+  stats          Json      @default("{}")
+  lastActivityAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  picobot PicobotInstance @relation(fields: [picobotId], references: [id], onDelete: Cascade)
+  sessions PicobotSession[]
+
+  @@unique([picobotId, channelType])
+  @@index([picobotId])
+  @@index([status])
+}
+
+model PicobotSession {
+  id             String    @id @default(cuid())
+  picobotId      String
+  channelId      String
+  channelType    String
+  userId         String?
+  userName       String?
+  status         String    @default("active")
+  messageCount   Int       @default(0)
+  tokenCount     Int       @default(0)
+  startedAt      DateTime  @default(now())
+  lastMessageAt  DateTime?
+  endedAt        DateTime?
+  metadata       Json      @default("{}")
+
+  picobot PicobotInstance @relation(fields: [picobotId], references: [id], onDelete: Cascade)
+  channel PicobotChannel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([picobotId])
+  @@index([channelId])
+  @@index([userId])
+  @@index([status])
+  @@index([startedAt])
+}
+
+model PicobotActivity {
+  id             String    @id @default(cuid())
+  picobotId      String
+  type           String
+  channelType    String?
+  userId         String?
+  userName       String?
+  message        String
+  metadata       Json      @default("{}")
+  timestamp      DateTime  @default(now())
+
+  picobot PicobotInstance @relation(fields: [picobotId], references: [id], onDelete: Cascade)
+
+  @@index([picobotId])
+  @@index([type])
+  @@index([timestamp])
+}
+
+model PicobotCommand {
+  id             String    @id @default(cuid())
+  picobotId      String
+  commandType    String
+  payload        Json
+  status         String    @default("pending")
+  result         Json?
+  sentAt         DateTime?
+  acknowledgedAt DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  picobot PicobotInstance @relation(fields: [picobotId], references: [id], onDelete: Cascade)
+
+  @@index([picobotId])
+  @@index([status])
+  @@index([createdAt])
 }

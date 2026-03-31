@@ -13,6 +13,7 @@ import { AnalyticsPage } from '@/pages/AnalyticsPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { RunPage } from '@/pages/RunPage';
 import { DaxOverviewPage } from '@/pages/DaxOverviewPage';
+import { PicobotPage } from '@/pages/PicobotPage';
 import { ThemeProvider } from '@/components/common/ThemeProvider';
 import { CommandPalette } from '@/components/common/CommandPalette';
 import { OnboardingWizard } from '@/components/common/OnboardingWizard';
@@ -170,6 +171,14 @@ function App() {
             element={
               <PageTransition>
                 <DaxOverviewPage />
+              </PageTransition>
+            }
+          />
+          <Route
+            path="/picobot"
+            element={
+              <PageTransition>
+                <PicobotPage />
               </PageTransition>
             }
           />
