@@ -18,6 +18,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { DaxModule } from './modules/dax/dax.module';
 import { McpModule } from './modules/mcp/mcp.module';
+import { PicobotModule } from './modules/picobot/picobot.module';
 import { WebsocketModule } from './websocket/websocket.module';
 import { HealthModule } from './health/health.module';
 import { SystemModule } from './modules/system/system.module';
@@ -75,6 +76,7 @@ const envFilePath = [
     IntegrationsModule,
     DaxModule,
     McpModule,
+    PicobotModule,
     SystemModule,
 
     // Real-time
