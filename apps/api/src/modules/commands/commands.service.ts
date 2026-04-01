@@ -5,6 +5,40 @@ import * as path from 'path';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
 
+type ResolvedTerminalCommand = {
+  commandId?: string;
+  commandName?: string;
+  command: string;
+  timeoutMs: number;
+  executionMode: 'direct' | 'allowlisted';
+};
+
+type TerminalStreamHandlers = {
+  onStart?: (payload: {
+    commandId?: string;
+    commandName?: string;
+    command: string;
+    cwd: string;
+    executionMode: 'direct' | 'allowlisted';
+    startedAt: string;
+  }) => void;
+  onChunk?: (payload: { stream: 'stdout' | 'stderr'; text: string }) => void;
+  onComplete?: (payload: {
+    commandId?: string;
+    commandName?: string;
+    command: string;
+    cwd: string;
+    executionMode: 'direct' | 'allowlisted';
+    status: 'completed' | 'failed';
+    exitCode: number;
+    durationMs: number;
+    timedOut: boolean;
+    truncated: boolean;
+    completedAt: string;
+  }) => void;
+  onError?: (payload: { message: string }) => void;
+};
+
 @Injectable()
 export class CommandsService {
   constructor(
@@ -137,44 +171,20 @@ export class CommandsService {
   async executeTerminal(userId: string, workspaceId: string, command: string, cwd?: string) {
     await this.ensureWorkspaceAccess(workspaceId, userId);
 
-    const commandRef = (command || '').trim();
-    if (!commandRef) {
-      throw new ForbiddenException('Command reference is required');
-    }
-
-    const commandDef = await this.prisma.command.findFirst({
-      where: {
-        workspaceId,
-        deletedAt: null,
-        OR: [{ id: commandRef }, { name: commandRef }],
-      },
-    });
-
-    let commandToRun = commandRef;
-    let timeoutMs = 30000;
-    let executionMode: 'direct' | 'allowlisted' = 'direct';
-
-    if (commandDef) {
-      if (/\{\{[^}]+\}\}/.test(commandDef.template)) {
-        throw new ForbiddenException(
-          'Command template requires parameters and cannot be run from terminal route'
-        );
-      }
-
-      commandToRun = commandDef.template;
-      timeoutMs = commandDef.timeout || 30000;
-      executionMode = 'allowlisted';
-    }
-
+    const resolvedCommand = await this.resolveTerminalCommand(workspaceId, command);
     const safeCwd = await this.resolveSafeWorkingDirectory(workspaceId, cwd);
-    const result = await this.runCommandWithGuards(commandToRun, timeoutMs, safeCwd);
+    const result = await this.runCommandWithGuards(
+      resolvedCommand.command,
+      resolvedCommand.timeoutMs,
+      safeCwd
+    );
 
     return {
-      commandId: commandDef?.id,
-      commandName: commandDef?.name,
-      command: commandToRun,
+      commandId: resolvedCommand.commandId,
+      commandName: resolvedCommand.commandName,
+      command: resolvedCommand.command,
       cwd: safeCwd,
-      executionMode,
+      executionMode: resolvedCommand.executionMode,
       status: result.exitCode === 0 ? 'completed' : 'failed',
       output: result.stdout,
       errorOutput: result.stderr,
@@ -183,6 +193,51 @@ export class CommandsService {
       timedOut: result.timedOut,
       truncated: result.truncated,
     };
+  }
+
+  async executeTerminalStream(
+    userId: string,
+    workspaceId: string,
+    command: string,
+    cwd: string | undefined,
+    handlers: TerminalStreamHandlers,
+    signal?: AbortSignal
+  ): Promise<void> {
+    await this.ensureWorkspaceAccess(workspaceId, userId);
+
+    const resolvedCommand = await this.resolveTerminalCommand(workspaceId, command);
+    const safeCwd = await this.resolveSafeWorkingDirectory(workspaceId, cwd);
+
+    handlers.onStart?.({
+      commandId: resolvedCommand.commandId,
+      commandName: resolvedCommand.commandName,
+      command: resolvedCommand.command,
+      cwd: safeCwd,
+      executionMode: resolvedCommand.executionMode,
+      startedAt: new Date().toISOString(),
+    });
+
+    const result = await this.runCommandStreamWithGuards(
+      resolvedCommand.command,
+      resolvedCommand.timeoutMs,
+      safeCwd,
+      handlers,
+      signal
+    );
+
+    handlers.onComplete?.({
+      commandId: resolvedCommand.commandId,
+      commandName: resolvedCommand.commandName,
+      command: resolvedCommand.command,
+      cwd: safeCwd,
+      executionMode: resolvedCommand.executionMode,
+      status: result.exitCode === 0 ? 'completed' : 'failed',
+      exitCode: result.exitCode,
+      durationMs: result.durationMs,
+      timedOut: result.timedOut,
+      truncated: result.truncated,
+      completedAt: new Date().toISOString(),
+    });
   }
 
   private async resolveSafeWorkingDirectory(
@@ -258,6 +313,46 @@ export class CommandsService {
     if (!membership) {
       throw new ForbiddenException('You do not have access to this workspace');
     }
+  }
+
+  private async resolveTerminalCommand(
+    workspaceId: string,
+    command: string
+  ): Promise<ResolvedTerminalCommand> {
+    const commandRef = (command || '').trim();
+    if (!commandRef) {
+      throw new ForbiddenException('Command reference is required');
+    }
+
+    const commandDef = await this.prisma.command.findFirst({
+      where: {
+        workspaceId,
+        deletedAt: null,
+        OR: [{ id: commandRef }, { name: commandRef }],
+      },
+    });
+
+    if (!commandDef) {
+      return {
+        command: commandRef,
+        timeoutMs: 30000,
+        executionMode: 'direct',
+      };
+    }
+
+    if (/\{\{[^}]+\}\}/.test(commandDef.template)) {
+      throw new ForbiddenException(
+        'Command template requires parameters and cannot be run from terminal route'
+      );
+    }
+
+    return {
+      commandId: commandDef.id,
+      commandName: commandDef.name,
+      command: commandDef.template,
+      timeoutMs: commandDef.timeout || 30000,
+      executionMode: 'allowlisted',
+    };
   }
 
   // Secondary defense-in-depth only. Primary enforcement is allowlisted command resolution.
@@ -340,6 +435,129 @@ export class CommandsService {
         resolve({
           stdout,
           stderr,
+          exitCode: timedOut ? 124 : (code ?? 1),
+          durationMs: Date.now() - startedAt,
+          timedOut,
+          truncated,
+        });
+      });
+    });
+  }
+
+  private runCommandStreamWithGuards(
+    command: string,
+    timeoutMs: number,
+    cwd: string,
+    handlers: TerminalStreamHandlers,
+    signal?: AbortSignal
+  ): Promise<{
+    exitCode: number;
+    durationMs: number;
+    timedOut: boolean;
+    truncated: boolean;
+  }> {
+    if (this.failsSecondaryCommandSafetyCheck(command)) {
+      throw new ForbiddenException('Command blocked by security policy');
+    }
+
+    const maxBytes = 100_000;
+
+    return new Promise((resolve) => {
+      const startedAt = Date.now();
+      const child = spawn('/bin/sh', ['-lc', command], {
+        cwd,
+        env: {
+          PATH: process.env.PATH || '',
+          HOME: process.env.HOME || '',
+        },
+      });
+
+      let timedOut = false;
+      let truncated = false;
+      let stdoutBytes = 0;
+      let stderrBytes = 0;
+      let settled = false;
+
+      const finalize = (payload: {
+        exitCode: number;
+        durationMs: number;
+        timedOut: boolean;
+        truncated: boolean;
+      }) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        resolve(payload);
+      };
+
+      const timer = setTimeout(() => {
+        timedOut = true;
+        child.kill('SIGKILL');
+      }, timeoutMs);
+
+      const abortHandler = () => {
+        child.kill('SIGTERM');
+      };
+
+      signal?.addEventListener('abort', abortHandler, { once: true });
+
+      child.stdout.on('data', (chunk: Buffer) => {
+        const text = chunk.toString('utf8');
+        if (truncated) {
+          return;
+        }
+
+        stdoutBytes += text.length;
+        if (stdoutBytes > maxBytes) {
+          const allowedLength = Math.max(0, text.length - (stdoutBytes - maxBytes));
+          truncated = true;
+          handlers.onChunk?.({
+            stream: 'stdout',
+            text: `${text.slice(0, allowedLength)}\n[output truncated]`,
+          });
+          return;
+        }
+
+        handlers.onChunk?.({ stream: 'stdout', text });
+      });
+
+      child.stderr.on('data', (chunk: Buffer) => {
+        const text = chunk.toString('utf8');
+        if (truncated) {
+          return;
+        }
+
+        stderrBytes += text.length;
+        if (stderrBytes > maxBytes) {
+          const allowedLength = Math.max(0, text.length - (stderrBytes - maxBytes));
+          truncated = true;
+          handlers.onChunk?.({
+            stream: 'stderr',
+            text: `${text.slice(0, allowedLength)}\n[output truncated]`,
+          });
+          return;
+        }
+
+        handlers.onChunk?.({ stream: 'stderr', text });
+      });
+
+      child.on('error', (error) => {
+        clearTimeout(timer);
+        signal?.removeEventListener('abort', abortHandler);
+        handlers.onError?.({ message: error.message });
+        finalize({
+          exitCode: 1,
+          durationMs: Date.now() - startedAt,
+          timedOut,
+          truncated,
+        });
+      });
+
+      child.on('close', (code) => {
+        clearTimeout(timer);
+        signal?.removeEventListener('abort', abortHandler);
+        finalize({
           exitCode: timedOut ? 124 : (code ?? 1),
           durationMs: Date.now() - startedAt,
           timedOut,

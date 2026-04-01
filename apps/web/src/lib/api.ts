@@ -85,6 +85,113 @@ function parseSseEventBlock(block: string): {
   };
 }
 
+export type TerminalStreamStart = {
+  commandId?: string;
+  commandName?: string;
+  command: string;
+  cwd: string;
+  executionMode: 'direct' | 'allowlisted';
+  startedAt: string;
+};
+
+export type TerminalStreamChunk = {
+  stream: 'stdout' | 'stderr';
+  text: string;
+};
+
+export type TerminalStreamComplete = {
+  commandId?: string;
+  commandName?: string;
+  command: string;
+  cwd: string;
+  executionMode: 'direct' | 'allowlisted';
+  status: 'completed' | 'failed';
+  exitCode: number;
+  durationMs: number;
+  timedOut: boolean;
+  truncated: boolean;
+  completedAt: string;
+};
+
+export async function streamTerminalCommand(
+  payload: {
+    workspaceId: string;
+    command: string;
+    cwd?: string;
+  },
+  options: {
+    signal?: AbortSignal;
+    onStart?: (payload: TerminalStreamStart) => void;
+    onChunk?: (payload: TerminalStreamChunk) => void;
+    onComplete?: (payload: TerminalStreamComplete) => void;
+    onError?: (message: string) => void;
+  }
+): Promise<void> {
+  const token = useAuthStore.getState().token;
+  if (!token) {
+    throw new Error('Authentication required');
+  }
+
+  const response = await fetch(resolveApiUrl('/commands/execute-terminal-stream'), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'text/event-stream',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+    signal: options.signal,
+  });
+
+  if (!response.ok) {
+    const message = await response.text();
+    throw new Error(message || `Failed to stream terminal command (${response.status})`);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error('Terminal stream is unavailable');
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      break;
+    }
+
+    buffer += decoder.decode(value, { stream: true });
+    const blocks = buffer.split(/\r?\n\r?\n/);
+    buffer = blocks.pop() || '';
+
+    for (const block of blocks) {
+      const parsed = parseSseEventBlock(block);
+      if (!parsed?.event) {
+        continue;
+      }
+
+      const data = parsed.data ? JSON.parse(parsed.data) : {};
+      if (parsed.event === 'terminal.started') {
+        options.onStart?.(data as TerminalStreamStart);
+        continue;
+      }
+      if (parsed.event === 'terminal.chunk') {
+        options.onChunk?.(data as TerminalStreamChunk);
+        continue;
+      }
+      if (parsed.event === 'terminal.completed') {
+        options.onComplete?.(data as TerminalStreamComplete);
+        continue;
+      }
+      if (parsed.event === 'terminal.error') {
+        options.onError?.((data as { message?: string }).message || 'Terminal stream failed');
+      }
+    }
+  }
+}
+
 export async function streamDaxRunEvents(
   runId: string,
   options: {
