@@ -363,7 +363,10 @@ export const apiHelpers = {
     api.post('/workflows/bootstrap/templates', workspaceId ? { workspaceId } : {}),
 
   // Tools
-  getTools: () => api.get('/tools'),
+  getTools: (workspaceId?: string) =>
+    api.get('/tools', {
+      params: workspaceId ? { workspaceId } : undefined,
+    }),
   getTool: (id: string) => api.get(`/tools/${id}`),
 
   // MCP
