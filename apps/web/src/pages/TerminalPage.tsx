@@ -49,8 +49,18 @@ type AllowlistedCommand = {
   template?: string;
 };
 
+type SavedSnippet = {
+  id: string;
+  name: string;
+  command: string;
+  mode: 'local' | 'dax';
+  createdAt: string;
+};
+
 const TERMINAL_HISTORY_STORAGE_KEY = 'soothsayer-terminal-history-v1';
+const TERMINAL_SNIPPETS_STORAGE_KEY = 'soothsayer-terminal-snippets-v1';
 const MAX_HISTORY_ITEMS = 40;
+const MAX_SNIPPETS = 20;
 
 const commandTemplates = [
   {
@@ -117,16 +127,47 @@ function persistHistory(entries: CommandHistoryEntry[]) {
   );
 }
 
+function readSnippetsFromStorage(): SavedSnippet[] {
+  if (typeof window === 'undefined') {
+    return [];
+  }
+
+  try {
+    const raw = window.localStorage.getItem(TERMINAL_SNIPPETS_STORAGE_KEY);
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistSnippets(entries: SavedSnippet[]) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(
+    TERMINAL_SNIPPETS_STORAGE_KEY,
+    JSON.stringify(entries.slice(0, MAX_SNIPPETS)),
+  );
+}
+
 export function TerminalPage() {
   const navigate = useNavigate();
   const { currentWorkspace, currentProject, setCurrentWorkspace } = useWorkspaceStore();
   const [input, setInput] = useState('');
   const [executions, setExecutions] = useState<CommandExecution[]>([]);
   const [historyEntries, setHistoryEntries] = useState<CommandHistoryEntry[]>(() => readHistoryFromStorage());
+  const [savedSnippets, setSavedSnippets] = useState<SavedSnippet[]>(() => readSnippetsFromStorage());
   const [allowlistedCommands, setAllowlistedCommands] = useState<AllowlistedCommand[]>([]);
   const [showSidebar, setShowSidebar] = useState(true);
   const [isRunning, setIsRunning] = useState(false);
   const [isDaxLaunching, setIsDaxLaunching] = useState(false);
+  const [preferredMode, setPreferredMode] = useState<'local' | 'dax'>('local');
+  const [snippetName, setSnippetName] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const outputRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -146,6 +187,10 @@ export function TerminalPage() {
   useEffect(() => {
     persistHistory(historyEntries);
   }, [historyEntries]);
+
+  useEffect(() => {
+    persistSnippets(savedSnippets);
+  }, [savedSnippets]);
 
   useEffect(() => {
     if (outputRef.current) {
@@ -179,6 +224,11 @@ export function TerminalPage() {
   const recentHistory = useMemo(
     () => [...historyEntries].sort((left, right) => right.lastRunAt.localeCompare(left.lastRunAt)),
     [historyEntries],
+  );
+
+  const orderedSnippets = useMemo(
+    () => [...savedSnippets].sort((left, right) => right.createdAt.localeCompare(left.createdAt)),
+    [savedSnippets],
   );
 
   const ensureWorkspaceId = async () => {
@@ -224,6 +274,36 @@ export function TerminalPage() {
         .sort((left, right) => right.lastRunAt.localeCompare(left.lastRunAt))
         .slice(0, MAX_HISTORY_ITEMS);
     });
+  };
+
+  const saveCurrentSnippet = () => {
+    const command = input.trim();
+    const name = snippetName.trim() || command;
+    if (!command) {
+      toast.error('Enter a command before saving a snippet');
+      return;
+    }
+
+    setSavedSnippets((current) => {
+      const existing = current.find((entry) => entry.name === name);
+      const nextEntry: SavedSnippet = {
+        id: existing?.id || `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        name,
+        command,
+        mode: preferredMode,
+        createdAt: new Date().toISOString(),
+      };
+
+      const remaining = current.filter((entry) => entry.name !== name);
+      return [nextEntry, ...remaining].slice(0, MAX_SNIPPETS);
+    });
+
+    setSnippetName('');
+    toast.success('Snippet saved');
+  };
+
+  const deleteSnippet = (snippetId: string) => {
+    setSavedSnippets((current) => current.filter((entry) => entry.id !== snippetId));
   };
 
   const executeCommand = async () => {
@@ -362,13 +442,22 @@ export function TerminalPage() {
     }
   };
 
+  const runFromPreferredMode = async () => {
+    if (preferredMode === 'dax') {
+      await launchViaDax();
+      return;
+    }
+
+    await executeCommand();
+  };
+
   const handleTerminate = () => {
     abortRef.current?.abort();
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'Enter') {
-      void executeCommand();
+      void runFromPreferredMode();
       return;
     }
 
@@ -491,16 +580,35 @@ export function TerminalPage() {
                         </div>
                       )}
 
-                      {execution.stdout && (
-                        <pre className="whitespace-pre-wrap break-all text-[12px] text-secondary-content">
-                          {execution.stdout}
-                        </pre>
-                      )}
+                      {(execution.stdout || execution.stderr) && (
+                        <div
+                          className={cn(
+                            'grid gap-3',
+                            execution.stdout && execution.stderr ? 'xl:grid-cols-2' : 'grid-cols-1',
+                          )}
+                        >
+                          {execution.stdout && (
+                            <div className="overflow-hidden rounded-2xl border border-emerald-500/10 bg-emerald-500/[0.04]">
+                              <div className="border-b border-emerald-500/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-emerald-700">
+                                stdout
+                              </div>
+                              <pre className="whitespace-pre-wrap break-all px-4 py-3 text-[12px] text-secondary-content">
+                                {execution.stdout}
+                              </pre>
+                            </div>
+                          )}
 
-                      {execution.stderr && (
-                        <pre className="whitespace-pre-wrap break-all text-[12px] text-rose-400/90">
-                          {execution.stderr}
-                        </pre>
+                          {execution.stderr && (
+                            <div className="overflow-hidden rounded-2xl border border-rose-500/10 bg-rose-500/[0.04]">
+                              <div className="border-b border-rose-500/10 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-rose-600">
+                                stderr
+                              </div>
+                              <pre className="whitespace-pre-wrap break-all px-4 py-3 text-[12px] text-rose-400/90">
+                                {execution.stderr}
+                              </pre>
+                            </div>
+                          )}
+                        </div>
                       )}
 
                       {execution.status !== 'running' && (
@@ -532,16 +640,60 @@ export function TerminalPage() {
           <div className="border-t border-border/40 bg-background px-8 py-6">
             <div className="mx-auto flex max-w-6xl flex-col gap-4">
               <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto]">
-                <div className="flex items-center gap-3 rounded-2xl border border-border/40 bg-card/20 px-4 py-3">
-                  <span className="font-black text-primary">$</span>
-                  <input
-                    ref={inputRef}
-                    value={input}
-                    onChange={(event) => setInput(event.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Run a shell command locally, or hand it off via DAX..."
-                    className="w-full bg-transparent font-mono text-base text-foreground outline-none"
-                  />
+                <div className="space-y-3 rounded-2xl border border-border/40 bg-card/20 px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="font-black text-primary">$</span>
+                      <span className="text-[10px] font-black uppercase tracking-[0.16em] text-secondary-content">
+                        execution mode
+                      </span>
+                    </div>
+                    <div className="inline-flex rounded-full border border-border/40 bg-background/60 p-1">
+                      <button
+                        onClick={() => setPreferredMode('local')}
+                        className={cn(
+                          'rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] transition-colors',
+                          preferredMode === 'local'
+                            ? 'bg-emerald-500/10 text-emerald-700'
+                            : 'text-secondary-content hover:text-foreground',
+                        )}
+                      >
+                        Local shell
+                      </button>
+                      <button
+                        onClick={() => setPreferredMode('dax')}
+                        className={cn(
+                          'rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em] transition-colors',
+                          preferredMode === 'dax'
+                            ? 'bg-blue-500/10 text-blue-700'
+                            : 'text-secondary-content hover:text-foreground',
+                        )}
+                      >
+                        Governed DAX
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={cn(
+                        'rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em]',
+                        preferredMode === 'local'
+                          ? 'bg-emerald-500/10 text-emerald-700'
+                          : 'bg-blue-500/10 text-blue-700',
+                      )}
+                    >
+                      {preferredMode === 'local' ? 'local shell' : 'governed dax'}
+                    </span>
+                    <input
+                      ref={inputRef}
+                      value={input}
+                      onChange={(event) => setInput(event.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder="Run a shell command locally, or hand it off via DAX..."
+                      className="w-full bg-transparent font-mono text-base text-foreground outline-none"
+                    />
+                  </div>
                 </div>
 
                 {isRunning ? (
@@ -574,7 +726,7 @@ export function TerminalPage() {
               </div>
 
               <div className="flex flex-wrap gap-3 text-[11px] text-secondary-content">
-                <span>Enter executes locally.</span>
+                <span>Enter runs in the selected mode.</span>
                 <span>Arrow up/down recalls history.</span>
                 <span>DAX launches a governed run with approvals and replay.</span>
               </div>
@@ -592,6 +744,81 @@ export function TerminalPage() {
             </div>
 
             <div className="flex-1 space-y-8 overflow-y-auto p-5">
+              <section className="space-y-3">
+                <div className="flex items-center gap-2 text-label-sm">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Saved Snippets
+                </div>
+                <div className="space-y-3">
+                  <div className="grid gap-2">
+                    <input
+                      value={snippetName}
+                      onChange={(event) => setSnippetName(event.target.value)}
+                      placeholder="Snippet name"
+                      className="rounded-xl border border-border/30 bg-background/50 px-3 py-2 text-sm text-foreground outline-none transition-colors focus:border-primary/20"
+                    />
+                    <button
+                      onClick={saveCurrentSnippet}
+                      disabled={!input.trim()}
+                      className="rounded-xl border border-border/30 bg-background/50 px-3 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-foreground transition-colors hover:border-primary/20 hover:bg-background disabled:opacity-30"
+                    >
+                      Save current command
+                    </button>
+                  </div>
+
+                  {orderedSnippets.length === 0 ? (
+                    <div className="rounded-2xl border border-dashed border-border/40 bg-background/40 p-4 text-sm text-secondary-content">
+                      Save reusable commands here with a name and preferred mode.
+                    </div>
+                  ) : (
+                    orderedSnippets.map((snippet) => (
+                      <div
+                        key={snippet.id}
+                        className="rounded-2xl border border-border/20 bg-background/40 p-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <button
+                            onClick={() => {
+                              setInput(snippet.command);
+                              setPreferredMode(snippet.mode);
+                            }}
+                            className="min-w-0 flex-1 text-left"
+                          >
+                            <div className="truncate text-sm font-semibold text-foreground">
+                              {snippet.name}
+                            </div>
+                            <div className="mt-2 font-mono text-[11px] text-secondary-content">
+                              {truncate(snippet.command, 48)}
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => deleteSnippet(snippet.id)}
+                            className="text-[10px] font-black uppercase tracking-[0.16em] text-secondary-content transition-colors hover:text-rose-500"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                        <div className="mt-3 flex items-center justify-between gap-2">
+                          <span
+                            className={cn(
+                              'rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em]',
+                              snippet.mode === 'local'
+                                ? 'bg-emerald-500/10 text-emerald-700'
+                                : 'bg-blue-500/10 text-blue-700',
+                            )}
+                          >
+                            {snippet.mode === 'local' ? 'local shell' : 'governed dax'}
+                          </span>
+                          <span className="text-[10px] uppercase tracking-[0.16em] text-secondary-content">
+                            {formatRelativeTime(snippet.createdAt)}
+                          </span>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </section>
+
               <section className="space-y-3">
                 <div className="flex items-center gap-2 text-label-sm">
                   <History className="h-3.5 w-3.5" />
