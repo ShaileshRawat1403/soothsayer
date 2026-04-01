@@ -85,7 +85,9 @@ export function MainLayout() {
       });
     });
 
-    return () => unsubscribe?.();
+    return () => {
+      unsubscribe?.();
+    };
   }, [addNotification, navigate]);
 
   useEffect(() => {

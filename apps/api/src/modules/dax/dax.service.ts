@@ -128,8 +128,8 @@ export class DaxService {
       executionProfile: detail.metadata?.executionProfile
         ? {
             personaId: (detail.metadata.executionProfile as any).personaId || 'standard',
-            provider: (detail.metadata.executionProfile as any).provider || 'openai',
-            model: (detail.metadata.executionProfile as any).model || 'gpt-4',
+            provider: (detail.metadata.executionProfile as any).provider || 'dax',
+            model: (detail.metadata.executionProfile as any).model || 'system-default',
             approvalMode: (detail.metadata.executionProfile as any).approvalMode || 'strict',
             riskLevel: (detail.metadata.executionProfile as any).riskLevel || 'medium',
             isFallback: !!(detail.metadata.executionProfile as any).isFallback,

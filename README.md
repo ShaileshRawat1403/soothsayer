@@ -18,7 +18,7 @@
    ██║   ██║  ██║███████╗   ███████║╚██████╔╝╚██████╔╝   ██║   ██║  ██║███████║██║  ██║   ██║   ███████╗██║  ██║
 ```
 
-> **Governed AI Execution Platform** for Autonomous Action, Enterprise Control, and Decision Visibility.
+> **DAX-first governed AI operator plane** for conversational assistance, autonomous action, enterprise control, and decision visibility.
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue.svg)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-18.2-61DAFB.svg)](https://reactjs.org/)
@@ -27,13 +27,13 @@
 
 ## Platform Philosophy
 
-Soothsayer is not just a chatbot; it is a **DAX (Distributed Autonomous eXecution) Control Plane**. It transforms raw AI capability into controlled operational power by providing a professional workstation for operators to monitor, authorize, and audit autonomous AI actions.
+Soothsayer is not just a chatbot; it is a **DAX (Distributed Autonomous eXecution) Control Plane**. Normal assistant conversations now start on the DAX path by default, and the workstation promotes requests into governed live runs when execution is needed. Direct model providers remain available only as advanced fallback overrides.
 
 ### Core Pillars
 
 1.  **Autonomous Execution (DAX)**: Real-world action via the DAX Engine, capable of complex multi-step tasks.
 2.  **Operator Authority**: A high-fidelity professional UI designed for triage and rapid decision-making.
-3.  **Governance V2**: Fine-grained control over AI providers, behavioral personas, and risk-based approval gates.
+3.  **Governance V2**: Fine-grained control over DAX-first assistant routing, behavioral personas, and risk-based approval gates.
 4.  **Audit Integrity**: Immutable signal trails and stage-based replays for every execution path.
 
 ## High-Fidelity Workstation UI
@@ -42,7 +42,7 @@ The Soothsayer operator workstation features a professional, minimalist aestheti
 
 - **Approval Inbox V3**: A triage system that prioritizes actions by risk grade and execution impact.
 - **Replay / Audit V3**: Structured, stage-based execution timelines with resource snippet previews.
-- **Contextual Control**: Real-time switching between behavioral personas and inference engines.
+- **Contextual Control**: Real-time switching between behavioral personas and, when needed, advanced fallback engines.
 - **Precision Navigation**: One-click jumps from global alerts to specific execution signals.
 
 ## Architecture
@@ -68,8 +68,8 @@ The Soothsayer operator workstation features a professional, minimalist aestheti
 └─────────────────────┘            └──────────────────────┘
                                               │
                               ┌───────────────┴───────────────┐
-                              │       Inference Layer         │
-                              │ OpenAI │ Gemini │ Anthropic   │
+                              │    DAX-first AI authority     │
+                              │ Gemini via DAX │ Fallbacks    │
                               └───────────────────────────────┘
 ```
 
@@ -112,9 +112,11 @@ pnpm --filter @soothsayer/web exec vite --host 0.0.0.0
 
 Open http://localhost:5173/
 
-### DAX Integration (Optional)
+### DAX Integration
 
-To enable execution features, start the DAX server and ensure `DAX_BASE_URL=http://127.0.0.1:4096` is set in `apps/api/.env`.
+DAX is the normal assistant authority path for Soothsayer. To use chat and governed execution end to end, start the DAX server and ensure `DAX_BASE_URL=http://127.0.0.1:4096` is set in `apps/api/.env`.
+
+Direct providers such as OpenAI, Groq, Bedrock, and Ollama are optional advanced fallbacks. They are not required for the default Soothsayer experience.
 
 - `/runs/new` - Create execution run
 - `/runs/:id` - Run console

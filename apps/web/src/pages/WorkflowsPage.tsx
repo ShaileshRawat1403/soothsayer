@@ -105,6 +105,7 @@ export function WorkflowsPage() {
       await apiHelpers.updateWorkflow(selectedWorkflow.id, {
         ...editor,
         trigger: { type: editor.trigger },
+        steps: editor.steps as unknown as Record<string, unknown>[],
       });
       await loadWorkflows();
       toast.success('Workflow saved');

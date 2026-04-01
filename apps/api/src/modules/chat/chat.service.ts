@@ -55,6 +55,7 @@ export class ChatService {
     } = {},
   ) {
     const conversation = await this.findConversation(conversationId, userId);
+    const requestedProvider = (options.provider || '').trim().toLowerCase() || 'dax';
 
     // Create user message
     const userMessage = await this.prisma.message.create({
@@ -93,7 +94,7 @@ export class ChatService {
           handoffDecision,
           {
             userId,
-            provider: options.provider,
+            provider: requestedProvider,
             model: options.model,
           },
         )
@@ -117,32 +118,41 @@ export class ChatService {
       }
     }
 
-    const {
-      content: assistantReply,
-      provider: providerUsed,
-      model: modelUsed,
-    } = await this.aiProvider.generateAssistantReply(conversation as any, content, {
-      ...options,
-      mcpToolResult,
-    });
-
-    const handoffTargetPath = runHandoff?.targeting?.repoPath;
-    const assistantMetadata: Record<string, unknown> = {
-      provider: providerUsed,
-      model: modelUsed,
-      personaId: conversation.personaId,
-      ...(runHandoff
-        ? {
+    const providerResult = runHandoff
+      ? {
+          content: this.buildRunHandoffMessage(runHandoff.runId, handoffDecision.reason),
+          provider: 'dax',
+          model: options.model || 'governed-run',
+          metadata: {
             handoff: {
               type: 'dax_run',
               runId: runHandoff.runId,
               status: runHandoff.status,
-              targetPath: handoffTargetPath,
+              targetPath: runHandoff.targetPath,
               targeting: runHandoff.targeting,
               policyDecision: handoffDecision,
             },
-          }
-        : {}),
+          },
+        }
+      : await this.aiProvider.generateAssistantReply(conversation as any, content, {
+          ...options,
+          userId,
+          provider: requestedProvider,
+          mcpToolResult,
+        });
+
+    const {
+      content: assistantReply,
+      provider: providerUsed,
+      model: modelUsed,
+      metadata: providerMetadata,
+    } = providerResult;
+
+    const assistantMetadata: Record<string, unknown> = {
+      provider: providerUsed,
+      model: modelUsed,
+      personaId: conversation.personaId,
+      ...(providerMetadata || {}),
       ...(mcpPreflight ? { mcp: mcpPreflight } : {}),
       ...(mcpToolResult ? { mcpTool: mcpToolResult } : {}),
     };
@@ -171,5 +181,13 @@ export class ChatService {
 
   async archiveConversation(id: string, userId: string) {
     return this.conversationService.archiveConversation(id, userId);
+  }
+
+  private buildRunHandoffMessage(runId: string, reason?: string): string {
+    const summary = reason?.trim()
+      ? `I moved this into a governed DAX run because ${reason.trim().replace(/\.$/, '')}.`
+      : 'I moved this into a governed DAX run because the request needs live execution.';
+
+    return `${summary}\n\nRun ID: \`${runId}\`\n\nOpen the live run to continue with approvals, execution, and replay.`;
   }
 }

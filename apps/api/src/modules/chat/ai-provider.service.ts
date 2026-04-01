@@ -4,6 +4,10 @@ import {
   BedrockRuntimeClient,
   ConverseCommand,
 } from '@aws-sdk/client-bedrock-runtime';
+import type { DaxCreateRunRequest, DaxRunStatus, DaxRunSummary } from '@soothsayer/types';
+import { DaxService } from '../dax/dax.service';
+import { PersonaMapperService } from './persona-mapper.service';
+import { ChatHandoffService } from './chat-handoff.service';
 
 export type ChatCompletionMessage = {
   role: 'system' | 'user' | 'assistant';
@@ -14,15 +18,26 @@ export type ChatCompletionMessage = {
 export class AIProviderService {
   private readonly logger = new Logger(AIProviderService.name);
 
-  constructor(private configService: ConfigService) {}
+  constructor(
+    private configService: ConfigService,
+    private readonly daxService: DaxService,
+    private readonly personaMapper: PersonaMapperService,
+    private readonly handoffService: ChatHandoffService,
+  ) {}
 
   async generateAssistantReply(
     conversation: {
+      id: string;
+      workspaceId: string;
+      projectId?: string | null;
+      personaId?: string;
+      metadata?: unknown;
       persona: { name?: string; config?: unknown } | null;
       messages: Array<{ role: string; content: string }>;
     },
     latestUserInput: string,
     options: {
+      userId?: string;
       provider?: string;
       model?: string;
       systemPrompt?: string;
@@ -30,8 +45,13 @@ export class AIProviderService {
       fileName?: string;
       mcpToolResult?: Record<string, unknown> | null;
     },
-  ): Promise<{ content: string; provider: string; model: string }> {
-    const provider = (options.provider || 'openai').toLowerCase();
+  ): Promise<{
+    content: string;
+    provider: string;
+    model: string;
+    metadata?: Record<string, unknown>;
+  }> {
+    const provider = (options.provider || 'dax').toLowerCase();
     const model = this.normalizeModelId(
       provider,
       options.model || this.getDefaultModel(provider),
@@ -59,6 +79,16 @@ export class AIProviderService {
         })),
       { role: 'user', content: augmentedInput },
     ];
+
+    if (provider === 'dax') {
+      return this.callDaxAssistant({
+        conversation,
+        userId: options.userId,
+        model,
+        systemPrompt,
+        latestUserInput: augmentedInput,
+      });
+    }
 
     if (provider === 'ollama') {
       const content = await this.callOllama(model, messages);
@@ -144,6 +174,8 @@ export class AIProviderService {
 
   private getDefaultModel(provider: string): string {
     switch (provider) {
+      case 'dax':
+        return this.configService.get<string>('DAX_DEFAULT_MODEL', 'gemini-2.5-pro');
       case 'groq':
         return 'llama3-70b-8192';
       case 'ollama':
@@ -171,6 +203,190 @@ export class AIProviderService {
     };
 
     return aliases[normalized] ?? model;
+  }
+
+  private async callDaxAssistant(params: {
+    conversation: {
+      id: string;
+      workspaceId: string;
+      projectId?: string | null;
+      personaId?: string;
+      metadata?: unknown;
+      persona: { name?: string; config?: unknown } | null;
+      messages: Array<{ role: string; content: string }>;
+    };
+    userId?: string;
+    model: string;
+    systemPrompt: string;
+    latestUserInput: string;
+  }): Promise<{
+    content: string;
+    provider: string;
+    model: string;
+    metadata?: Record<string, unknown>;
+  }> {
+    const targeting = await this.handoffService.resolveConversationTargeting(params.conversation);
+    const repoPath = targeting.repoPath;
+    const personaId = params.conversation.personaId || 'standard';
+    const personaPreset = this.personaMapper.buildDaxPersonaPreset(
+      {
+        id: personaId,
+        name: params.conversation.persona?.name,
+        config: params.conversation.persona?.config,
+      },
+      {
+        provider: 'dax',
+        model: params.model,
+      },
+    );
+
+    const request: DaxCreateRunRequest = {
+      intent: {
+        input: this.buildDaxIntentInput({
+          systemPrompt: params.systemPrompt,
+          history: params.conversation.messages,
+          latestUserInput: params.latestUserInput,
+        }),
+        kind: 'general',
+        ...(repoPath ? { repoPath } : {}),
+      },
+      personaPreset,
+      metadata: {
+        source: 'soothsayer',
+        initiatedBy: params.userId,
+        workspaceId: params.conversation.workspaceId,
+        projectId: params.conversation.projectId || undefined,
+        chatId: params.conversation.id,
+        targeting,
+      },
+    };
+
+    const createdRun = await this.daxService.createRun(
+      { id: params.userId || 'system' } as any,
+      request,
+    );
+    const terminal = await this.waitForDaxTerminal(createdRun.runId, repoPath);
+    const executionProfile = terminal.snapshot.executionProfile;
+    const resolvedModel = executionProfile?.model || params.model;
+
+    if (terminal.snapshot.status === 'waiting_approval') {
+      return {
+        content:
+          'This request is paused in DAX because it needs approval before the assistant can continue.',
+        provider: 'dax',
+        model: resolvedModel,
+        metadata: {
+          daxRun: {
+            runId: createdRun.runId,
+            status: terminal.snapshot.status,
+            targeting,
+            executionProfile,
+          },
+          handoff: {
+            type: 'dax_run',
+            runId: createdRun.runId,
+            status: terminal.snapshot.status,
+            targetPath: this.handoffService.buildRunTargetPath(createdRun.runId, targeting),
+            targeting,
+          },
+        },
+      };
+    }
+
+    if (terminal.snapshot.status === 'failed' || terminal.snapshot.status === 'cancelled') {
+      throw new Error(
+        terminal.summary?.outcome?.summaryText ||
+          terminal.summary?.terminalReason ||
+          terminal.snapshot.failureDescription ||
+          `DAX run ${createdRun.runId} ended with status ${terminal.snapshot.status}`,
+      );
+    }
+
+    return {
+      content:
+        terminal.summary?.outcome?.summaryText ||
+        'DAX completed the run but did not return summary text.',
+      provider: 'dax',
+      model: resolvedModel,
+      metadata: {
+        daxRun: {
+          runId: createdRun.runId,
+          status: terminal.snapshot.status,
+          targeting,
+          executionProfile,
+        },
+      },
+    };
+  }
+
+  private buildDaxIntentInput(params: {
+    systemPrompt: string;
+    history: Array<{ role: string; content: string }>;
+    latestUserInput: string;
+  }): string {
+    const history = params.history
+      .filter((message) => message.role === 'user' || message.role === 'assistant')
+      .slice(-12)
+      .map((message) => {
+        const speaker = message.role === 'assistant' ? 'Assistant' : 'User';
+        return `${speaker}:\n${message.content.trim()}`;
+      })
+      .join('\n\n');
+
+    const sections = [
+      'Respond as the primary Soothsayer assistant running through DAX.',
+      'Stay in conversational assistant mode by default. Only move into approval-gated or execution-heavy behavior when the task clearly requires it.',
+      '[System Prompt]',
+      params.systemPrompt,
+    ];
+
+    if (history) {
+      sections.push('[Recent Conversation]', history);
+    }
+
+    sections.push('[Latest User Message]', params.latestUserInput);
+    return sections.join('\n\n');
+  }
+
+  private async waitForDaxTerminal(
+    runId: string,
+    repoPath?: string,
+  ): Promise<{
+    snapshot: Awaited<ReturnType<DaxService['getRunSnapshot']>>;
+    summary?: DaxRunSummary;
+  }> {
+    const timeoutMs = this.configService.get<number>('AI_REQUEST_TIMEOUT_MS', 600000);
+    const pollIntervalMs = this.configService.get<number>('DAX_CHAT_POLL_INTERVAL_MS', 1500);
+    const startedAt = Date.now();
+    let lastStatus: DaxRunStatus | null = null;
+
+    while (Date.now() - startedAt < timeoutMs) {
+      const snapshot = await this.daxService.getRunSnapshot(runId, repoPath);
+
+      if (snapshot.status !== lastStatus) {
+        lastStatus = snapshot.status;
+        this.logger.log(`DAX chat run ${runId} status: ${snapshot.status}`);
+      }
+
+      if (
+        snapshot.status === 'completed' ||
+        snapshot.status === 'failed' ||
+        snapshot.status === 'cancelled'
+      ) {
+        return {
+          snapshot,
+          summary: await this.daxService.getSummary(runId, repoPath),
+        };
+      }
+
+      if (snapshot.status === 'waiting_approval') {
+        return { snapshot };
+      }
+
+      await this.sleep(pollIntervalMs);
+    }
+
+    throw new Error(`Timed out waiting for DAX run ${runId} to finish`);
   }
 
   private async callBedrock(params: {

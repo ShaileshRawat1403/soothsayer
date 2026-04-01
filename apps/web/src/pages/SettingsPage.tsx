@@ -102,8 +102,8 @@ export function SettingsPage() {
   });
 
   const [governanceForm, setGovernanceForm] = useState({
-    defaultProvider: (currentWorkspace?.settings as any)?.defaultProvider || 'openai',
-    defaultModel: (currentWorkspace?.settings as any)?.defaultModel || 'gpt-4-turbo-preview',
+    defaultProvider: (currentWorkspace?.settings as any)?.defaultProvider || 'dax',
+    defaultModel: (currentWorkspace?.settings as any)?.defaultModel || 'gemini-2.5-pro',
   });
 
   const [signals, setSignals] = useState({
@@ -199,7 +199,7 @@ export function SettingsPage() {
               <motion.div key="ai-providers" initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="space-y-10">
                 <div className="space-y-1">
                   <h3 className="text-3xl font-black tracking-tighter uppercase">Inference Infrastructure</h3>
-                  <p className="text-[13px] font-medium text-muted-foreground/60 leading-relaxed">Manage decentralized inference nodes and model schemas.</p>
+                  <p className="text-[13px] font-medium text-muted-foreground/60 leading-relaxed">DAX is the primary assistant authority. Direct providers remain available as advanced fallback paths.</p>
                 </div>
 
                 <div className="grid gap-3">

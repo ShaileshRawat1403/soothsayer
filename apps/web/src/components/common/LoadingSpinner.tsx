@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
@@ -68,13 +69,21 @@ export function Shimmer({ className }: { className?: string }) {
   );
 }
 
-export function Skeleton({ className, circle }: { className?: string; circle?: boolean }) {
+export function Skeleton({
+  className,
+  circle,
+  style,
+}: {
+  className?: string;
+  circle?: boolean;
+  style?: CSSProperties;
+}) {
   return (
     <div className={cn(
       "bg-muted/40 animate-pulse",
       circle ? "rounded-full" : "rounded-xl",
       className
-    )}>
+    )} style={style}>
       <Shimmer className="h-full w-full" />
     </div>
   );

@@ -88,7 +88,28 @@ export function ChatPage() {
 
   const { currentPersona, personas: allPersonas } = usePersonaStore();
   const { currentWorkspace } = useWorkspaceStore();
-  const { activeProvider, activeModel } = useAIProviderStore();
+  const { providers, activeProvider, activeModel } = useAIProviderStore();
+  const activeProviderConfig = useMemo(
+    () => providers.find((provider) => provider.id === activeProvider),
+    [activeProvider, providers],
+  );
+  const isDaxPrimary = activeProvider === 'dax';
+  const workspaceRepoPath = useMemo(() => {
+    const settings = (currentWorkspace?.settings as Record<string, unknown> | undefined) || {};
+    const candidates = ['repoPath', 'defaultRepoPath', 'targetRepoPath'] as const;
+
+    for (const key of candidates) {
+      const value = settings[key];
+      if (typeof value === 'string' && value.trim()) {
+        return value.trim();
+      }
+    }
+
+    return undefined;
+  }, [currentWorkspace?.settings]);
+  const assistantModeLabel = isDaxPrimary
+    ? 'DAX-governed assistant'
+    : `${activeProviderConfig?.name || 'Fallback'} override`;
 
   useEffect(() => {
     setActiveConversationId(routeConversationId || null);
@@ -147,6 +168,7 @@ export function ChatPage() {
           workspaceId: currentWorkspace?.id || 'default',
           personaId: currentPersona?.id || 'standard',
           title: text.slice(0, 60),
+          repoPath: workspaceRepoPath,
         });
         conversationId = createResponse.data.id;
         setActiveConversationId(conversationId);
@@ -212,7 +234,13 @@ export function ChatPage() {
             <div className="hidden xs:flex items-center gap-2.5 px-3 py-1 rounded-lg bg-muted/20 border border-border/40 hover-glow">
               <Cpu className="h-3.5 w-3.5 text-secondary-content" />
               <span className="text-[10px] font-black text-secondary-content uppercase tracking-widest leading-none truncate max-w-[80px] md:max-w-none">
-                {activeModel || 'Inherited'}
+                {isDaxPrimary ? 'DAX Authority' : activeProviderConfig?.name || 'Fallback'}
+              </span>
+            </div>
+            <div className="hidden md:flex items-center gap-2.5 px-3 py-1 rounded-lg bg-muted/20 border border-border/40">
+              <ShieldCheck className="h-3.5 w-3.5 text-secondary-content" />
+              <span className="text-[10px] font-black text-secondary-content uppercase tracking-widest leading-none truncate max-w-[120px]">
+                {isDaxPrimary ? activeModel || 'Gemini 2.5 Pro' : activeModel || 'Direct'}
               </span>
             </div>
           </div>
@@ -227,7 +255,7 @@ export function ChatPage() {
             )}
           >
             <AlignLeft className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Policy Node</span>
+            <span className="hidden sm:inline">Assistant Mode</span>
           </button>
         </header>
 
@@ -245,9 +273,9 @@ export function ChatPage() {
                       <Sparkles className="h-6 w-6 md:h-7 md:w-7" />
                     </div>
                     <div className="space-y-1">
-                      <h1 className="text-2xl md:text-4xl font-black tracking-tighter">Synchronize Intent</h1>
+                      <h1 className="text-2xl md:text-4xl font-black tracking-tighter">DAX-First Assistance</h1>
                       <p className="text-sm md:text-base font-medium text-secondary-content leading-relaxed">
-                        Establish a high-fidelity execution context for the authority.
+                        Start in governed chat. Soothsayer stays conversational by default and opens a live DAX run only when execution is needed.
                       </p>
                     </div>
                   </div>
@@ -255,20 +283,20 @@ export function ChatPage() {
                   <div className="grid gap-4 w-full sm:grid-cols-2">
                     {[
                       {
-                        l: 'Debug runtime fault',
+                        l: 'Investigate a failure',
                         p: 'Analyze this trace for memory leaks:\n```\n\n```',
                       },
                       {
-                        l: 'Generate access protocol',
-                        p: 'Implement a zero-trust auth layer for ',
+                        l: 'Plan a governed change',
+                        p: 'Propose a safe implementation plan for ',
                       },
                       {
-                        l: 'Refactor logic audit',
-                        p: 'Rewrite this for deterministic performance:\n```\n\n```',
+                        l: 'Refactor with context',
+                        p: 'Review this logic and suggest a refactor path:\n```\n\n```',
                       },
                       {
-                        l: 'Audit governance',
-                        p: 'Scan the repository structure for policy violations.',
+                        l: 'Escalate to live run',
+                        p: 'Inspect the repository and start a governed live run for this task.',
                       },
                     ].map((s, i) => (
                       <button
@@ -340,7 +368,7 @@ export function ChatPage() {
                                   <Terminal className="h-4 w-4 md:h-5 md:w-5" />
                                 </div>
                                 <span className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-secondary-content">
-                                  Execution Moved
+                                  Live Run Active
                                 </span>
                               </div>
                               <span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest px-2 md:px-3 py-1 md:py-1.5 rounded-full bg-primary/5 text-primary border border-primary/10">
@@ -399,7 +427,7 @@ export function ChatPage() {
                   onKeyDown={(e) =>
                     e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())
                   }
-                  placeholder="Dispatch autonomous instruction..."
+                  placeholder="Ask Soothsayer. DAX stays in chat until live execution is needed..."
                   className="flex-1 max-h-96 min-h-[44px] md:min-h-[48px] resize-none bg-transparent py-2.5 md:py-3.5 text-sm md:text-[15px] font-medium outline-none text-placeholder-content leading-relaxed transition-all"
                 />
                 <div className="flex items-center gap-2 md:gap-3 pb-1 md:pb-1.5 pr-1 md:pr-1.5">
@@ -427,14 +455,14 @@ export function ChatPage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 md:px-8 gap-3 text-meta text-muted-content">
               <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2">
-                  <ShieldCheck className="h-3 w-3" /> <span className="text-[9px] uppercase font-black tracking-widest">Governance</span>
+                  <ShieldCheck className="h-3 w-3" /> <span className="text-[9px] uppercase font-black tracking-widest">{assistantModeLabel}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Zap className="h-3 w-3" /> <span className="text-[9px] uppercase font-black tracking-widest">Handoff</span>
+                  <Zap className="h-3 w-3" /> <span className="text-[9px] uppercase font-black tracking-widest">{isDaxPrimary ? 'Live handoff on demand' : 'Direct fallback active'}</span>
                 </div>
               </div>
               <span className="text-[9px] uppercase font-black tracking-widest opacity-70 transition-opacity group-focus-within:opacity-100">
-                Ready for Dispatch
+                {isDaxPrimary ? 'DAX primary route ready' : 'Advanced override ready'}
               </span>
             </div>
           </div>
@@ -467,12 +495,24 @@ export function ChatPage() {
 
             <div className="flex-1 overflow-y-auto p-8 md:p-12 space-y-10 md:space-y-12 scrollbar-none">
               <div className="space-y-5">
-                <label className="text-label-sm ml-1">Operational Boundary</label>
+                <label className="text-label-sm ml-1">Assistant Boundary</label>
                 <div className="rounded-[1.5rem] md:rounded-[2rem] border border-border/40 bg-muted/10 p-6 md:p-8 leading-relaxed text-sm md:text-[15px] font-medium text-secondary-content italic shadow-inner">
                   "
                   {currentPersona?.systemPrompt ||
                     'Assistant operating under standard governed protocols.'}
                   "
+                </div>
+              </div>
+
+              <div className="space-y-5">
+                <label className="text-label-sm ml-1">Routing</label>
+                <div className="rounded-[1.5rem] md:rounded-[2rem] border border-border/40 bg-background/40 p-6 md:p-8 space-y-3 text-sm md:text-[15px] font-medium text-secondary-content shadow-inner">
+                  <p>{isDaxPrimary ? 'DAX is the normal assistant path for this conversation.' : `${activeProviderConfig?.name || 'Direct provider'} is overriding the DAX-first default for this conversation.`}</p>
+                  <p className="text-xs md:text-sm opacity-80">
+                    {isDaxPrimary
+                      ? `Model preference: ${activeModel || 'Gemini 2.5 Pro'}`
+                      : `Fallback model: ${activeModel || 'Direct provider default'}`}
+                  </p>
                 </div>
               </div>
 

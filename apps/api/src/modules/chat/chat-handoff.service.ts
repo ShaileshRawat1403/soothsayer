@@ -50,11 +50,8 @@ export class ChatHandoffService {
     personaPreset.approvalMode = decision.requireApproval ? 'strict' : personaPreset.approvalMode;
     personaPreset.riskLevel = decision.riskLevel;
 
-    const repoPath = await this.resolveChatRepoPath(
-      conversation.workspaceId,
-      conversation.projectId || undefined,
-      conversation.metadata,
-    );
+    const targeting = await this.resolveConversationTargeting(conversation);
+    const repoPath = targeting.repoPath;
 
     const request: DaxCreateRunRequest = {
       intent: {
@@ -68,14 +65,7 @@ export class ChatHandoffService {
         projectId: conversation.projectId || undefined,
         chatId: conversation.id,
         policyReason: decision.reason,
-        targeting: repoPath
-          ? {
-              mode: 'explicit_repo_path',
-              repoPath,
-            }
-          : {
-              mode: 'default_cwd',
-            },
+        targeting,
       },
     };
 
@@ -83,15 +73,48 @@ export class ChatHandoffService {
     
     return {
       ...created,
-      targeting: repoPath
-        ? {
-            mode: 'explicit_repo_path' as const,
-            repoPath,
-          }
-        : {
-            mode: 'default_cwd' as const,
-          },
+      targeting,
+      targetPath: this.buildRunTargetPath(created.runId, targeting),
     };
+  }
+
+  async resolveConversationTargeting(conversation: {
+    workspaceId: string;
+    projectId?: string | null;
+    metadata?: unknown;
+  }): Promise<{
+    mode: 'explicit_repo_path' | 'default_cwd';
+    repoPath?: string;
+  }> {
+    const repoPath = await this.resolveChatRepoPath(
+      conversation.workspaceId,
+      conversation.projectId || undefined,
+      conversation.metadata,
+    );
+
+    return repoPath
+      ? {
+          mode: 'explicit_repo_path',
+          repoPath,
+        }
+      : {
+          mode: 'default_cwd',
+        };
+  }
+
+  buildRunTargetPath(
+    runId: string,
+    targeting: {
+      mode: 'explicit_repo_path' | 'default_cwd';
+      repoPath?: string;
+    },
+  ): string {
+    const params = new URLSearchParams({ targetMode: targeting.mode });
+    if (targeting.repoPath) {
+      params.set('repoPath', targeting.repoPath);
+    }
+
+    return `/runs/${runId}?${params.toString()}`;
   }
 
   private async resolveChatRepoPath(

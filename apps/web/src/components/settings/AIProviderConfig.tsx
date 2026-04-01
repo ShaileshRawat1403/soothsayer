@@ -29,25 +29,21 @@ interface ProviderConfigProps {
   onClose?: () => void;
 }
 
-const providerIcons: Record<AIProvider['id'], React.ReactNode> = {
+const providerIcons: Record<AIProvider, React.ReactNode> = {
+  dax: <Cpu className="w-5 h-5 text-violet-400" />,
   openai: <Globe className="w-5 h-5 text-green-400" />,
-  anthropic: <Zap className="w-5 h-5 text-orange-400" />,
   ollama: <Server className="w-5 h-5 text-blue-400" />,
-  'lm-studio': <Cpu className="w-5 h-5 text-purple-400" />,
   groq: <Zap className="w-5 h-5 text-yellow-400" />,
-  together: <Cloud className="w-5 h-5 text-cyan-400" />,
-  openrouter: <Globe className="w-5 h-5 text-pink-400" />,
+  bedrock: <Cloud className="w-5 h-5 text-cyan-400" />,
   custom: <Settings className="w-5 h-5 text-gray-400" />,
 };
 
-const providerDescriptions: Record<AIProvider['id'], string> = {
-  openai: 'Industry-leading models including GPT-4 Turbo. Best for general tasks and coding.',
-  anthropic: 'Claude models with excellent reasoning. Best for analysis and writing.',
-  ollama: 'Run open-source models locally. Free and private.',
-  'lm-studio': 'User-friendly local model hosting with OpenAI-compatible API.',
-  groq: 'Ultra-fast inference for Llama and Mixtral models.',
-  together: 'High-performance cloud for open-source models.',
-  openrouter: 'Access 100+ models through a single API.',
+const providerDescriptions: Record<AIProvider, string> = {
+  dax: 'Primary governed assistant authority for Soothsayer.',
+  openai: 'Direct API fallback for manual override scenarios.',
+  ollama: 'Local direct fallback for private or offline usage.',
+  groq: 'Fast direct fallback for low-latency responses.',
+  bedrock: 'AWS-managed direct fallback path.',
   custom: 'Connect to any OpenAI-compatible endpoint.',
 };
 

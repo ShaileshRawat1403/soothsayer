@@ -10,7 +10,6 @@ import {
   Cpu,
   Users,
   Zap,
-  Settings,
   Rocket,
   Cloud,
   Laptop,
@@ -113,14 +112,14 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                 </div>
                 <h2 className="mb-2 text-3xl font-bold">Welcome to The Soothsayer</h2>
                 <p className="mb-8 text-lg text-muted-foreground">
-                  Your enterprise AI workspace for planning, execution, and automation
+                  Your DAX-first operator plane for governed AI assistance and execution
                 </p>
                 <div className="grid gap-4 text-left sm:grid-cols-3">
                   <div className="rounded-xl border border-border p-4 transition-colors hover:bg-accent/50">
                     <Cpu className="mb-2 h-8 w-8 text-blue-500" />
-                    <h3 className="font-semibold">AI-Powered</h3>
+                    <h3 className="font-semibold">DAX-First</h3>
                     <p className="text-sm text-muted-foreground">
-                      Connect your favorite AI models - local or cloud
+                      Start every conversation through governed DAX assistance by default
                     </p>
                   </div>
                   <div className="rounded-xl border border-border p-4 transition-colors hover:bg-accent/50">
@@ -145,21 +144,20 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
             {currentStep === 1 && (
               <div>
                 <div className="mb-6 text-center">
-                  <h2 className="text-2xl font-bold">Choose Your AI Provider</h2>
+                  <h2 className="text-2xl font-bold">Confirm Assistant Routing</h2>
                   <p className="text-muted-foreground">
-                    Connect to cloud AI or use local models for privacy
+                    DAX is the normal assistant path. Direct providers are only needed for advanced fallback.
                   </p>
                 </div>
 
                 <div className="space-y-4">
-                  {/* Cloud Options */}
                   <div>
                     <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-muted-foreground">
                       <Cloud className="h-4 w-4" />
-                      Cloud Providers
+                      Primary Route
                     </h3>
                     <div className="grid gap-3 sm:grid-cols-2">
-                      {providers.filter(p => !p.isLocal && p.id !== 'custom').slice(0, 4).map((provider) => (
+                      {providers.filter((p) => p.id === 'dax').map((provider) => (
                         <button
                           key={provider.id}
                           onClick={() => setActiveProvider(provider.id)}
@@ -174,7 +172,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                           <div>
                             <div className="font-medium">{provider.name}</div>
                             <div className="text-xs text-muted-foreground">
-                              {provider.models.length} models
+                              Governed chat and execution authority
                             </div>
                           </div>
                           {activeProvider === provider.id && (
@@ -185,14 +183,13 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                     </div>
                   </div>
 
-                  {/* Local Options */}
                   <div>
                     <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-muted-foreground">
                       <Laptop className="h-4 w-4" />
-                      Local Models (Private & Offline)
+                      Advanced Fallbacks
                     </h3>
                     <div className="grid gap-3 sm:grid-cols-2">
-                      {providers.filter(p => p.isLocal).map((provider) => (
+                      {providers.filter((p) => p.id !== 'dax' && p.id !== 'custom').map((provider) => (
                         <button
                           key={provider.id}
                           onClick={() => setActiveProvider(provider.id)}
@@ -219,10 +216,10 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                   </div>
 
                   {/* API Key Input */}
-                  {!providers.find(p => p.id === activeProvider)?.isLocal && (
+                  {!providers.find((p) => p.id === activeProvider)?.isLocal && activeProvider !== 'dax' && (
                     <div className="mt-4 rounded-xl border border-border bg-secondary/30 p-4">
                       <label className="mb-2 block text-sm font-medium">
-                        API Key (Optional - can be added later)
+                        Fallback API Key (Optional - can be added later)
                       </label>
                       <div className="relative">
                         <input
@@ -241,6 +238,12 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                           {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
                       </div>
+                    </div>
+                  )}
+
+                  {activeProvider === 'dax' && (
+                    <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
+                      DAX is active. You do not need to configure any direct provider to start chatting.
                     </div>
                   )}
                 </div>
@@ -297,7 +300,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                 </div>
                 <h2 className="mb-2 text-3xl font-bold">You're All Set!</h2>
                 <p className="mb-8 text-lg text-muted-foreground">
-                  Start exploring The Soothsayer
+                  Start with governed chat, then move into live DAX execution when the task calls for it
                 </p>
 
                 <div className="mb-8 rounded-xl border border-border bg-secondary/30 p-4 text-left">
@@ -309,7 +312,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="text-lg">💬</span>
-                      <span>Start a chat to ask questions or generate code</span>
+                      <span>Start a chat in DAX-first mode for planning, analysis, and guided execution</span>
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="text-lg">🎭</span>
@@ -317,7 +320,7 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="text-lg">⚙️</span>
-                      <span>Configure AI providers in Settings → AI Providers</span>
+                      <span>Use Settings → Engines only when you need a direct fallback provider override</span>
                     </li>
                   </ul>
                 </div>
