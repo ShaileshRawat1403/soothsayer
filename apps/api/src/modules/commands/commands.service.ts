@@ -150,28 +150,31 @@ export class CommandsService {
       },
     });
 
-    if (!commandDef) {
-      throw new ForbiddenException('Only allowlisted command templates can be executed');
-    }
+    let commandToRun = commandRef;
+    let timeoutMs = 30000;
+    let executionMode: 'direct' | 'allowlisted' = 'direct';
 
-    if (/\{\{[^}]+\}\}/.test(commandDef.template)) {
-      throw new ForbiddenException(
-        'Command template requires parameters and cannot be run from terminal route'
-      );
+    if (commandDef) {
+      if (/\{\{[^}]+\}\}/.test(commandDef.template)) {
+        throw new ForbiddenException(
+          'Command template requires parameters and cannot be run from terminal route'
+        );
+      }
+
+      commandToRun = commandDef.template;
+      timeoutMs = commandDef.timeout || 30000;
+      executionMode = 'allowlisted';
     }
 
     const safeCwd = await this.resolveSafeWorkingDirectory(workspaceId, cwd);
-    const result = await this.runCommandWithGuards(
-      commandDef.template,
-      commandDef.timeout || 30000,
-      safeCwd
-    );
+    const result = await this.runCommandWithGuards(commandToRun, timeoutMs, safeCwd);
 
     return {
-      commandId: commandDef.id,
-      commandName: commandDef.name,
-      command: commandDef.template,
+      commandId: commandDef?.id,
+      commandName: commandDef?.name,
+      command: commandToRun,
       cwd: safeCwd,
+      executionMode,
       status: result.exitCode === 0 ? 'completed' : 'failed',
       output: result.stdout,
       errorOutput: result.stderr,
@@ -220,8 +223,21 @@ export class CommandsService {
       return undefined;
     }
 
-    const maybeRoot = (settings as Record<string, unknown>).rootPath;
-    return typeof maybeRoot === 'string' && maybeRoot.trim() ? maybeRoot.trim() : undefined;
+    const record = settings as Record<string, unknown>;
+    const candidates = [
+      record.rootPath,
+      record.repoPath,
+      record.defaultRepoPath,
+      record.targetRepoPath,
+    ];
+
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim()) {
+        return candidate.trim();
+      }
+    }
+
+    return undefined;
   }
 
   private isPathInside(rootPath: string, targetPath: string): boolean {
@@ -249,6 +265,7 @@ export class CommandsService {
     const blockedPatterns = [
       /(^|\s)sudo(\s|$)/i,
       /rm\s+-rf\s+\//i,
+      /rm\s+-rf\s+(\.|\.\.)(\/|\s|$)/i,
       /\bmkfs\b/i,
       /\bdd\b/i,
       /\bshutdown\b/i,

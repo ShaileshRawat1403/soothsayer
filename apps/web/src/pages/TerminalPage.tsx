@@ -233,13 +233,13 @@ export function TerminalPage() {
                       Direct Execution Node
                     </h1>
                     <p className="text-[9px] font-black uppercase tracking-[0.4em] mt-2">
-                      Terminal Interface v3.4.0 (Governed)
+                      Terminal Interface v3.4.0 (Local Shell)
                     </p>
                   </div>
                   <div className="flex items-center gap-3 text-muted-content">
                     <div className="h-px w-6 bg-current" />
                     <span className="text-label-sm">
-                      Operator synchronized. Awaiting instruction.
+                      Operator synchronized. Shell commands execute inside the workspace root.
                     </span>
                   </div>
                 </motion.div>
@@ -312,7 +312,7 @@ export function TerminalPage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && executeCommand()}
-                placeholder="Dispatch signal..."
+                placeholder="Run a shell command..."
                 className="flex-1 bg-transparent border-none p-0 font-mono text-base text-foreground focus:outline-none focus:ring-0 text-placeholder-content"
               />
               <div className="flex items-center gap-3">
@@ -386,7 +386,8 @@ export function TerminalPage() {
                 <div className="flex items-start gap-3">
                   <Shield className="h-3.5 w-3.5 text-primary/40 shrink-0 mt-0.5" />
                   <p className="text-[10px] font-medium text-secondary-content leading-relaxed italic">
-                    All direct runtime instructions are audited by the execution authority.
+                    This terminal executes locally on the Soothsayer host inside the workspace root.
+                    Use DAX runs for governed multi-step execution and approvals.
                   </p>
                 </div>
               </div>

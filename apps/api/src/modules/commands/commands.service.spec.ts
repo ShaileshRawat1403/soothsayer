@@ -33,13 +33,23 @@ describe('CommandsService executeTerminal hardening', () => {
     );
   });
 
-  it('rejects unknown allowlisted command id or name', async () => {
+  it('executes a safe freeform command inside the workspace root', async () => {
     const { service, prisma } = makeService();
     prisma.command.findFirst.mockResolvedValue(null);
+    jest.spyOn(service as any, 'runCommandWithGuards').mockResolvedValue({
+      stdout: 'On branch main',
+      stderr: '',
+      exitCode: 0,
+      durationMs: 12,
+      timedOut: false,
+      truncated: false,
+    });
 
-    await expect(
-      service.executeTerminal('user-1', 'workspace-1', 'missing-command-id-or-name', '.')
-    ).rejects.toThrow('Only allowlisted command templates can be executed');
+    const result = await service.executeTerminal('user-1', 'workspace-1', 'git status', '.');
+
+    expect(result.status).toBe('completed');
+    expect(result.command).toBe('git status');
+    expect(result.executionMode).toBe('direct');
   });
 
   it('rejects cwd outside workspace root', async () => {
