@@ -7,6 +7,7 @@ Welcome to the Soothsayer documentation hub. Soothsayer is a governed AI executi
 - **[START_HERE_NON_DEV.md](START_HERE_NON_DEV.md)** - Critical first steps for new operators.
 - **[NON_DEV_QUICKSTART.md](NON_DEV_QUICKSTART.md)** - 10-minute guide to initiating your first governed run.
 - **[SOOTHSAYER_ELI12_GUIDE.md](SOOTHSAYER_ELI12_GUIDE.md)** - A plain-English overview of the platform philosophy.
+- **[USER_ADOPTION_GUIDE.md](USER_ADOPTION_GUIDE.md)** - Practical day-1 onboarding guide focused on DAX-first chat behavior and operator outcomes.
 
 ## 🛠️ Operational Guides
 

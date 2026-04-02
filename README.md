@@ -122,6 +122,15 @@ Direct providers such as OpenAI, Groq, Bedrock, and Ollama are optional advanced
 - `/runs/:id` - Run console
 - `/dax` - DAX overview
 
+### Chat Response Behavior (DAX-first)
+
+In UI chat, DAX can respond in two valid ways:
+
+1. **Inline response** when the run finishes quickly.
+2. **Live run handoff** when execution is still running or awaiting governance actions.
+
+If a direct fallback override is active and that provider fails, Soothsayer retries in DAX mode.
+
 ## DAX Integration Surface
 
 Soothsayer is the **operator plane** for DAX — the surface through which human operators observe, govern, and recover AI-assisted runs. The integration goes beyond simple API calls:
@@ -139,6 +148,7 @@ See [docs/GOVERNED_FAILURE_VISIBILITY.md](docs/GOVERNED_FAILURE_VISIBILITY.md) f
 ## Documentation Hub
 
 - **[docs/README.md](docs/README.md)** - Root documentation index
+- **[docs/USER_ADOPTION_GUIDE.md](docs/USER_ADOPTION_GUIDE.md)** - Recommended starting guide for end users and operators.
 - **[docs/architecture.md](docs/architecture.md)** - Detailed system design
 - **[docs/VALIDATION_REPORT_2026_03_19.md](docs/VALIDATION_REPORT_2026_03_19.md)** - Latest runtime stability report
 - **[docs/SOOTHSAYER_ELI12_GUIDE.md](docs/SOOTHSAYER_ELI12_GUIDE.md)** - Beginner-friendly system overview
