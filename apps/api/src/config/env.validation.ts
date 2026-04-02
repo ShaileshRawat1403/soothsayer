@@ -41,6 +41,7 @@ const envSchema = z.object({
   WS_REDIS_ENABLED: booleanFromEnv.default(false),
   WS_REDIS_FORCE_IN_DEV: booleanFromEnv.default(false),
   WS_AUTH_ALLOW_IN_DEV: booleanFromEnv.default(false),
+  DEV_DISABLE_QUEUES: booleanFromEnv.default(false),
 
   // JWT
   JWT_SECRET: z.string().min(32),
