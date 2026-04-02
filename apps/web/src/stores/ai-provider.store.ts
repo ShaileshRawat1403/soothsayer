@@ -236,7 +236,7 @@ export const useAIProviderStore = create<AIProviderState>()(
         const providerConfig = getProviderConfig(get().providers, provider);
         set({
           activeProvider: provider,
-          activeModel: providerConfig?.defaultModel || providerConfig?.models[0]?.id || '',
+          activeModel: providerConfig?.defaultModel || providerConfig?.models?.[0]?.id || '',
         });
       },
 
@@ -293,7 +293,7 @@ export const useAIProviderStore = create<AIProviderState>()(
             providers,
             activeModel: activeModelStillExists
               ? state.activeModel
-              : (currentProvider?.defaultModel || currentProvider?.models[0]?.id || ''),
+              : (currentProvider?.defaultModel || currentProvider?.models?.[0]?.id || ''),
           };
         }),
 
@@ -355,9 +355,9 @@ export const useAIProviderStore = create<AIProviderState>()(
         const activeProviderConfig = getProviderConfig(providers, activeProvider);
         const activeModel =
           typeof state.activeModel === 'string' &&
-          activeProviderConfig?.models.some((model) => model.id === state.activeModel)
+          activeProviderConfig?.models?.some((model) => model.id === state.activeModel)
             ? state.activeModel
-            : (activeProviderConfig?.defaultModel || activeProviderConfig?.models[0]?.id || '');
+            : (activeProviderConfig?.defaultModel || activeProviderConfig?.models?.[0]?.id || '');
 
         return {
           providers: providers.map((provider) => ({
@@ -365,6 +365,30 @@ export const useAIProviderStore = create<AIProviderState>()(
             apiKey: provider.apiKey,
             baseUrl: provider.baseUrl,
           })),
+          activeProvider,
+          activeModel,
+        };
+      },
+      merge: (persistedState, currentState) => {
+        const current = currentState as AIProviderState;
+        const persisted = (persistedState as Partial<AIProviderState> | undefined) || {};
+
+        const providers = mergeProviders(persisted.providers);
+        const activeProvider = DEFAULT_PROVIDERS.some(
+          (provider) => provider.id === persisted.activeProvider,
+        )
+          ? (persisted.activeProvider as AIProvider)
+          : current.activeProvider;
+        const activeProviderConfig = getProviderConfig(providers, activeProvider);
+        const activeModel =
+          typeof persisted.activeModel === 'string' &&
+          activeProviderConfig?.models?.some((model) => model.id === persisted.activeModel)
+            ? persisted.activeModel
+            : (activeProviderConfig?.defaultModel || activeProviderConfig?.models?.[0]?.id || '');
+
+        return {
+          ...current,
+          providers,
           activeProvider,
           activeModel,
         };

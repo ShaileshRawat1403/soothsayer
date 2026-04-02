@@ -230,7 +230,7 @@ export class PicobotService {
   }
 
   private async hasLegacyTables(): Promise<boolean> {
-    const rows = await this.prisma.$queryRawUnsafe<Array<{ count: string }>>(
+    const rows = (await this.prisma.$queryRawUnsafe(
       `
         select count(*)::text as count
         from pg_tables
@@ -243,13 +243,13 @@ export class PicobotService {
             'PicobotCommand'
           )
       `,
-    );
+    )) as Array<{ count: string }>;
 
     return Number(rows[0]?.count || '0') === 5;
   }
 
   private async findInstance(workspaceId: string): Promise<LegacyPicobotInstanceRow | null> {
-    const rows = await this.prisma.$queryRawUnsafe<LegacyPicobotInstanceRow[]>(
+    const rows = (await this.prisma.$queryRawUnsafe(
       `
         select
           id,
@@ -268,13 +268,13 @@ export class PicobotService {
         limit 1
       `,
       workspaceId,
-    );
+    )) as LegacyPicobotInstanceRow[];
 
     return rows[0] ?? null;
   }
 
   private async findAnyInstance(): Promise<LegacyPicobotInstanceRow | null> {
-    const rows = await this.prisma.$queryRawUnsafe<LegacyPicobotInstanceRow[]>(
+    const rows = (await this.prisma.$queryRawUnsafe(
       `
         select
           id,
@@ -292,13 +292,13 @@ export class PicobotService {
         order by "updatedAt" desc
         limit 1
       `,
-    );
+    )) as LegacyPicobotInstanceRow[];
 
     return rows[0] ?? null;
   }
 
   private async getChannels(picobotId: string): Promise<LegacyPicobotChannelRow[]> {
-    return this.prisma.$queryRawUnsafe<LegacyPicobotChannelRow[]>(
+    return this.prisma.$queryRawUnsafe(
       `
         select
           c.id,
@@ -334,11 +334,11 @@ export class PicobotService {
         order by case when c."channelType" = 'telegram' then 0 else 1 end, c.name asc
       `,
       picobotId,
-    );
+    ) as Promise<LegacyPicobotChannelRow[]>;
   }
 
   private async getSessions(picobotId: string): Promise<LegacyPicobotSessionRow[]> {
-    return this.prisma.$queryRawUnsafe<LegacyPicobotSessionRow[]>(
+    return this.prisma.$queryRawUnsafe(
       `
         select
           id,
@@ -359,7 +359,7 @@ export class PicobotService {
         limit 30
       `,
       picobotId,
-    );
+    ) as Promise<LegacyPicobotSessionRow[]>;
   }
 
   private async getActivities(
@@ -392,11 +392,11 @@ export class PicobotService {
     params.push(this.clampLimit(options.limit));
     query += ` order by timestamp desc limit $${params.length}`;
 
-    return this.prisma.$queryRawUnsafe<LegacyPicobotActivityRow[]>(query, ...params);
+    return this.prisma.$queryRawUnsafe(query, ...params) as Promise<LegacyPicobotActivityRow[]>;
   }
 
   private async getCommands(picobotId: string): Promise<LegacyPicobotCommandRow[]> {
-    return this.prisma.$queryRawUnsafe<LegacyPicobotCommandRow[]>(
+    return this.prisma.$queryRawUnsafe(
       `
         select
           id,
@@ -414,11 +414,11 @@ export class PicobotService {
         limit 12
       `,
       picobotId,
-    );
+    ) as Promise<LegacyPicobotCommandRow[]>;
   }
 
   private async getAggregateStats(picobotId: string): Promise<LegacyPicobotAggregateRow[]> {
-    return this.prisma.$queryRawUnsafe<LegacyPicobotAggregateRow[]>(
+    return this.prisma.$queryRawUnsafe(
       `
         with session_stats as (
           select
@@ -462,7 +462,7 @@ export class PicobotService {
         from session_stats, activity_stats, command_stats
       `,
       picobotId,
-    );
+    ) as Promise<LegacyPicobotAggregateRow[]>;
   }
 
   private mapActivity(row: LegacyPicobotActivityRow) {
