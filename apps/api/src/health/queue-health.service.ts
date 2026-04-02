@@ -25,6 +25,15 @@ export class QueueHealthService {
   }
 
   async getQueueStatus(queueName: string) {
+    const devDisableQueues = this.configService.get<boolean>('DEV_DISABLE_QUEUES', false);
+    if (devDisableQueues) {
+      return {
+        name: queueName,
+        status: 'disabled',
+        message: 'Queues disabled in development mode (DEV_DISABLE_QUEUES=true)',
+      };
+    }
+
     const queue = new Queue(queueName, { connection: this.getConnection() });
     try {
       const [waiting, active, completed, failed, delayed, workers] = await Promise.all([
