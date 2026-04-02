@@ -302,6 +302,34 @@ export class AIProviderService {
       );
     }
 
+    if (
+      terminal.snapshot.status === 'created' ||
+      terminal.snapshot.status === 'queued' ||
+      terminal.snapshot.status === 'running'
+    ) {
+      return {
+        content:
+          'DAX started a governed run and is still working. Open the live console to follow progress.',
+        provider: 'dax',
+        model: resolvedModel,
+        metadata: {
+          daxRun: {
+            runId: createdRun.runId,
+            status: terminal.snapshot.status,
+            targeting,
+            executionProfile,
+          },
+          handoff: {
+            type: 'dax_run',
+            runId: createdRun.runId,
+            status: terminal.snapshot.status,
+            targetPath: this.handoffService.buildRunTargetPath(createdRun.runId, targeting),
+            targeting,
+          },
+        },
+      };
+    }
+
     return {
       content:
         terminal.summary?.outcome?.summaryText ||
@@ -357,6 +385,7 @@ export class AIProviderService {
   }> {
     const timeoutMs = this.configService.get<number>('AI_REQUEST_TIMEOUT_MS', 600000);
     const pollIntervalMs = this.configService.get<number>('DAX_CHAT_POLL_INTERVAL_MS', 1500);
+    const inlineWaitMs = this.configService.get<number>('DAX_CHAT_INLINE_WAIT_MS', 12000);
     const startedAt = Date.now();
     let lastStatus: DaxRunStatus | null = null;
 
@@ -380,6 +409,16 @@ export class AIProviderService {
       }
 
       if (snapshot.status === 'waiting_approval') {
+        return { snapshot };
+      }
+
+      if (
+        Date.now() - startedAt >= inlineWaitMs &&
+        (snapshot.status === 'created' || snapshot.status === 'queued' || snapshot.status === 'running')
+      ) {
+        this.logger.log(
+          `DAX chat run ${runId} exceeded inline wait (${inlineWaitMs}ms); returning handoff`,
+        );
         return { snapshot };
       }
 
