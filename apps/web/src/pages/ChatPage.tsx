@@ -105,7 +105,7 @@ export function ChatPage() {
 
   const { currentPersona, personas: allPersonas } = usePersonaStore();
   const { currentWorkspace } = useWorkspaceStore();
-  const { providers, activeProvider, activeModel } = useAIProviderStore();
+  const { providers, activeProvider, activeModel, setActiveProvider } = useAIProviderStore();
   const activeProviderConfig = useMemo(
     () => providers.find((provider) => provider.id === activeProvider),
     [activeProvider, providers]
@@ -181,8 +181,19 @@ export function ChatPage() {
     try {
       let conversationId = activeConversationId;
       if (!conversationId) {
+        let workspaceId = currentWorkspace?.id;
+        if (!workspaceId) {
+          const workspaceResponse = await apiHelpers.getWorkspaces();
+          const workspaceItems = Array.isArray(workspaceResponse.data) ? workspaceResponse.data : [];
+          workspaceId = workspaceItems[0]?.workspace?.id;
+        }
+
+        if (!workspaceId) {
+          throw new Error('No workspace found. Please create or select a workspace first.');
+        }
+
         const createResponse = await apiHelpers.createConversation({
-          workspaceId: currentWorkspace?.id || 'default',
+          workspaceId,
           personaId: currentPersona?.id || 'standard',
           title: text.slice(0, 60),
           repoPath: workspaceRepoPath,
@@ -192,11 +203,29 @@ export function ChatPage() {
         navigate(`/chat/${conversationId}`, { replace: true });
       }
 
-      const response = await apiHelpers.sendMessage(conversationId!, {
-        content: text,
-        provider: activeProvider,
-        model: activeModel,
-      });
+      const daxProvider = providers.find((provider) => provider.id === 'dax');
+      const daxModel = daxProvider?.defaultModel || daxProvider?.models?.[0]?.id || 'gemini-2.5-pro';
+
+      let response;
+      try {
+        response = await apiHelpers.sendMessage(conversationId!, {
+          content: text,
+          provider: activeProvider,
+          model: activeModel,
+        });
+      } catch (primaryError) {
+        if (activeProvider !== 'dax') {
+          toast.error('Direct fallback failed. Retrying in DAX mode.');
+          response = await apiHelpers.sendMessage(conversationId!, {
+            content: text,
+            provider: 'dax',
+            model: daxModel,
+          });
+          setActiveProvider('dax');
+        } else {
+          throw primaryError;
+        }
+      }
 
       if (response.data.assistantMessage) {
         const mapped: Message = {
@@ -213,7 +242,8 @@ export function ChatPage() {
         ]);
       }
     } catch (error) {
-      toast.error('Node failure');
+      const message = error instanceof Error ? error.message : 'Node failure';
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
