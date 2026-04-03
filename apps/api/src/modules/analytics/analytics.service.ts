@@ -30,15 +30,14 @@ export class AnalyticsService {
   }
 
   private async getRunCounts(workspaceId: string) {
-    const runs = await this.prisma.workflowRun.groupBy({
-      by: ['status'],
+    const runs = (await this.prisma.workflowRun.findMany({
       where: { workspaceId },
-      _count: { _all: true },
-    });
+      select: { status: true },
+    })) as Array<{ status: string }>;
 
-    const total = runs.reduce((acc, curr) => acc + curr._count._all, 0);
-    const successful = runs.find(r => r.status === 'completed')?._count._all || 0;
-    const failed = runs.find(r => r.status === 'failed')?._count._all || 0;
+    const total = runs.length;
+    const successful = runs.filter((r) => r.status === 'completed').length;
+    const failed = runs.filter((r) => r.status === 'failed').length;
 
     return {
       total,
@@ -49,21 +48,21 @@ export class AnalyticsService {
   }
 
   private async getApprovalMetrics(workspaceId: string) {
-    const approvals = await this.prisma.approvalRequest.findMany({
+    const approvals = (await this.prisma.approvalRequest.findMany({
       where: { workspaceId },
       select: {
         status: true,
         createdAt: true,
         decidedAt: true,
       },
-    });
+    })) as Array<{ status: string; createdAt: Date; decidedAt: Date | null }>;
 
     const total = approvals.length;
-    const approved = approvals.filter(a => a.status === 'approved').length;
-    const rejected = approvals.filter(a => a.status === 'rejected').length;
-    const pending = approvals.filter(a => a.status === 'pending').length;
+    const approved = approvals.filter((a) => a.status === 'approved').length;
+    const rejected = approvals.filter((a) => a.status === 'rejected').length;
+    const pending = approvals.filter((a) => a.status === 'pending').length;
 
-    const resolvedApprovals = approvals.filter(a => a.decidedAt && a.createdAt);
+    const resolvedApprovals = approvals.filter((a) => a.decidedAt && a.createdAt);
     const avgDelayMs = resolvedApprovals.length > 0
       ? resolvedApprovals.reduce((acc, curr) => 
           acc + (curr.decidedAt!.getTime() - curr.createdAt.getTime()), 0) / resolvedApprovals.length
@@ -80,20 +79,20 @@ export class AnalyticsService {
 
   private async getProviderUsage(workspaceId: string) {
     // We can infer provider usage from Message metadata for now
-    const assistantMessages = await this.prisma.message.findMany({
+    const assistantMessages = (await this.prisma.message.findMany({
       where: {
         role: 'assistant',
         conversation: { workspaceId },
       },
       select: { metadata: true, contentType: true },
       take: 1000, // Sample recent messages
-    });
+    })) as Array<{ metadata: unknown; contentType: string | null }>;
 
     const usage: Record<string, number> = {};
     const failures: Record<string, number> = {};
 
-    assistantMessages.forEach(msg => {
-      const meta = msg.metadata as any;
+    assistantMessages.forEach((msg) => {
+      const meta = (msg.metadata || {}) as { provider?: string; error?: unknown };
       const provider = meta?.provider || 'unknown';
       usage[provider] = (usage[provider] || 0) + 1;
       
@@ -110,7 +109,7 @@ export class AnalyticsService {
 
   private async getBlockedReasons(workspaceId: string) {
     // This would typically come from an audit log or policy result
-    const logs = await this.prisma.auditLog.findMany({
+    const logs = (await this.prisma.auditLog.findMany({
       where: {
         workspaceId,
         action: 'reject',
@@ -118,11 +117,11 @@ export class AnalyticsService {
       },
       select: { metadata: true },
       take: 100,
-    });
+    })) as Array<{ metadata: unknown }>;
 
     const reasons: Record<string, number> = {};
-    logs.forEach(log => {
-      const reason = (log.metadata as any)?.reason || 'Policy Violation';
+    logs.forEach((log) => {
+      const reason = ((log.metadata || {}) as { reason?: string })?.reason || 'Policy Violation';
       reasons[reason] = (reasons[reason] || 0) + 1;
     });
 

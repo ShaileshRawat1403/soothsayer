@@ -302,6 +302,54 @@ export class AIProviderService {
       );
     }
 
+    if (
+      terminal.snapshot.status === 'created' ||
+      terminal.snapshot.status === 'queued' ||
+      terminal.snapshot.status === 'running'
+    ) {
+      if (this.shouldKeepInlineConversation(params.latestUserInput)) {
+        return {
+          content:
+            "I’m here and ready. I’ll keep this inline for conversational guidance and only open live console when you ask for execution-oriented work.",
+          provider: 'dax',
+          model: resolvedModel,
+          metadata: {
+            daxRun: {
+              runId: createdRun.runId,
+              status: terminal.snapshot.status,
+              targeting,
+              executionProfile,
+            },
+            inlineConversation: true,
+            handoffSuppressed: 'non_execution_prompt',
+          },
+        };
+      }
+
+      return {
+        content:
+          'DAX started a governed run and is still working. Open the live console to follow progress.',
+        provider: 'dax',
+        model: resolvedModel,
+        metadata: {
+          daxRun: {
+            runId: createdRun.runId,
+            status: terminal.snapshot.status,
+            targeting,
+            executionProfile,
+          },
+          handoff: {
+            type: 'dax_run',
+            runId: createdRun.runId,
+            status: terminal.snapshot.status,
+            targetPath: this.handoffService.buildRunTargetPath(createdRun.runId, targeting),
+            targeting,
+            reason: 'Inline wait window elapsed while run remained active.',
+          },
+        },
+      };
+    }
+
     return {
       content:
         terminal.summary?.outcome?.summaryText ||
@@ -357,6 +405,7 @@ export class AIProviderService {
   }> {
     const timeoutMs = this.configService.get<number>('AI_REQUEST_TIMEOUT_MS', 600000);
     const pollIntervalMs = this.configService.get<number>('DAX_CHAT_POLL_INTERVAL_MS', 1500);
+    const inlineWaitMs = this.configService.get<number>('DAX_CHAT_INLINE_WAIT_MS', 12000);
     const startedAt = Date.now();
     let lastStatus: DaxRunStatus | null = null;
 
@@ -380,6 +429,16 @@ export class AIProviderService {
       }
 
       if (snapshot.status === 'waiting_approval') {
+        return { snapshot };
+      }
+
+      if (
+        Date.now() - startedAt >= inlineWaitMs &&
+        (snapshot.status === 'created' || snapshot.status === 'queued' || snapshot.status === 'running')
+      ) {
+        this.logger.log(
+          `DAX chat run ${runId} exceeded inline wait (${inlineWaitMs}ms); returning handoff`,
+        );
         return { snapshot };
       }
 
@@ -444,6 +503,30 @@ export class AIProviderService {
     }
 
     throw lastError instanceof Error ? lastError : new Error('Bedrock request failed');
+  }
+
+  private shouldKeepInlineConversation(input: string): boolean {
+    const normalized = input.trim().toLowerCase();
+    if (!normalized) return false;
+
+    const greetingOrSmallTalk =
+      /^(hi|hello|hey|yo|hola|sup|what'?s up|how are you|thanks|thank you|ok|okay|cool|nice|bye|goodbye)[!.? ]*$/;
+    const nonExecutionPrompts =
+      /^(explain|what is|what are|how does|summarize|rewrite|brainstorm|translate|review|compare|help me understand)\b/;
+    const executionVerbs =
+      /(create|modify|edit|update|patch|run|execute|inspect|scan|fix|debug|append|write|commit|push|deploy|publish)\b/;
+    const executionTargets =
+      /(repo|repository|codebase|file|files|project|workspace|command|shell|patch|ci|pipeline|release|artifact)\b/;
+
+    if (greetingOrSmallTalk.test(normalized)) {
+      return true;
+    }
+
+    if (nonExecutionPrompts.test(normalized)) {
+      return true;
+    }
+
+    return !(executionVerbs.test(normalized) && executionTargets.test(normalized));
   }
 
   private async callOpenAiCompatible(params: {

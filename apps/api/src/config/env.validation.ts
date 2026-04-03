@@ -41,6 +41,7 @@ const envSchema = z.object({
   WS_REDIS_ENABLED: booleanFromEnv.default(false),
   WS_REDIS_FORCE_IN_DEV: booleanFromEnv.default(false),
   WS_AUTH_ALLOW_IN_DEV: booleanFromEnv.default(false),
+  DEV_DISABLE_QUEUES: booleanFromEnv.default(false),
 
   // JWT
   JWT_SECRET: z.string().min(32),
@@ -72,6 +73,7 @@ const envSchema = z.object({
   ANTHROPIC_API_KEY: z.string().optional(),
   DAX_BASE_URL: z.preprocess(emptyToUndefined, z.string().url().optional()),
   DAX_REQUEST_TIMEOUT_MS: z.coerce.number().positive().optional(),
+  DAX_CHAT_INLINE_WAIT_MS: z.coerce.number().positive().optional(),
 
   // Integrations
   SLACK_BOT_TOKEN: z.string().optional(),

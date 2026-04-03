@@ -98,14 +98,16 @@ export class McpService {
 
     const startedAt = Date.now();
     try {
-      const result = await this.callWithConcurrencyLimit(name, () => this.callToolProcess(name, args));
+      const result = await this.callWithConcurrencyLimit(name, () =>
+        this.callToolProcess(name, args)
+      );
       this.logger.log(
-        `MCP tool "${name}" succeeded in ${Date.now() - startedAt}ms (inflight=${this.inflightCalls}, queued=${this.queuedCalls.length})`,
+        `MCP tool "${name}" succeeded in ${Date.now() - startedAt}ms (inflight=${this.inflightCalls}, queued=${this.queuedCalls.length})`
       );
       return result;
     } catch (error) {
       this.logger.warn(
-        `MCP tool "${name}" failed in ${Date.now() - startedAt}ms: ${error instanceof Error ? error.message : String(error)}`,
+        `MCP tool "${name}" failed in ${Date.now() - startedAt}ms: ${error instanceof Error ? error.message : String(error)}`
       );
       throw error;
     }
@@ -234,7 +236,7 @@ export class McpService {
         clearTimeout(timer);
         if (!settled && code !== 0) {
           finishError(
-            `MCP process exited with code ${code}. stderr: ${stderr.trim() || '<empty>'}`,
+            `MCP process exited with code ${code}. stderr: ${stderr.trim() || '<empty>'}`
           );
         }
       });
@@ -243,7 +245,10 @@ export class McpService {
     });
   }
 
-  private async callWithConcurrencyLimit<T>(toolName: string, invoke: () => Promise<T>): Promise<T> {
+  private async callWithConcurrencyLimit<T>(
+    toolName: string,
+    invoke: () => Promise<T>
+  ): Promise<T> {
     const maxConcurrent = this.configService.get<number>('MCP_MAX_CONCURRENT_CALLS', 2);
     const maxQueue = this.configService.get<number>('MCP_MAX_QUEUE_SIZE', 25);
     const maxQueueWaitMs = this.configService.get<number>('MCP_MAX_QUEUE_WAIT_MS', 5000);
@@ -254,7 +259,7 @@ export class McpService {
 
     if (this.queuedCalls.length >= maxQueue) {
       throw new Error(
-        `MCP queue is full (${this.queuedCalls.length}/${maxQueue}) while calling "${toolName}"`,
+        `MCP queue is full (${this.queuedCalls.length}/${maxQueue}) while calling "${toolName}"`
       );
     }
 
@@ -276,15 +281,13 @@ export class McpService {
           this.queuedCalls.splice(index, 1);
         }
         reject(
-          new Error(
-            `MCP queue wait exceeded ${maxQueueWaitMs}ms while calling "${toolName}"`,
-          ),
+          new Error(`MCP queue wait exceeded ${maxQueueWaitMs}ms while calling "${toolName}"`)
         );
       }, maxQueueWaitMs);
 
       this.queuedCalls.push(queued);
       this.logger.warn(
-        `MCP call queued for "${toolName}" (inflight=${this.inflightCalls}, queued=${this.queuedCalls.length})`,
+        `MCP call queued for "${toolName}" (inflight=${this.inflightCalls}, queued=${this.queuedCalls.length})`
       );
     });
   }
@@ -320,13 +323,16 @@ export class McpService {
     const allowed = this.getAllowedTools();
     if (!allowed.has(name)) {
       throw new ForbiddenException(
-        `Tool "${name}" is not allowlisted. Allowed tools: ${Array.from(allowed).join(', ')}`,
+        `Tool "${name}" is not allowlisted. Allowed tools: ${Array.from(allowed).join(', ')}`
       );
     }
     return this.callTool(name, args);
   }
 
-  async preflight(content: string, options: { conversationId: string; explicitTool?: string; explicitArgs?: any }) {
+  async preflight(
+    content: string,
+    options: { conversationId: string; explicitTool?: string; explicitArgs?: any }
+  ) {
     if (options.explicitTool) {
       return {
         selectedTool: options.explicitTool,
@@ -349,7 +355,7 @@ export class McpService {
       preferAsync?: boolean;
       asyncTimeoutMs?: number;
       asyncPollIntervalMs?: number;
-    },
+    }
   ): Promise<any> {
     const preferAsync = options?.preferAsync ?? false;
     if (!preferAsync) {
@@ -369,7 +375,10 @@ export class McpService {
     });
   }
 
-  async callAllowedToolAsync(name: string, args: Record<string, unknown>): Promise<{
+  async callAllowedToolAsync(
+    name: string,
+    args: Record<string, unknown>
+  ): Promise<{
     mode: 'worker-queue';
     queue: string;
     jobId: string;
@@ -378,11 +387,14 @@ export class McpService {
     const allowed = this.getAllowedTools();
     if (!allowed.has(name)) {
       throw new ForbiddenException(
-        `Tool "${name}" is not allowlisted. Allowed tools: ${Array.from(allowed).join(', ')}`,
+        `Tool "${name}" is not allowlisted. Allowed tools: ${Array.from(allowed).join(', ')}`
       );
     }
 
     const queue = this.ensureAsyncQueue();
+    if (!queue) {
+      throw new Error('MCP async queue is disabled. Set DEV_DISABLE_QUEUES=false to enable.');
+    }
     const timeoutMs = this.configService.get<number>('MCP_WORKER_JOB_TIMEOUT_MS', 30000);
     const job = await queue.add(
       'mcp-tool-call',
@@ -391,7 +403,7 @@ export class McpService {
         args,
         timeoutMs,
       },
-      {},
+      {}
     );
 
     return {
@@ -413,6 +425,9 @@ export class McpService {
     error?: string;
   }> {
     const queue = this.ensureAsyncQueue();
+    if (!queue) {
+      throw new Error('MCP async queue is disabled. Set DEV_DISABLE_QUEUES=false to enable.');
+    }
     const job = await queue.getJob(jobId);
     if (!job) {
       throw new NotFoundException(`MCP job not found: ${jobId}`);
@@ -449,7 +464,7 @@ export class McpService {
 
   private async waitForToolJobResult(
     jobId: string,
-    options: { timeoutMs: number; pollIntervalMs: number },
+    options: { timeoutMs: number; pollIntervalMs: number }
   ): Promise<unknown> {
     const startedAt = Date.now();
     while (Date.now() - startedAt < options.timeoutMs) {
@@ -546,7 +561,15 @@ export class McpService {
     return new Set(parsed.length ? parsed : Array.from(this.defaultAllowedTools));
   }
 
-  private ensureAsyncQueue(): Queue {
+  private ensureAsyncQueue(): Queue | null {
+    const devDisableQueues = this.configService.get<boolean>('DEV_DISABLE_QUEUES', false);
+    if (devDisableQueues) {
+      this.logger.warn(
+        'Queues disabled in development mode (DEV_DISABLE_QUEUES=true). MCP async calls will be disabled.'
+      );
+      return null;
+    }
+
     if (this.asyncQueue) {
       return this.asyncQueue;
     }

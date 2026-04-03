@@ -151,6 +151,60 @@ async function main() {
     },
   });
 
+  // Ensure at least one active persona exists so chat can start on fresh admin-only setups.
+  let fallbackPersona = await prisma.persona.findFirst({
+    where: {
+      isActive: true,
+      deletedAt: null,
+      OR: [{ workspaceId: workspace.id }, { isBuiltIn: true }],
+    },
+    orderBy: [{ isBuiltIn: 'desc' }, { createdAt: 'asc' }],
+  });
+
+  if (!fallbackPersona) {
+    fallbackPersona = await prisma.persona.create({
+      data: {
+        workspaceId: workspace.id,
+        createdById: user.id,
+        name: 'DAX Assistant',
+        slug: 'dax-assistant',
+        category: 'developer',
+        description: 'Default governed assistant persona for workspace chat.',
+        isBuiltIn: false,
+        isActive: true,
+        config: {
+          mission: 'Provide practical, governed engineering assistance through DAX.',
+          communicationStyle: 'professional',
+          verbosityLevel: 'standard',
+          decisionStyle: 'balanced',
+          riskTolerance: 'medium',
+          outputFormat: 'hybrid',
+          systemPromptTemplate:
+            'You are DAX Assistant. Be practical, concise, and evidence-oriented.',
+        },
+      },
+    });
+  }
+
+  await prisma.personaPreference.upsert({
+    where: {
+      userId_personaId_workspaceId: {
+        userId: user.id,
+        personaId: fallbackPersona.id,
+        workspaceId: workspace.id,
+      },
+    },
+    update: {
+      isDefault: true,
+    },
+    create: {
+      userId: user.id,
+      personaId: fallbackPersona.id,
+      workspaceId: workspace.id,
+      isDefault: true,
+    },
+  });
+
   console.log('Admin seed complete');
   console.log(`EMAIL=${email}`);
   console.log(`PASSWORD=${password}`);

@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { usePersonaStore } from '@/stores/persona.store';
 import { useWorkspaceStore } from '@/stores/workspace.store';
 import { useAIProviderStore } from '@/stores/ai-provider.store';
-import { apiHelpers } from '@/lib/api';
+import { apiHelpers, api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import {
   Send,
@@ -26,11 +26,16 @@ import {
   AlignLeft,
   ChevronRight,
   ShieldAlert,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  RefreshCw,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageContent } from '@/components/chat/MessageContent';
-import type { DaxRunStatus } from '@/types/dax';
+import { ApprovalModal } from '@/components/dax/ApprovalModal';
+import type { DaxRunStatus, DaxApprovalRecord, DaxApprovalDecision } from '@/types/dax';
 
 interface Message {
   id: string;
@@ -46,10 +51,20 @@ interface Message {
       type: 'dax_run';
       runId: string;
       status?: DaxRunStatus;
+      reason?: string;
       targetPath: string;
       targeting?: {
         mode: 'explicit_repo_path' | 'default_cwd';
         repoPath?: string;
+      };
+      policyDecision?: {
+        reason?: string;
+      };
+      approval?: {
+        approvalId: string;
+        risk?: 'low' | 'medium' | 'high' | 'critical';
+        title?: string;
+        reason?: string;
       };
     };
   };
@@ -83,15 +98,21 @@ export function ChatPage() {
   const [isRefining, setIsRefining] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(false);
 
+  const [pendingApproval, setPendingApproval] = useState<DaxApprovalRecord | null>(null);
+  const [approvalSubmitting, setApprovalSubmitting] = useState(false);
+  const [runStatuses, setRunStatuses] = useState<
+    Record<string, { status: DaxRunStatus; lastUpdated: number }>
+  >({});
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   const { currentPersona, personas: allPersonas } = usePersonaStore();
   const { currentWorkspace } = useWorkspaceStore();
-  const { providers, activeProvider, activeModel } = useAIProviderStore();
+  const { providers, activeProvider, activeModel, setActiveProvider } = useAIProviderStore();
   const activeProviderConfig = useMemo(
     () => providers.find((provider) => provider.id === activeProvider),
-    [activeProvider, providers],
+    [activeProvider, providers]
   );
   const isDaxPrimary = activeProvider === 'dax';
   const workspaceRepoPath = useMemo(() => {
@@ -110,6 +131,25 @@ export function ChatPage() {
   const assistantModeLabel = isDaxPrimary
     ? 'DAX-governed assistant'
     : `${activeProviderConfig?.name || 'Fallback'} override`;
+  const latestHandoff = useMemo(() => {
+    const handoffMessages = messages.filter((message) => message.metadata?.handoff?.type === 'dax_run');
+    return handoffMessages.length > 0
+      ? handoffMessages[handoffMessages.length - 1]?.metadata?.handoff
+      : undefined;
+  }, [messages]);
+  const activeRunCount = useMemo(
+    () =>
+      Object.values(runStatuses).filter(
+        (entry) => entry.status === 'running' || entry.status === 'waiting_approval'
+      ).length,
+    [runStatuses]
+  );
+  const routeModeLabel = latestHandoff ? 'Governed Run' : 'Inline Chat';
+  const resolvedRepoTarget = latestHandoff?.targeting?.repoPath || workspaceRepoPath || 'DAX default cwd';
+  const latestHandoffReason =
+    latestHandoff?.reason ||
+    latestHandoff?.policyDecision?.reason ||
+    (latestHandoff ? 'Execution action required governed DAX runtime.' : undefined);
 
   useEffect(() => {
     setActiveConversationId(routeConversationId || null);
@@ -164,8 +204,19 @@ export function ChatPage() {
     try {
       let conversationId = activeConversationId;
       if (!conversationId) {
+        let workspaceId = currentWorkspace?.id;
+        if (!workspaceId) {
+          const workspaceResponse = await apiHelpers.getWorkspaces();
+          const workspaceItems = Array.isArray(workspaceResponse.data) ? workspaceResponse.data : [];
+          workspaceId = workspaceItems[0]?.workspace?.id;
+        }
+
+        if (!workspaceId) {
+          throw new Error('No workspace found. Please create or select a workspace first.');
+        }
+
         const createResponse = await apiHelpers.createConversation({
-          workspaceId: currentWorkspace?.id || 'default',
+          workspaceId,
           personaId: currentPersona?.id || 'standard',
           title: text.slice(0, 60),
           repoPath: workspaceRepoPath,
@@ -175,11 +226,29 @@ export function ChatPage() {
         navigate(`/chat/${conversationId}`, { replace: true });
       }
 
-      const response = await apiHelpers.sendMessage(conversationId!, {
-        content: text,
-        provider: activeProvider,
-        model: activeModel,
-      });
+      const daxProvider = providers.find((provider) => provider.id === 'dax');
+      const daxModel = daxProvider?.defaultModel || daxProvider?.models?.[0]?.id || 'gemini-2.5-pro';
+
+      let response;
+      try {
+        response = await apiHelpers.sendMessage(conversationId!, {
+          content: text,
+          provider: activeProvider,
+          model: activeModel,
+        });
+      } catch (primaryError) {
+        if (activeProvider !== 'dax') {
+          toast.error('Direct fallback failed. Retrying in DAX mode.');
+          response = await apiHelpers.sendMessage(conversationId!, {
+            content: text,
+            provider: 'dax',
+            model: daxModel,
+          });
+          setActiveProvider('dax');
+        } else {
+          throw primaryError;
+        }
+      }
 
       if (response.data.assistantMessage) {
         const mapped: Message = {
@@ -196,7 +265,8 @@ export function ChatPage() {
         ]);
       }
     } catch (error) {
-      toast.error('Node failure');
+      const message = error instanceof Error ? error.message : 'Node failure';
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
@@ -216,6 +286,91 @@ export function ChatPage() {
       setIsRefining(false);
     }
   };
+
+  const fetchApprovalForRun = useCallback(async (runId: string, repoPath?: string) => {
+    try {
+      const response = await apiHelpers.getDaxRunApprovals(runId, repoPath);
+      return response.data.approvals?.[0] || null;
+    } catch (error) {
+      return null;
+    }
+  }, []);
+
+  const handleApproval = useCallback(
+    async (decision: DaxApprovalDecision, comment?: string) => {
+      if (!pendingApproval) return;
+
+      const runId = pendingApproval.runId;
+      const approvalId = pendingApproval.approvalId;
+
+      setApprovalSubmitting(true);
+      try {
+        await apiHelpers.resolveDaxRunApproval(runId, approvalId, { decision, comment });
+        toast.success(decision === 'approve' ? 'Execution authorized' : 'Execution denied');
+        setPendingApproval(null);
+
+        setRunStatuses((prev) => ({
+          ...prev,
+          [runId]: {
+            status: decision === 'approve' ? 'running' : 'failed',
+            lastUpdated: Date.now(),
+          },
+        }));
+      } catch (error) {
+        toast.error('Resolution failed');
+      } finally {
+        setApprovalSubmitting(false);
+      }
+    },
+    [pendingApproval]
+  );
+
+  const openApprovalModal = useCallback(
+    async (runId: string, repoPath?: string) => {
+      const approval = await fetchApprovalForRun(runId, repoPath);
+      if (approval) {
+        setPendingApproval(approval as DaxApprovalRecord);
+      }
+    },
+    [fetchApprovalForRun]
+  );
+
+  useEffect(() => {
+    const runIds = messages
+      .filter((m) => m.metadata?.handoff?.type === 'dax_run')
+      .map((m) => m.metadata!.handoff!.runId)
+      .filter(
+        (id) =>
+          !runStatuses[id] ||
+          runStatuses[id]?.status === 'running' ||
+          runStatuses[id]?.status === 'waiting_approval'
+      );
+
+    if (runIds.length === 0) return;
+
+    const pollStatuses = async () => {
+      for (const runId of runIds) {
+        try {
+          const response = await apiHelpers.getDaxRun(runId);
+          const newStatus = response.data.status;
+          setRunStatuses((prev) => ({
+            ...prev,
+            [runId]: { status: newStatus, lastUpdated: Date.now() },
+          }));
+
+          if (newStatus === 'waiting_approval') {
+            await openApprovalModal(runId);
+          }
+        } catch (error) {
+          console.error('Failed to poll run status:', runId);
+        }
+      }
+    };
+
+    pollStatuses();
+    const interval = setInterval(pollStatuses, 5000);
+    return () => clearInterval(interval);
+  }, [messages, runStatuses, openApprovalModal]);
 
   return (
     <div className="flex h-screen bg-background overflow-hidden relative">
@@ -261,6 +416,24 @@ export function ChatPage() {
 
         <main className="flex-1 overflow-y-auto scrollbar-none">
           <div className="max-w-4xl mx-auto px-6 md:px-12 py-10 md:py-20 space-y-10 md:space-y-14">
+            <div className="rounded-2xl border border-border/50 bg-card/20 p-4 md:p-5 space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-2.5 py-1 rounded-lg border border-border/50 bg-background/60 text-[10px] font-black uppercase tracking-widest text-secondary-content">
+                  Route: {routeModeLabel}
+                </span>
+                <span className="px-2.5 py-1 rounded-lg border border-border/50 bg-background/60 text-[10px] font-black uppercase tracking-widest text-secondary-content max-w-full truncate">
+                  Repo: {resolvedRepoTarget}
+                </span>
+                <span className="px-2.5 py-1 rounded-lg border border-border/50 bg-background/60 text-[10px] font-black uppercase tracking-widest text-secondary-content">
+                  Active runs: {activeRunCount}
+                </span>
+              </div>
+              <p className="text-[11px] md:text-xs text-secondary-content">
+                {latestHandoffReason
+                  ? `Latest handoff reason: ${latestHandoffReason}`
+                  : 'Lightweight questions stay inline. Live console opens only when governed execution is required.'}
+              </p>
+            </div>
             <AnimatePresence initial={false}>
               {messages.length === 0 ? (
                 <motion.div
@@ -273,9 +446,12 @@ export function ChatPage() {
                       <Sparkles className="h-6 w-6 md:h-7 md:w-7" />
                     </div>
                     <div className="space-y-1">
-                      <h1 className="text-2xl md:text-4xl font-black tracking-tighter">DAX-First Assistance</h1>
+                      <h1 className="text-2xl md:text-4xl font-black tracking-tighter">
+                        DAX-First Assistance
+                      </h1>
                       <p className="text-sm md:text-base font-medium text-secondary-content leading-relaxed">
-                        Start in governed chat. Soothsayer stays conversational by default and opens a live DAX run only when execution is needed.
+                        Start in governed chat. Soothsayer stays conversational by default and opens
+                        a live DAX run only when execution is needed.
                       </p>
                     </div>
                   </div>
@@ -360,45 +536,127 @@ export function ChatPage() {
                       </div>
 
                       {message.role === 'assistant' &&
-                        message.metadata?.handoff?.type === 'dax_run' && (
-                          <div className="w-full rounded-2xl md:rounded-3xl border border-primary/10 bg-primary/[0.01] overflow-hidden p-6 md:p-8 hover-glow transition-all duration-500">
-                            <div className="flex items-center justify-between mb-6 md:mb-8">
-                              <div className="flex items-center gap-3 md:gap-4">
-                                <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-                                  <Terminal className="h-4 w-4 md:h-5 md:w-5" />
+                        message.metadata?.handoff?.type === 'dax_run' &&
+                        (() => {
+                          const handoff = message.metadata!.handoff!;
+                          const runId = handoff.runId;
+                          const currentStatus = runStatuses[runId]?.status || handoff.status;
+                          const repoPath = handoff.targeting?.repoPath;
+
+                          return (
+                            <div className="w-full rounded-2xl md:rounded-3xl border border-primary/10 bg-primary/[0.01] overflow-hidden p-6 md:p-8 hover-glow transition-all duration-500">
+                              <div className="flex items-center justify-between mb-6 md:mb-8">
+                                <div className="flex items-center gap-3 md:gap-4">
+                                  <div className="h-8 w-8 md:h-10 md:w-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                                    <Terminal className="h-4 w-4 md:h-5 md:w-5" />
+                                  </div>
+                                  <span className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-secondary-content">
+                                    Live Run Active
+                                  </span>
                                 </div>
-                                <span className="text-[10px] md:text-[11px] font-black uppercase tracking-widest text-secondary-content">
-                                  Live Run Active
+                                <span
+                                  className={cn(
+                                    'text-[9px] md:text-[10px] font-black uppercase tracking-widest px-2 md:px-3 py-1 md:py-1.5 rounded-full border',
+                                    currentStatus === 'running' &&
+                                      'bg-blue-500/10 text-blue-600 border-blue-500/20',
+                                    currentStatus === 'waiting_approval' &&
+                                      'bg-orange-500/10 text-orange-600 border-orange-500/20',
+                                    currentStatus === 'completed' &&
+                                      'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
+                                    currentStatus === 'failed' &&
+                                      'bg-rose-500/10 text-rose-600 border-rose-500/20',
+                                    !currentStatus && 'bg-primary/5 text-primary border-primary/10'
+                                  )}
+                                >
+                                  {currentStatus === 'running' && (
+                                    <>
+                                      <RefreshCw className="w-3 h-3 inline animate-spin mr-1" />{' '}
+                                      Active Execution
+                                    </>
+                                  )}
+                                  {currentStatus === 'waiting_approval' && (
+                                    <>
+                                      <ShieldAlert className="w-3 h-3 inline mr-1" /> Authorization
+                                      Node
+                                    </>
+                                  )}
+                                  {currentStatus === 'completed' && (
+                                    <>
+                                      <CheckCircle2 className="w-3 h-3 inline mr-1" /> Trace
+                                      Validated
+                                    </>
+                                  )}
+                                  {currentStatus === 'failed' && (
+                                    <>
+                                      <XCircle className="w-3 h-3 inline mr-1" /> Fault Encountered
+                                    </>
+                                  )}
+                                  {!currentStatus && 'Established'}
                                 </span>
                               </div>
-                              <span className="text-[9px] md:text-[10px] font-black uppercase tracking-widest px-2 md:px-3 py-1 md:py-1.5 rounded-full bg-primary/5 text-primary border border-primary/10">
-                                {formatHandoffStatus(message.metadata.handoff.status)}
-                              </span>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5 mb-6 md:mb-8">
+                                <div className="rounded-xl md:rounded-2xl border border-border/40 bg-background/40 p-4 md:p-5 space-y-1">
+                                  <span className="text-[9px] uppercase font-black tracking-widest text-muted-foreground/60 block">
+                                    Engine node
+                                  </span>
+                                  <span className="text-[10px] md:text-[11px] font-bold text-foreground truncate block uppercase tracking-tight">
+                                    {message.metadata.provider || 'Inherited'}
+                                  </span>
+                                </div>
+                                <div className="rounded-xl md:rounded-2xl border border-border/40 bg-background/40 p-4 md:p-5 space-y-1">
+                                  <span className="text-[9px] uppercase font-black tracking-widest text-muted-foreground/60 block">
+                                    Identity node
+                                  </span>
+                                  <span className="text-[10px] md:text-[11px] font-bold text-foreground truncate block uppercase tracking-tight">
+                                    {allPersonas.find((p) => p.id === message.metadata?.personaId)
+                                      ?.name || 'Architect'}
+                                  </span>
+                                </div>
+                                <div className="rounded-xl md:rounded-2xl border border-border/40 bg-background/40 p-4 md:p-5 space-y-1 sm:col-span-2">
+                                  <span className="text-[9px] uppercase font-black tracking-widest text-muted-foreground/60 block">
+                                    Repo target
+                                  </span>
+                                  <span className="text-[10px] md:text-[11px] font-bold text-foreground truncate block tracking-tight">
+                                    {repoPath || workspaceRepoPath || 'DAX default cwd'}
+                                  </span>
+                                </div>
+                              </div>
+                              {(
+                                handoff.reason ||
+                                handoff.policyDecision?.reason
+                              ) && (
+                                <div className="mb-5 rounded-xl border border-border/30 bg-background/35 p-4">
+                                  <span className="text-[9px] uppercase font-black tracking-widest text-muted-foreground/60 block mb-1">
+                                    Handoff reason
+                                  </span>
+                                  <p className="text-[11px] md:text-xs text-secondary-content">
+                                    {handoff.reason || handoff.policyDecision?.reason}
+                                  </p>
+                                </div>
+                              )}
+                              {currentStatus === 'waiting_approval' && (
+                                <div className="flex gap-3 mb-4">
+                                  <button
+                                    onClick={() =>
+                                      openApprovalModal(runId, handoff.targeting?.repoPath)
+                                    }
+                                    className="flex-1 rounded-xl bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/20 py-3 px-4 text-[10px] md:text-[11px] font-black uppercase tracking-[0.15em] text-orange-600 transition-all flex items-center justify-center gap-2"
+                                  >
+                                    <ShieldAlert className="h-4 w-4" />
+                                    Review Request
+                                  </button>
+                                </div>
+                              )}
+                              <button
+                                onClick={() => navigate(handoff.targetPath)}
+                                className="w-full rounded-xl bg-primary py-3 md:py-4 text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] text-white shadow-lg shadow-primary/10 hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+                              >
+                                Open Live Console
+                                <ArrowUpRight className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                              </button>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5 mb-6 md:mb-8">
-                              <div className="rounded-xl md:rounded-2xl border border-border/40 bg-background/40 p-4 md:p-5 space-y-1">
-                                <span className="text-[9px] uppercase font-black tracking-widest text-muted-foreground/60 block">Engine node</span>
-                                <span className="text-[10px] md:text-[11px] font-bold text-foreground truncate block uppercase tracking-tight">
-                                  {message.metadata.provider || 'Inherited'}
-                                </span>
-                              </div>
-                              <div className="rounded-xl md:rounded-2xl border border-border/40 bg-background/40 p-4 md:p-5 space-y-1">
-                                <span className="text-[9px] uppercase font-black tracking-widest text-muted-foreground/60 block">Identity node</span>
-                                <span className="text-[10px] md:text-[11px] font-bold text-foreground truncate block uppercase tracking-tight">
-                                  {allPersonas.find((p) => p.id === message.metadata?.personaId)
-                                    ?.name || 'Architect'}
-                                </span>
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => navigate(message.metadata!.handoff!.targetPath)}
-                              className="w-full rounded-xl bg-primary py-3 md:py-4 text-[10px] md:text-[11px] font-black uppercase tracking-[0.2em] text-white shadow-lg shadow-primary/10 hover:opacity-95 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
-                            >
-                              Open Live Console
-                              <ArrowUpRight className="h-3.5 w-3.5 md:h-4 md:w-4" />
-                            </button>
-                          </div>
-                        )}
+                          );
+                        })()}
                     </div>
                   </motion.div>
                 ))
@@ -455,10 +713,16 @@ export function ChatPage() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 md:px-8 gap-3 text-meta text-muted-content">
               <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2">
-                  <ShieldCheck className="h-3 w-3" /> <span className="text-[9px] uppercase font-black tracking-widest">{assistantModeLabel}</span>
+                  <ShieldCheck className="h-3 w-3" />{' '}
+                  <span className="text-[9px] uppercase font-black tracking-widest">
+                    {assistantModeLabel}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Zap className="h-3 w-3" /> <span className="text-[9px] uppercase font-black tracking-widest">{isDaxPrimary ? 'Live handoff on demand' : 'Direct fallback active'}</span>
+                  <Zap className="h-3 w-3" />{' '}
+                  <span className="text-[9px] uppercase font-black tracking-widest">
+                    {isDaxPrimary ? 'Live handoff on demand' : 'Direct fallback active'}
+                  </span>
                 </div>
               </div>
               <span className="text-[9px] uppercase font-black tracking-widest opacity-70 transition-opacity group-focus-within:opacity-100">
@@ -507,7 +771,11 @@ export function ChatPage() {
               <div className="space-y-5">
                 <label className="text-label-sm ml-1">Routing</label>
                 <div className="rounded-[1.5rem] md:rounded-[2rem] border border-border/40 bg-background/40 p-6 md:p-8 space-y-3 text-sm md:text-[15px] font-medium text-secondary-content shadow-inner">
-                  <p>{isDaxPrimary ? 'DAX is the normal assistant path for this conversation.' : `${activeProviderConfig?.name || 'Direct provider'} is overriding the DAX-first default for this conversation.`}</p>
+                  <p>
+                    {isDaxPrimary
+                      ? 'DAX is the normal assistant path for this conversation.'
+                      : `${activeProviderConfig?.name || 'Direct provider'} is overriding the DAX-first default for this conversation.`}
+                  </p>
                   <p className="text-xs md:text-sm opacity-80">
                     {isDaxPrimary
                       ? `Model preference: ${activeModel || 'Gemini 2.5 Pro'}`
@@ -535,6 +803,12 @@ export function ChatPage() {
           </motion.aside>
         )}
       </AnimatePresence>
+
+      <ApprovalModal
+        approval={pendingApproval}
+        isSubmitting={approvalSubmitting}
+        onResolve={handleApproval}
+      />
     </div>
   );
 }
