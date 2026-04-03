@@ -51,10 +51,14 @@ interface Message {
       type: 'dax_run';
       runId: string;
       status?: DaxRunStatus;
+      reason?: string;
       targetPath: string;
       targeting?: {
         mode: 'explicit_repo_path' | 'default_cwd';
         repoPath?: string;
+      };
+      policyDecision?: {
+        reason?: string;
       };
       approval?: {
         approvalId: string;
@@ -127,6 +131,25 @@ export function ChatPage() {
   const assistantModeLabel = isDaxPrimary
     ? 'DAX-governed assistant'
     : `${activeProviderConfig?.name || 'Fallback'} override`;
+  const latestHandoff = useMemo(() => {
+    const handoffMessages = messages.filter((message) => message.metadata?.handoff?.type === 'dax_run');
+    return handoffMessages.length > 0
+      ? handoffMessages[handoffMessages.length - 1]?.metadata?.handoff
+      : undefined;
+  }, [messages]);
+  const activeRunCount = useMemo(
+    () =>
+      Object.values(runStatuses).filter(
+        (entry) => entry.status === 'running' || entry.status === 'waiting_approval'
+      ).length,
+    [runStatuses]
+  );
+  const routeModeLabel = latestHandoff ? 'Governed Run' : 'Inline Chat';
+  const resolvedRepoTarget = latestHandoff?.targeting?.repoPath || workspaceRepoPath || 'DAX default cwd';
+  const latestHandoffReason =
+    latestHandoff?.reason ||
+    latestHandoff?.policyDecision?.reason ||
+    (latestHandoff ? 'Execution action required governed DAX runtime.' : undefined);
 
   useEffect(() => {
     setActiveConversationId(routeConversationId || null);
@@ -393,6 +416,24 @@ export function ChatPage() {
 
         <main className="flex-1 overflow-y-auto scrollbar-none">
           <div className="max-w-4xl mx-auto px-6 md:px-12 py-10 md:py-20 space-y-10 md:space-y-14">
+            <div className="rounded-2xl border border-border/50 bg-card/20 p-4 md:p-5 space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-2.5 py-1 rounded-lg border border-border/50 bg-background/60 text-[10px] font-black uppercase tracking-widest text-secondary-content">
+                  Route: {routeModeLabel}
+                </span>
+                <span className="px-2.5 py-1 rounded-lg border border-border/50 bg-background/60 text-[10px] font-black uppercase tracking-widest text-secondary-content max-w-full truncate">
+                  Repo: {resolvedRepoTarget}
+                </span>
+                <span className="px-2.5 py-1 rounded-lg border border-border/50 bg-background/60 text-[10px] font-black uppercase tracking-widest text-secondary-content">
+                  Active runs: {activeRunCount}
+                </span>
+              </div>
+              <p className="text-[11px] md:text-xs text-secondary-content">
+                {latestHandoffReason
+                  ? `Latest handoff reason: ${latestHandoffReason}`
+                  : 'Lightweight questions stay inline. Live console opens only when governed execution is required.'}
+              </p>
+            </div>
             <AnimatePresence initial={false}>
               {messages.length === 0 ? (
                 <motion.div
@@ -571,7 +612,28 @@ export function ChatPage() {
                                       ?.name || 'Architect'}
                                   </span>
                                 </div>
+                                <div className="rounded-xl md:rounded-2xl border border-border/40 bg-background/40 p-4 md:p-5 space-y-1 sm:col-span-2">
+                                  <span className="text-[9px] uppercase font-black tracking-widest text-muted-foreground/60 block">
+                                    Repo target
+                                  </span>
+                                  <span className="text-[10px] md:text-[11px] font-bold text-foreground truncate block tracking-tight">
+                                    {repoPath || workspaceRepoPath || 'DAX default cwd'}
+                                  </span>
+                                </div>
                               </div>
+                              {(
+                                handoff.reason ||
+                                handoff.policyDecision?.reason
+                              ) && (
+                                <div className="mb-5 rounded-xl border border-border/30 bg-background/35 p-4">
+                                  <span className="text-[9px] uppercase font-black tracking-widest text-muted-foreground/60 block mb-1">
+                                    Handoff reason
+                                  </span>
+                                  <p className="text-[11px] md:text-xs text-secondary-content">
+                                    {handoff.reason || handoff.policyDecision?.reason}
+                                  </p>
+                                </div>
+                              )}
                               {currentStatus === 'waiting_approval' && (
                                 <div className="flex gap-3 mb-4">
                                   <button

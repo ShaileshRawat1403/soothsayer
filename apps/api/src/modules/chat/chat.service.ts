@@ -82,6 +82,31 @@ export class ChatService {
       },
     });
 
+    if (this.isLightweightGreeting(content)) {
+      const assistantMessage = await this.prisma.message.create({
+        data: {
+          conversationId,
+          personaId: conversation.personaId,
+          role: 'assistant',
+          content:
+            "Hey! I’m here. Ask me anything, and I’ll stay inline for lightweight chat or open a governed DAX run only when execution is actually needed.",
+          contentType: 'markdown',
+          metadata: {
+            provider: 'dax',
+            model: 'inline-greeting',
+            personaId: conversation.personaId,
+            inlineConversation: true,
+          } as any,
+        },
+      });
+
+      return {
+        userMessage,
+        assistantMessage,
+        jobId: `job_${Date.now()}`,
+      };
+    }
+
     const handoffDecision = await this.handoffService.evaluateHandoff(
       conversation.workspaceId,
       content,
@@ -189,5 +214,16 @@ export class ChatService {
       : 'I moved this into a governed DAX run because the request needs live execution.';
 
     return `${summary}\n\nRun ID: \`${runId}\`\n\nOpen the live run to continue with approvals, execution, and replay.`;
+  }
+
+  private isLightweightGreeting(input: string): boolean {
+    const normalized = input.trim().toLowerCase();
+    if (!normalized) return false;
+    if (normalized.length > 80) return false;
+
+    const greetingPattern =
+      /^(hi|hello|hey|yo|hola|sup|good\s*(morning|afternoon|evening)|thanks|thank you|ok|okay|cool|nice|bye|goodbye|gn|good night)[!.? ]*$/;
+
+    return greetingPattern.test(normalized);
   }
 }

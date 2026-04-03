@@ -307,6 +307,25 @@ export class AIProviderService {
       terminal.snapshot.status === 'queued' ||
       terminal.snapshot.status === 'running'
     ) {
+      if (this.shouldKeepInlineConversation(params.latestUserInput)) {
+        return {
+          content:
+            "I’m here and ready. I’ll keep this inline for conversational guidance and only open live console when you ask for execution-oriented work.",
+          provider: 'dax',
+          model: resolvedModel,
+          metadata: {
+            daxRun: {
+              runId: createdRun.runId,
+              status: terminal.snapshot.status,
+              targeting,
+              executionProfile,
+            },
+            inlineConversation: true,
+            handoffSuppressed: 'non_execution_prompt',
+          },
+        };
+      }
+
       return {
         content:
           'DAX started a governed run and is still working. Open the live console to follow progress.',
@@ -325,6 +344,7 @@ export class AIProviderService {
             status: terminal.snapshot.status,
             targetPath: this.handoffService.buildRunTargetPath(createdRun.runId, targeting),
             targeting,
+            reason: 'Inline wait window elapsed while run remained active.',
           },
         },
       };
@@ -483,6 +503,30 @@ export class AIProviderService {
     }
 
     throw lastError instanceof Error ? lastError : new Error('Bedrock request failed');
+  }
+
+  private shouldKeepInlineConversation(input: string): boolean {
+    const normalized = input.trim().toLowerCase();
+    if (!normalized) return false;
+
+    const greetingOrSmallTalk =
+      /^(hi|hello|hey|yo|hola|sup|what'?s up|how are you|thanks|thank you|ok|okay|cool|nice|bye|goodbye)[!.? ]*$/;
+    const nonExecutionPrompts =
+      /^(explain|what is|what are|how does|summarize|rewrite|brainstorm|translate|review|compare|help me understand)\b/;
+    const executionVerbs =
+      /(create|modify|edit|update|patch|run|execute|inspect|scan|fix|debug|append|write|commit|push|deploy|publish)\b/;
+    const executionTargets =
+      /(repo|repository|codebase|file|files|project|workspace|command|shell|patch|ci|pipeline|release|artifact)\b/;
+
+    if (greetingOrSmallTalk.test(normalized)) {
+      return true;
+    }
+
+    if (nonExecutionPrompts.test(normalized)) {
+      return true;
+    }
+
+    return !(executionVerbs.test(normalized) && executionTargets.test(normalized));
   }
 
   private async callOpenAiCompatible(params: {

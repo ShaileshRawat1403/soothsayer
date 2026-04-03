@@ -64,6 +64,8 @@ export class PoliciesService {
   }
 
   private getLegacyRegexDecision(normalized: string): HandoffDecision {
+    const lightweightGreetings =
+      /^(hi|hello|hey|yo|hola|sup|what'?s up|how are you|thanks|thank you|ok|okay|cool|nice|bye|goodbye)[!.? ]*$/;
     const explicitExecutionPhrases = [
       'run this', 'start a run', 'open a live run', 'execute this',
       'make this change', 'apply this patch', 'modify the file', 'edit the file',
@@ -73,6 +75,10 @@ export class PoliciesService {
     const executionVerbs = /(create|modify|edit|update|patch|run|execute|inspect|scan|fix|debug|append|write)\b/;
     const executionTargets = /(repo|repository|codebase|file|files|project|workspace|command|shell|patch)\b/;
     const nonExecutionPrompts = /^(explain|what is|how does|summarize|rewrite|brainstorm|translate|review)\b/;
+
+    if (lightweightGreetings.test(normalized)) {
+      return { shouldHandoff: false, requireApproval: false, riskLevel: 'low' };
+    }
 
     if (nonExecutionPrompts.test(normalized)) {
       return { shouldHandoff: false, requireApproval: false, riskLevel: 'low' };
