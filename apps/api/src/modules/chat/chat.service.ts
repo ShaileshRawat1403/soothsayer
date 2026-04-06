@@ -305,7 +305,7 @@ export class ChatService {
   ) {
     const conversation = await this.findConversation(conversationId, userId);
 
-    const targetMessage = conversation.messages.find((m) => m.id === messageId);
+    const targetMessage = conversation.messages.find((m: any) => m.id === messageId);
     if (!targetMessage || targetMessage.role !== 'assistant') {
       throw new BadRequestException(
         'Cannot regenerate: message not found or not an assistant message'
@@ -313,7 +313,7 @@ export class ChatService {
     }
 
     const userMessage = conversation.messages.find(
-      (m) => m.role === 'user' && m.createdAt < targetMessage.createdAt
+      (m: any) => m.role === 'user' && m.createdAt < targetMessage.createdAt
     );
     if (!userMessage) {
       throw new BadRequestException('Cannot regenerate: no preceding user message found');
