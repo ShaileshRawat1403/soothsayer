@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-interface Message {
+export interface Message {
   id: string;
   conversationId: string;
   role: 'user' | 'assistant' | 'system';
@@ -20,6 +20,20 @@ interface Message {
     tokens?: {
       prompt: number;
       completion: number;
+    };
+    handoff?: {
+      type: 'dax_run';
+      runId: string;
+      status?: string;
+      reason?: string;
+      targetPath: string;
+      targeting?: {
+        mode: 'explicit_repo_path' | 'default_cwd';
+        repoPath?: string;
+      };
+      policyDecision?: {
+        reason?: string;
+      };
     };
   };
   createdAt: string;
@@ -43,63 +57,63 @@ interface ChatState {
   isStreaming: boolean;
   streamingContent: string;
   isLoading: boolean;
-  
+
   // Actions
   setConversations: (conversations: Conversation[]) => void;
   setCurrentConversation: (conversation: Conversation | null) => void;
   addConversation: (conversation: Conversation) => void;
   updateConversation: (id: string, data: Partial<Conversation>) => void;
   removeConversation: (id: string) => void;
-  
+
   addMessage: (conversationId: string, message: Message) => void;
   updateMessage: (conversationId: string, messageId: string, data: Partial<Message>) => void;
-  
+  removeMessage: (conversationId: string, messageId: string) => void;
+
   setStreaming: (streaming: boolean) => void;
   appendStreamingContent: (content: string) => void;
   clearStreamingContent: () => void;
-  
+
   setLoading: (loading: boolean) => void;
+
+  // Computed helpers
+  getConversationMessages: (conversationId: string) => Message[];
+  getCurrentMessages: () => Message[];
 }
 
-export const useChatStore = create<ChatState>((set) => ({
+export const useChatStore = create<ChatState>()((set, get) => ({
   conversations: [],
   currentConversation: null,
   isStreaming: false,
   streamingContent: '',
   isLoading: false,
-  
+
   setConversations: (conversations) => set({ conversations }),
-  
+
   setCurrentConversation: (conversation) => set({ currentConversation: conversation }),
-  
+
   addConversation: (conversation) =>
     set((state) => ({ conversations: [conversation, ...state.conversations] })),
-  
+
   updateConversation: (id, data) =>
     set((state) => ({
-      conversations: state.conversations.map((c) =>
-        c.id === id ? { ...c, ...data } : c
-      ),
+      conversations: state.conversations.map((c) => (c.id === id ? { ...c, ...data } : c)),
       currentConversation:
         state.currentConversation?.id === id
           ? { ...state.currentConversation, ...data }
           : state.currentConversation,
     })),
-  
+
   removeConversation: (id) =>
     set((state) => ({
       conversations: state.conversations.filter((c) => c.id !== id),
-      currentConversation:
-        state.currentConversation?.id === id ? null : state.currentConversation,
+      currentConversation: state.currentConversation?.id === id ? null : state.currentConversation,
     })),
-  
+
   addMessage: (conversationId, message) =>
     set((state) => {
       const updateConv = (conv: Conversation) =>
-        conv.id === conversationId
-          ? { ...conv, messages: [...conv.messages, message] }
-          : conv;
-      
+        conv.id === conversationId ? { ...conv, messages: [...conv.messages, message] } : conv;
+
       return {
         conversations: state.conversations.map(updateConv),
         currentConversation: state.currentConversation
@@ -107,19 +121,17 @@ export const useChatStore = create<ChatState>((set) => ({
           : null,
       };
     }),
-  
+
   updateMessage: (conversationId, messageId, data) =>
     set((state) => {
       const updateConv = (conv: Conversation) =>
         conv.id === conversationId
           ? {
               ...conv,
-              messages: conv.messages.map((m) =>
-                m.id === messageId ? { ...m, ...data } : m
-              ),
+              messages: conv.messages.map((m) => (m.id === messageId ? { ...m, ...data } : m)),
             }
           : conv;
-      
+
       return {
         conversations: state.conversations.map(updateConv),
         currentConversation: state.currentConversation
@@ -127,13 +139,39 @@ export const useChatStore = create<ChatState>((set) => ({
           : null,
       };
     }),
-  
+
   setStreaming: (streaming) => set({ isStreaming: streaming }),
-  
+
   appendStreamingContent: (content) =>
     set((state) => ({ streamingContent: state.streamingContent + content })),
-  
+
   clearStreamingContent: () => set({ streamingContent: '' }),
-  
+
   setLoading: (loading) => set({ isLoading: loading }),
+
+  removeMessage: (conversationId, messageId) =>
+    set((state) => {
+      const updateConv = (conv: Conversation) =>
+        conv.id === conversationId
+          ? { ...conv, messages: conv.messages.filter((m) => m.id !== messageId) }
+          : conv;
+
+      return {
+        conversations: state.conversations.map(updateConv),
+        currentConversation: state.currentConversation
+          ? updateConv(state.currentConversation)
+          : null,
+      };
+    }),
+
+  getConversationMessages: (conversationId: string) => {
+    const state = get();
+    const conv = state.conversations.find((c: Conversation) => c.id === conversationId);
+    return conv?.messages || [];
+  },
+
+  getCurrentMessages: () => {
+    const state = get();
+    return state.currentConversation?.messages || [];
+  },
 }));

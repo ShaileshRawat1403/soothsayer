@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -21,7 +16,7 @@ export class ConversationService {
       repoPath?: string;
       title?: string;
       memoryMode?: string;
-    } = {},
+    } = {}
   ) {
     const resolvedPersonaId = await this.resolvePersonaId({
       userId,
@@ -61,7 +56,7 @@ export class ConversationService {
       search?: string;
       page?: number;
       limit?: number;
-    } = {},
+    } = {}
   ) {
     const { projectId, personaId, status, search, page = 1, limit = 20 } = options;
 
@@ -111,7 +106,13 @@ export class ConversationService {
     };
   }
 
-  async findConversation(id: string, userId: string) {
+  async findConversation(
+    id: string,
+    userId: string,
+    options: { cursor?: string; limit?: number } = {}
+  ) {
+    const { cursor, limit = 50 } = options;
+
     const conversation = await this.prisma.conversation.findFirst({
       where: { id, userId, deletedAt: null },
       include: {
@@ -119,8 +120,10 @@ export class ConversationService {
           select: { id: true, name: true, avatarUrl: true, category: true, config: true },
         },
         messages: {
-          orderBy: { createdAt: 'asc' },
-          take: 100,
+          orderBy: { createdAt: 'desc' },
+          take: limit + 1,
+          cursor: cursor ? { id: cursor } : undefined,
+          skip: cursor ? 1 : 0,
         },
       },
     });
@@ -129,7 +132,16 @@ export class ConversationService {
       throw new NotFoundException('Conversation not found');
     }
 
-    return conversation;
+    const messages = conversation.messages.reverse();
+    const hasMore = conversation.messages.length > limit;
+    const nextCursor = hasMore ? messages[messages.length - 1]?.id : undefined;
+
+    return {
+      ...conversation,
+      messages,
+      hasMore,
+      nextCursor,
+    };
   }
 
   async deleteConversation(id: string, userId: string) {
@@ -188,7 +200,7 @@ export class ConversationService {
       if (bySlug) return bySlug.id;
 
       this.logger.warn(
-        `Requested persona "${requested}" not found in workspace ${params.workspaceId}; falling back`,
+        `Requested persona "${requested}" not found in workspace ${params.workspaceId}; falling back`
       );
     }
 
@@ -239,7 +251,7 @@ export class ConversationService {
     }
 
     throw new BadRequestException(
-      'No active persona is available. Create a persona in this workspace first.',
+      'No active persona is available. Create a persona in this workspace first.'
     );
   }
 }

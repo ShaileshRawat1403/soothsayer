@@ -435,6 +435,16 @@ export const apiHelpers = {
       signal: options?.signal,
     }),
 
+  regenerateMessage: (
+    conversationId: string,
+    messageId: string,
+    payload?: { provider?: string; model?: string }
+  ) =>
+    api.post(
+      `/chat/conversations/${conversationId}/messages/${messageId}/regenerate`,
+      payload || {}
+    ),
+
   // Commands
   getCommands: (workspaceId: string) => api.get('/commands', { params: { workspaceId } }),
   executeCommand: (
@@ -479,11 +489,7 @@ export const apiHelpers = {
     api.get('/picobot/overview', {
       params: workspaceId ? { workspaceId } : undefined,
     }),
-  getPicobotLogs: (params?: {
-    workspaceId?: string;
-    channelType?: string;
-    limit?: number;
-  }) =>
+  getPicobotLogs: (params?: { workspaceId?: string; channelType?: string; limit?: number }) =>
     api.get('/picobot/logs', {
       params,
     }),

@@ -1,9 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  BedrockRuntimeClient,
-  ConverseCommand,
-} from '@aws-sdk/client-bedrock-runtime';
+import { BedrockRuntimeClient, ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
 import type { DaxCreateRunRequest, DaxRunStatus, DaxRunSummary } from '@soothsayer/types';
 import { DaxService } from '../dax/dax.service';
 import { PersonaMapperService } from './persona-mapper.service';
@@ -22,7 +19,7 @@ export class AIProviderService {
     private configService: ConfigService,
     private readonly daxService: DaxService,
     private readonly personaMapper: PersonaMapperService,
-    private readonly handoffService: ChatHandoffService,
+    private readonly handoffService: ChatHandoffService
   ) {}
 
   async generateAssistantReply(
@@ -44,7 +41,7 @@ export class AIProviderService {
       fileContext?: string;
       fileName?: string;
       mcpToolResult?: Record<string, unknown> | null;
-    },
+    }
   ): Promise<{
     content: string;
     provider: string;
@@ -52,16 +49,13 @@ export class AIProviderService {
     metadata?: Record<string, unknown>;
   }> {
     const provider = (options.provider || 'dax').toLowerCase();
-    const model = this.normalizeModelId(
-      provider,
-      options.model || this.getDefaultModel(provider),
-    );
+    const model = this.normalizeModelId(provider, options.model || this.getDefaultModel(provider));
 
     const personaConfig =
       conversation.persona?.config && typeof conversation.persona.config === 'object'
         ? (conversation.persona.config as Record<string, unknown>)
         : null;
-    
+
     const systemPrompt =
       (options.systemPrompt || '').trim() ||
       this.buildSystemPrompt(conversation.persona?.name || 'Assistant', personaConfig);
@@ -129,7 +123,7 @@ export class AIProviderService {
 
   private buildSystemPrompt(
     personaName: string,
-    personaConfig: Record<string, unknown> | null,
+    personaConfig: Record<string, unknown> | null
   ): string {
     const configPrompt =
       typeof personaConfig?.systemPromptTemplate === 'string'
@@ -149,7 +143,7 @@ export class AIProviderService {
       fileContext?: string;
       fileName?: string;
       mcpToolResult?: Record<string, unknown> | null;
-    },
+    }
   ): string {
     const sections = [latestUserInput];
     const fileContext = (options.fileContext || '').trim();
@@ -160,7 +154,7 @@ export class AIProviderService {
       sections.push(
         `[Attached file context: ${contextName}]`,
         boundedContext,
-        '[End of attached file context]',
+        '[End of attached file context]'
       );
     }
 
@@ -172,7 +166,7 @@ export class AIProviderService {
     return sections.join('\n\n');
   }
 
-  private getDefaultModel(provider: string): string {
+  getDefaultModel(provider: string): string {
     switch (provider) {
       case 'dax':
         return this.configService.get<string>('DAX_DEFAULT_MODEL', 'gemini-2.5-pro');
@@ -181,7 +175,29 @@ export class AIProviderService {
       case 'ollama':
         return 'llama3.2:1b';
       case 'bedrock':
-        return this.configService.get<string>('BEDROCK_MODEL_ID', 'anthropic.claude-3-5-sonnet-20240620-v1:0');
+        return this.configService.get<string>(
+          'BEDROCK_MODEL_ID',
+          'anthropic.claude-3-5-sonnet-20240620-v1:0'
+        );
+      case 'openai':
+      default:
+        return 'gpt-4o-mini';
+    }
+  }
+
+  private getDefaultModelLegacy(provider: string): string {
+    switch (provider) {
+      case 'dax':
+        return this.configService.get<string>('DAX_DEFAULT_MODEL', 'gemini-2.5-pro');
+      case 'groq':
+        return 'llama3-70b-8192';
+      case 'ollama':
+        return 'llama3.2:1b';
+      case 'bedrock':
+        return this.configService.get<string>(
+          'BEDROCK_MODEL_ID',
+          'anthropic.claude-3-5-sonnet-20240620-v1:0'
+        );
       case 'openai':
       default:
         return 'gpt-4o-mini';
@@ -237,7 +253,7 @@ export class AIProviderService {
       {
         provider: 'dax',
         model: params.model,
-      },
+      }
     );
 
     const request: DaxCreateRunRequest = {
@@ -263,7 +279,7 @@ export class AIProviderService {
 
     const createdRun = await this.daxService.createRun(
       { id: params.userId || 'system' } as any,
-      request,
+      request
     );
     const terminal = await this.waitForDaxTerminal(createdRun.runId, repoPath);
     const executionProfile = terminal.snapshot.executionProfile;
@@ -298,7 +314,7 @@ export class AIProviderService {
         terminal.summary?.outcome?.summaryText ||
           terminal.summary?.terminalReason ||
           terminal.snapshot.failureDescription ||
-          `DAX run ${createdRun.runId} ended with status ${terminal.snapshot.status}`,
+          `DAX run ${createdRun.runId} ended with status ${terminal.snapshot.status}`
       );
     }
 
@@ -310,7 +326,7 @@ export class AIProviderService {
       if (this.shouldKeepInlineConversation(params.latestUserInput)) {
         return {
           content:
-            "I’m here and ready. I’ll keep this inline for conversational guidance and only open live console when you ask for execution-oriented work.",
+            'I’m here and ready. I’ll keep this inline for conversational guidance and only open live console when you ask for execution-oriented work.',
           provider: 'dax',
           model: resolvedModel,
           metadata: {
@@ -398,7 +414,7 @@ export class AIProviderService {
 
   private async waitForDaxTerminal(
     runId: string,
-    repoPath?: string,
+    repoPath?: string
   ): Promise<{
     snapshot: Awaited<ReturnType<DaxService['getRunSnapshot']>>;
     summary?: DaxRunSummary;
@@ -434,10 +450,12 @@ export class AIProviderService {
 
       if (
         Date.now() - startedAt >= inlineWaitMs &&
-        (snapshot.status === 'created' || snapshot.status === 'queued' || snapshot.status === 'running')
+        (snapshot.status === 'created' ||
+          snapshot.status === 'queued' ||
+          snapshot.status === 'running')
       ) {
         this.logger.log(
-          `DAX chat run ${runId} exceeded inline wait (${inlineWaitMs}ms); returning handoff`,
+          `DAX chat run ${runId} exceeded inline wait (${inlineWaitMs}ms); returning handoff`
         );
         return { snapshot };
       }
@@ -477,7 +495,7 @@ export class AIProviderService {
               temperature: 0.7,
               topP: 0.9,
             },
-          }),
+          })
         );
 
         const content = result.output?.message?.content?.[0];
@@ -496,7 +514,7 @@ export class AIProviderService {
         const jitter = Math.floor(Math.random() * 250);
         const delayMs = baseBackoffMs * 2 ** attempt + jitter;
         this.logger.warn(
-          `Bedrock throttled (attempt ${attempt + 1}/${maxRetries + 1}). Retrying in ${delayMs}ms`,
+          `Bedrock throttled (attempt ${attempt + 1}/${maxRetries + 1}). Retrying in ${delayMs}ms`
         );
         await this.sleep(delayMs);
       }
@@ -549,15 +567,18 @@ export class AIProviderService {
       headers['api-key'] = params.apiKey;
     }
 
-    const response = await this.fetchWithTimeout(`${params.baseUrl.replace(/\/$/, '')}/chat/completions`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        model: params.model,
-        messages: params.messages,
-        temperature: 0.7,
-      }),
-    });
+    const response = await this.fetchWithTimeout(
+      `${params.baseUrl.replace(/\/$/, '')}/chat/completions`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model: params.model,
+          messages: params.messages,
+          temperature: 0.7,
+        }),
+      }
+    );
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -578,10 +599,7 @@ export class AIProviderService {
     return content;
   }
 
-  private async callOllama(
-    model: string,
-    messages: ChatCompletionMessage[],
-  ): Promise<string> {
+  private async callOllama(model: string, messages: ChatCompletionMessage[]): Promise<string> {
     const baseUrl = this.configService.get<string>('OLLAMA_BASE_URL', 'http://127.0.0.1:11434');
     const keepAlive = this.configService.get<string>('OLLAMA_KEEP_ALIVE', '30m');
     const numPredict = this.configService.get<number>('OLLAMA_NUM_PREDICT', 192);
@@ -625,7 +643,7 @@ export class AIProviderService {
   private async fetchWithTimeout(
     input: RequestInfo | URL,
     init: RequestInit,
-    timeoutMs = this.configService.get<number>('AI_REQUEST_TIMEOUT_MS', 600000),
+    timeoutMs = this.configService.get<number>('AI_REQUEST_TIMEOUT_MS', 600000)
   ): Promise<Response> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -636,6 +654,257 @@ export class AIProviderService {
       });
     } finally {
       clearTimeout(timeout);
+    }
+  }
+
+  async *streamGenerateReply(
+    conversation: {
+      id: string;
+      workspaceId: string;
+      projectId?: string | null;
+      personaId?: string;
+      metadata?: unknown;
+      persona: { name?: string; config?: unknown } | null;
+      messages: Array<{ role: string; content: string }>;
+    },
+    latestUserInput: string,
+    options: {
+      userId?: string;
+      provider?: string;
+      model?: string;
+      systemPrompt?: string;
+      fileContext?: string;
+      fileName?: string;
+      mcpToolResult?: Record<string, unknown> | null;
+    }
+  ): AsyncIterable<string> {
+    const provider = (options.provider || 'ollama').toLowerCase();
+    const model = this.normalizeModelId(provider, options.model || this.getDefaultModel(provider));
+
+    const personaConfig =
+      conversation.persona?.config && typeof conversation.persona.config === 'object'
+        ? (conversation.persona.config as Record<string, unknown>)
+        : null;
+
+    const systemPrompt =
+      (options.systemPrompt || '').trim() ||
+      this.buildSystemPrompt(conversation.persona?.name || 'Assistant', personaConfig);
+
+    const augmentedInput = this.buildAugmentedUserInput(latestUserInput, options);
+
+    const messages: ChatCompletionMessage[] = [
+      { role: 'system', content: systemPrompt },
+      ...conversation.messages
+        .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
+        .slice(-12)
+        .map((msg) => ({
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+        })),
+      { role: 'user', content: augmentedInput },
+    ];
+
+    if (provider === 'ollama') {
+      yield* this.streamOllama(model, messages);
+      return;
+    }
+
+    if (provider === 'openai' || provider === 'groq') {
+      const baseUrl =
+        provider === 'openai'
+          ? this.configService.get<string>('OPENAI_BASE_URL', 'https://api.openai.com/v1')
+          : this.configService.get<string>('GROQ_BASE_URL', 'https://api.groq.com/openai/v1');
+      const apiKey =
+        provider === 'openai'
+          ? this.configService.get<string>('OPENAI_API_KEY')
+          : this.configService.get<string>('GROQ_API_KEY');
+
+      yield* this.streamOpenAiCompatible({
+        baseUrl,
+        apiKey,
+        model,
+        messages,
+      });
+      return;
+    }
+
+    if (provider === 'bedrock') {
+      yield* this.streamBedrock({
+        modelId: model,
+        systemPrompt,
+        messages,
+      });
+      return;
+    }
+
+    yield `Unsupported provider for streaming: ${provider}`;
+  }
+
+  private async *streamOllama(
+    model: string,
+    messages: ChatCompletionMessage[]
+  ): AsyncIterable<string> {
+    const baseUrl = this.configService.get<string>('OLLAMA_BASE_URL', 'http://127.0.0.1:11434');
+    const keepAlive = this.configService.get<string>('OLLAMA_KEEP_ALIVE', '30m');
+    const numPredict = this.configService.get<number>('OLLAMA_NUM_PREDICT', 1024);
+    const numCtx = this.configService.get<number>('OLLAMA_NUM_CTX', 4096);
+
+    const response = await this.fetchWithTimeout(`${baseUrl.replace(/\/$/, '')}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        messages,
+        stream: true,
+        keep_alive: keepAlive,
+        options: { num_predict: numPredict, num_ctx: numCtx },
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Ollama streaming error ${response.status}: ${errorText}`);
+    }
+
+    if (!response.body) {
+      throw new Error('Ollama response body is null');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n').filter((line) => line.trim());
+
+        for (const line of lines) {
+          try {
+            const parsed = JSON.parse(line) as { message?: { content?: string }; done?: boolean };
+            if (parsed.message?.content) {
+              yield parsed.message.content;
+            }
+            if (parsed.done) return;
+          } catch {
+            // Skip malformed JSON lines
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  }
+
+  private async *streamOpenAiCompatible(params: {
+    baseUrl: string;
+    apiKey?: string;
+    model: string;
+    messages: ChatCompletionMessage[];
+  }): AsyncIterable<string> {
+    if (!params.apiKey) {
+      throw new Error('Missing API key');
+    }
+
+    const isAzureEndpoint =
+      params.baseUrl.includes('azure.com') || params.baseUrl.includes('services.ai.azure.com');
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${params.apiKey}`,
+    };
+    if (isAzureEndpoint) {
+      headers['api-key'] = params.apiKey;
+    }
+
+    const response = await this.fetchWithTimeout(
+      `${params.baseUrl.replace(/\/$/, '')}/chat/completions`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          model: params.model,
+          messages: params.messages,
+          stream: true,
+          temperature: 0.7,
+        }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Provider streaming error ${response.status}: ${errorText}`);
+    }
+
+    if (!response.body) {
+      throw new Error('Response body is null');
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed === 'data: [DONE]') continue;
+          if (!trimmed.startsWith('data: ')) continue;
+
+          try {
+            const parsed = JSON.parse(trimmed.slice(6)) as {
+              choices?: Array<{ delta?: { content?: string } }>;
+            };
+            const content = parsed.choices?.[0]?.delta?.content;
+            if (content) {
+              yield content;
+            }
+          } catch {
+            // Skip malformed SSE data
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  }
+
+  private async *streamBedrock(params: {
+    modelId: string;
+    systemPrompt: string;
+    messages: ChatCompletionMessage[];
+  }): AsyncIterable<string> {
+    const region = this.configService.get<string>('AWS_REGION', 'us-east-1');
+    const client = new BedrockRuntimeClient({ region });
+    const maxTokens = this.configService.get<number>('BEDROCK_MAX_TOKENS', 4096);
+
+    const response = await client.send(
+      new ConverseCommand({
+        modelId: params.modelId,
+        system: [{ text: params.systemPrompt }],
+        messages: params.messages
+          .filter((m) => m.role !== 'system')
+          .map((message) => ({
+            role: message.role === 'assistant' ? 'assistant' : 'user',
+            content: [{ text: message.content }],
+          })),
+        inferenceConfig: {
+          maxTokens,
+          temperature: 0.7,
+          topP: 0.9,
+        },
+      })
+    );
+
+    const content = response.output?.message?.content?.[0];
+    if (content && 'text' in content && content.text) {
+      yield content.text;
     }
   }
 

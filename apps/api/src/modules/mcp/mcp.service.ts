@@ -340,8 +340,102 @@ export class McpService {
         reason: 'Explicit tool requested',
       };
     }
-    // TODO: In Phase 5, add AI-driven tool classification
+
+    const autoTriggerEnabled = this.configService.get<boolean>('MCP_AUTO_TRIGGER_ENABLED', false);
+    if (autoTriggerEnabled) {
+      try {
+        const classification = await this.classifyToolIntent(content);
+        if (classification?.tool) {
+          return {
+            selectedTool: classification.tool,
+            suggestedArgs: classification.args || {},
+            reason: 'AI-classified tool recommendation',
+          };
+        }
+      } catch (error) {
+        this.logger.warn(`MCP auto-trigger classification failed: ${error}`);
+      }
+    }
+
     return null;
+  }
+
+  private async classifyToolIntent(
+    content: string
+  ): Promise<{ tool: string; args: Record<string, unknown> } | null> {
+    const configuredModel = this.configService.get<string>('DAX_DEFAULT_MODEL', 'gemini-2.5-pro');
+    const ollamaModels = [
+      'llama3.2:1b',
+      'llama3.2',
+      'llama3:8b',
+      'llama3:70b',
+      'phi3:mini',
+      'mistral',
+      'mixtral',
+      'ministral',
+    ];
+    const isOllamaModel = ollamaModels.some((m) =>
+      configuredModel.toLowerCase().includes(m.toLowerCase())
+    );
+    const model = isOllamaModel ? configuredModel : 'llama3.2:1b';
+    const baseUrl = this.configService.get<string>('OLLAMA_BASE_URL', 'http://127.0.0.1:11434');
+    const allowedTools = Array.from(this.getAllowedTools());
+
+    const classificationPrompt = `Available MCP tools: ${allowedTools.join(', ')}
+
+Analyze this user message and determine if any tool should be called.
+
+User message: "${content.replace(/"/g, '\\"')}"
+
+Respond with ONLY valid JSON (no markdown, no explanation):
+{"tool": "tool_name" or null, "args": {"param": "value"} or {}}
+
+Example responses:
+- For "list files in the repo": {"tool": "repo_search", "args": {"query": "list all files"}}
+- For "read the config file": {"tool": "read_file", "args": {"path": "config"}}
+- For general chat: {"tool": null, "args": {}}`;
+
+    try {
+      const response = await fetch(`${baseUrl.replace(/\/$/, '')}/api/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model,
+          messages: [{ role: 'user', content: classificationPrompt }],
+          stream: false,
+          options: { temperature: 0.1 },
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Classification failed: ${response.status}`);
+      }
+
+      const data = (await response.json()) as { message?: { content?: string } };
+      const responseText = data.message?.content?.trim() || '';
+
+      let parsed: { tool: string | null; args: Record<string, unknown> };
+      try {
+        parsed = JSON.parse(responseText);
+      } catch {
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          parsed = JSON.parse(jsonMatch[0]);
+        } else {
+          this.logger.warn(`Could not parse tool classification response: ${responseText}`);
+          return null;
+        }
+      }
+
+      if (parsed.tool && allowedTools.includes(parsed.tool)) {
+        this.logger.log(`MCP auto-trigger: ${parsed.tool} for input: ${content.slice(0, 50)}...`);
+        return { tool: parsed.tool, args: parsed.args || {} };
+      }
+
+      return null;
+    } catch (error) {
+      throw new Error(`MCP tool classification error: ${error}`);
+    }
   }
 
   async executeTool(name: string, args: Record<string, unknown>) {

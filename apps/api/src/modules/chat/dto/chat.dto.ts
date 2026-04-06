@@ -134,3 +134,15 @@ export class SendMessageDto {
   @IsObject()
   mcpToolArgs?: Record<string, unknown>;
 }
+
+export class RegenerateMessageDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  provider?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  model?: string;
+}

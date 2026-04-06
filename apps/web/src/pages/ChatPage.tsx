@@ -30,6 +30,8 @@ import {
   XCircle,
   Clock,
   RefreshCw,
+  Copy,
+  ChevronUp,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -95,8 +97,12 @@ export function ChatPage() {
     routeConversationId || null
   );
   const [showSystemPanel, setShowSystemPanel] = useState(false);
+  const [showModelDropdown, setShowModelDropdown] = useState(false);
   const [isRefining, setIsRefining] = useState(false);
   const [isBootstrapping, setIsBootstrapping] = useState(false);
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth < 640 : false
+  );
 
   const [pendingApproval, setPendingApproval] = useState<DaxApprovalRecord | null>(null);
   const [approvalSubmitting, setApprovalSubmitting] = useState(false);
@@ -109,7 +115,8 @@ export function ChatPage() {
 
   const { currentPersona, personas: allPersonas } = usePersonaStore();
   const { currentWorkspace } = useWorkspaceStore();
-  const { providers, activeProvider, activeModel, setActiveProvider } = useAIProviderStore();
+  const { providers, activeProvider, activeModel, setActiveProvider, setActiveModel } =
+    useAIProviderStore();
   const activeProviderConfig = useMemo(
     () => providers.find((provider) => provider.id === activeProvider),
     [activeProvider, providers]
@@ -132,7 +139,9 @@ export function ChatPage() {
     ? 'DAX-governed assistant'
     : `${activeProviderConfig?.name || 'Fallback'} override`;
   const latestHandoff = useMemo(() => {
-    const handoffMessages = messages.filter((message) => message.metadata?.handoff?.type === 'dax_run');
+    const handoffMessages = messages.filter(
+      (message) => message.metadata?.handoff?.type === 'dax_run'
+    );
     return handoffMessages.length > 0
       ? handoffMessages[handoffMessages.length - 1]?.metadata?.handoff
       : undefined;
@@ -145,7 +154,8 @@ export function ChatPage() {
     [runStatuses]
   );
   const routeModeLabel = latestHandoff ? 'Governed Run' : 'Inline Chat';
-  const resolvedRepoTarget = latestHandoff?.targeting?.repoPath || workspaceRepoPath || 'DAX default cwd';
+  const resolvedRepoTarget =
+    latestHandoff?.targeting?.repoPath || workspaceRepoPath || 'DAX default cwd';
   const latestHandoffReason =
     latestHandoff?.reason ||
     latestHandoff?.policyDecision?.reason ||
@@ -154,6 +164,13 @@ export function ChatPage() {
   useEffect(() => {
     setActiveConversationId(routeConversationId || null);
   }, [routeConversationId]);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 640);
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -207,7 +224,9 @@ export function ChatPage() {
         let workspaceId = currentWorkspace?.id;
         if (!workspaceId) {
           const workspaceResponse = await apiHelpers.getWorkspaces();
-          const workspaceItems = Array.isArray(workspaceResponse.data) ? workspaceResponse.data : [];
+          const workspaceItems = Array.isArray(workspaceResponse.data)
+            ? workspaceResponse.data
+            : [];
           workspaceId = workspaceItems[0]?.workspace?.id;
         }
 
@@ -227,7 +246,8 @@ export function ChatPage() {
       }
 
       const daxProvider = providers.find((provider) => provider.id === 'dax');
-      const daxModel = daxProvider?.defaultModel || daxProvider?.models?.[0]?.id || 'gemini-2.5-pro';
+      const daxModel =
+        daxProvider?.defaultModel || daxProvider?.models?.[0]?.id || 'gemini-2.5-pro';
 
       let response;
       try {
@@ -287,6 +307,45 @@ export function ChatPage() {
     }
   };
 
+  const handleRegenerate = async (messageId: string) => {
+    if (!activeConversationId || isLoading) return;
+
+    const messageIndex = messages.findIndex((m) => m.id === messageId);
+    if (messageIndex === -1) return;
+
+    const messageToRegenerate = messages[messageIndex];
+    if (messageToRegenerate.role !== 'assistant') return;
+
+    setIsLoading(true);
+    try {
+      const response = await apiHelpers.regenerateMessage(activeConversationId, messageId, {
+        provider: activeProvider,
+        model: activeModel,
+      });
+
+      if (response.data) {
+        const newMessage: Message = {
+          id: String(response.data.id),
+          role: 'assistant',
+          content: String(response.data.content),
+          createdAt: new Date().toISOString(),
+          metadata: response.data.metadata,
+        };
+        setMessages((prev) => {
+          const updated = [...prev];
+          updated[messageIndex] = newMessage;
+          return updated;
+        });
+        toast.success('Response regenerated');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Regeneration failed';
+      toast.error(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const fetchApprovalForRun = useCallback(async (runId: string, repoPath?: string) => {
     try {
       const response = await apiHelpers.getDaxRunApprovals(runId, repoPath);
@@ -335,42 +394,80 @@ export function ChatPage() {
     [fetchApprovalForRun]
   );
 
-  useEffect(() => {
-    const runIds = messages
-      .filter((m) => m.metadata?.handoff?.type === 'dax_run')
-      .map((m) => m.metadata!.handoff!.runId)
-      .filter(
-        (id) =>
-          !runStatuses[id] ||
-          runStatuses[id]?.status === 'running' ||
-          runStatuses[id]?.status === 'waiting_approval'
-      );
+  const runIds = useMemo(
+    () =>
+      messages
+        .filter((m) => m.metadata?.handoff?.type === 'dax_run')
+        .map((m) => m.metadata!.handoff!.runId)
+        .filter(
+          (id) =>
+            !runStatuses[id] ||
+            runStatuses[id]?.status === 'running' ||
+            runStatuses[id]?.status === 'waiting_approval'
+        ),
+    [messages]
+  );
 
-    if (runIds.length === 0) return;
+  const activeRunIdsRef = useRef<Set<string>>(new Set());
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-    const pollStatuses = async () => {
-      for (const runId of runIds) {
-        try {
-          const response = await apiHelpers.getDaxRun(runId);
-          const newStatus = response.data.status;
-          setRunStatuses((prev) => ({
-            ...prev,
-            [runId]: { status: newStatus, lastUpdated: Date.now() },
-          }));
+  const fetchRunStatus = useCallback(
+    async (runId: string) => {
+      try {
+        const response = await apiHelpers.getDaxRun(runId);
+        const newStatus = response.data.status;
+        setRunStatuses((prev) => ({
+          ...prev,
+          [runId]: { status: newStatus, lastUpdated: Date.now() },
+        }));
 
-          if (newStatus === 'waiting_approval') {
-            await openApprovalModal(runId);
-          }
-        } catch (error) {
-          console.error('Failed to poll run status:', runId);
+        if (newStatus === 'waiting_approval') {
+          await openApprovalModal(runId);
         }
+      } catch (error) {
+        console.error('Failed to poll run status:', runId);
+      }
+    },
+    [openApprovalModal]
+  );
+
+  const pollAllStatuses = useCallback(async () => {
+    for (const runId of activeRunIdsRef.current) {
+      await fetchRunStatus(runId);
+    }
+  }, [fetchRunStatus]);
+
+  useEffect(() => {
+    const newRunIds = new Set(runIds);
+
+    const addedRuns = runIds.filter((id) => !activeRunIdsRef.current.has(id));
+    const removedRuns = Array.from(activeRunIdsRef.current).filter((id) => !newRunIds.has(id));
+
+    removedRuns.forEach((id) => activeRunIdsRef.current.delete(id));
+    addedRuns.forEach((id) => activeRunIdsRef.current.add(id));
+
+    if (removedRuns.length > 0 && pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+
+    if (activeRunIdsRef.current.size > 0 && !pollIntervalRef.current) {
+      pollAllStatuses();
+      pollIntervalRef.current = setInterval(pollAllStatuses, 5000);
+    }
+
+    if (activeRunIdsRef.current.size === 0 && pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
       }
     };
-
-    pollStatuses();
-    const interval = setInterval(pollStatuses, 5000);
-    return () => clearInterval(interval);
-  }, [messages, runStatuses, openApprovalModal]);
+  }, [runIds, pollAllStatuses]);
 
   return (
     <div className="flex h-screen bg-background overflow-hidden relative">
@@ -392,26 +489,80 @@ export function ChatPage() {
                 {isDaxPrimary ? 'DAX Authority' : activeProviderConfig?.name || 'Fallback'}
               </span>
             </div>
-            <div className="hidden md:flex items-center gap-2.5 px-3 py-1 rounded-lg bg-muted/20 border border-border/40">
+            <div className="hidden md:flex items-center gap-2.5 px-3 py-1 rounded-lg bg-muted/20 border border-border/40 hover:bg-muted/30 transition-colors">
               <ShieldCheck className="h-3.5 w-3.5 text-secondary-content" />
-              <span className="text-[10px] font-black text-secondary-content uppercase tracking-widest leading-none truncate max-w-[120px]">
-                {isDaxPrimary ? activeModel || 'Gemini 2.5 Pro' : activeModel || 'Direct'}
-              </span>
+              <div className="relative">
+                <button
+                  onClick={() => setShowModelDropdown(!showModelDropdown)}
+                  className="flex items-center gap-1 text-[10px] font-black text-secondary-content uppercase tracking-widest leading-none truncate max-w-[120px] hover:text-primary transition-colors"
+                >
+                  {isDaxPrimary
+                    ? activeModel?.split('-')[0] || 'Gemini'
+                    : activeProviderConfig?.name?.split(' ')[0] || 'Direct'}
+                  <ChevronDown className="h-3 w-3" />
+                </button>
+
+                <AnimatePresence>
+                  {showModelDropdown && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="absolute top-full right-0 mt-2 w-64 bg-card border border-border rounded-xl shadow-xl overflow-hidden z-50"
+                    >
+                      <div className="max-h-72 overflow-y-auto py-1">
+                        {providers
+                          .filter((p) => p.models.length > 0)
+                          .map((provider) => (
+                            <div key={provider.id}>
+                              <div className="px-3 py-1.5 text-[9px] font-black uppercase tracking-wider bg-muted/30 text-muted-foreground">
+                                {provider.name}
+                              </div>
+                              {provider.models.map((model) => (
+                                <button
+                                  key={model.id}
+                                  onClick={() => {
+                                    setActiveProvider(provider.id as any);
+                                    setActiveModel(model.id);
+                                    setShowModelDropdown(false);
+                                  }}
+                                  className={cn(
+                                    'w-full px-3 py-2 text-left text-xs hover:bg-muted/50 flex items-center justify-between',
+                                    activeProvider === provider.id && activeModel === model.id
+                                      ? 'bg-primary/10 border-l-2 border-primary'
+                                      : ''
+                                  )}
+                                >
+                                  <span className="truncate">{model.name}</span>
+                                  {activeProvider === provider.id && activeModel === model.id && (
+                                    <Check className="w-3 h-3 text-primary flex-shrink-0" />
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
           </div>
 
-          <button
-            onClick={() => setShowSystemPanel(!showSystemPanel)}
-            className={cn(
-              'flex items-center gap-2.5 px-3 md:px-4 py-2 rounded-xl transition-all active:scale-95 text-[10px] font-black uppercase tracking-widest',
-              showSystemPanel
-                ? 'bg-primary text-white shadow-lg'
-                : 'text-secondary-content hover:bg-muted/50'
-            )}
-          >
-            <AlignLeft className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Assistant Mode</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowSystemPanel(!showSystemPanel)}
+              className={cn(
+                'flex items-center gap-2.5 px-3 md:px-4 py-2 rounded-xl transition-all active:scale-95 text-[10px] font-black uppercase tracking-widest',
+                showSystemPanel
+                  ? 'bg-primary text-white shadow-lg'
+                  : 'text-secondary-content hover:bg-muted/50'
+              )}
+            >
+              <AlignLeft className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Mode</span>
+            </button>
+          </div>
         </header>
 
         <main className="flex-1 overflow-y-auto scrollbar-none">
@@ -535,6 +686,26 @@ export function ChatPage() {
                         />
                       </div>
 
+                      {message.role === 'assistant' && (
+                        <div className="flex gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => handleRegenerate(message.id)}
+                            className="p-2 text-xs text-muted-foreground hover:text-primary transition-colors flex items-center gap-1"
+                            title="Regenerate response"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                            <span>Regenerate</span>
+                          </button>
+                          <button
+                            onClick={() => navigator.clipboard.writeText(message.content)}
+                            className="p-2 text-xs text-muted-foreground hover:text-primary transition-colors"
+                            title="Copy message"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+
                       {message.role === 'assistant' &&
                         message.metadata?.handoff?.type === 'dax_run' &&
                         (() => {
@@ -621,10 +792,7 @@ export function ChatPage() {
                                   </span>
                                 </div>
                               </div>
-                              {(
-                                handoff.reason ||
-                                handoff.policyDecision?.reason
-                              ) && (
+                              {(handoff.reason || handoff.policyDecision?.reason) && (
                                 <div className="mb-5 rounded-xl border border-border/30 bg-background/35 p-4">
                                   <span className="text-[9px] uppercase font-black tracking-widest text-muted-foreground/60 block mb-1">
                                     Handoff reason
@@ -737,7 +905,7 @@ export function ChatPage() {
         {showSystemPanel && (
           <motion.aside
             initial={{ width: 0, opacity: 0 }}
-            animate={{ width: window.innerWidth < 640 ? '100%' : 440, opacity: 1 }}
+            animate={{ width: isMobile ? '100%' : 440, opacity: 1 }}
             exit={{ width: 0, opacity: 0 }}
             transition={{ type: 'spring', bounce: 0, duration: 0.4 }}
             className="fixed inset-y-0 right-0 sm:relative border-l border-border/30 bg-background/95 sm:bg-background/40 backdrop-blur-3xl relative z-30 flex flex-col shadow-2xl"
