@@ -65,12 +65,16 @@ start_services() {
   echo "$DAX_PID" >> "$PID_FILE"
   log "DAX started (PID: $DAX_PID)"
   
-  # Start Picobot
-  log "Starting Picobot on port 8080..."
-  picobot serve >> "$LOG_FILE" 2>&1 &
-  PICOBOT_PID=$!
-  echo "$PICOBOT_PID" >> "$PID_FILE"
-  log "Picobot started (PID: $PICOBOT_PID)"
+  # Start Picobot (requires manual setup - see RUN_ALL.md)
+  if command -v picobot &> /dev/null; then
+    log "Starting Picobot on port 8080..."
+    python3 -m picobot serve >> "$LOG_FILE" 2>&1 &
+    PICOBOT_PID=$!
+    echo "$PICOBOT_PID" >> "$PID_FILE"
+    log "Picobot started (PID: $PICOBOT_PID)"
+  else
+    log "Picobot not found - start manually: cd /path/to/picobot && python3 -m picobot serve"
+  fi
   
   # Build Soothsayer API
   log "Building Soothsayer API..."

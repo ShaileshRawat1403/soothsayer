@@ -53,8 +53,12 @@ curl http://localhost:4096/health
 ### 2. Picobot
 
 ```bash
-# Start Picobot server
+# Option A: If installed globally
 picobot serve
+
+# Option B: Run from source (if global install not working)
+cd /Users/Shailesh/MYAIAGENTS/picobot
+PYTHONPATH=/Users/Shailesh/MYAIAGENTS/picobot python3 -m picobot serve
 
 # Check health
 curl http://localhost:8080/health
