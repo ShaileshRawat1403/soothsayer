@@ -53,17 +53,13 @@ curl http://localhost:4096/health
 ### 2. Picobot
 
 ```bash
-# Option A: If installed globally
-picobot serve
-
-# Option B: Run from source (if global install not working)
-cd /Users/Shailesh/MYAIAGENTS/picobot
-PYTHONPATH=/Users/Shailesh/MYAIAGENTS/picobot python3 -m picobot serve
+# Run from source with PYTHONPATH
+PYTHONPATH=/Users/Shailesh/MYAIAGENTS/picobot /opt/homebrew/opt/python@3.14/bin/python3.14 -m picobot gateway --port 18791
 
 # Check health
-curl http://localhost:8080/health
+curl http://localhost:18791/health
 
-# Default port: 8080
+# Default port: 18791 (web interface)
 ```
 
 ### 3. Soothsayer (API + Web)
@@ -90,12 +86,12 @@ pnpm --filter @soothsayer/web exec vite --host 0.0.0.0
 
 ## Port Summary
 
-| Project        | Port | URL                   |
-| -------------- | ---- | --------------------- |
-| DAX            | 4096 | http://localhost:4096 |
-| Picobot        | 8080 | http://localhost:8080 |
-| Soothsayer API | 3000 | http://localhost:3000 |
-| Soothsayer Web | 5173 | http://localhost:5173 |
+| Project        | Port  | URL                    |
+| -------------- | ----- | ---------------------- |
+| DAX            | 4096  | http://localhost:4096  |
+| Picobot        | 18791 | http://localhost:18791 |
+| Soothsayer API | 3000  | http://localhost:3000  |
+| Soothsayer Web | 5173  | http://localhost:5173  |
 
 ---
 
