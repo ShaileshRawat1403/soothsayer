@@ -9,6 +9,15 @@ Quick reference for running DAX, Soothsayer, and Picobot locally.
 ```bash
 # Start all three projects at once
 ./run-all.sh
+
+# Stop all services
+./run-all.sh stop
+
+# Restart all
+./run-all.sh restart
+
+# Check status
+./run-all.sh status
 ```
 
 Or manually:

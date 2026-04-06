@@ -5,10 +5,17 @@ Operational guidance for engineers/agents running Soothsayer in development and 
 ## Quick Start
 
 ```bash
-./launch.sh
+./run-all.sh
 ```
 
-Or manually:
+Or use individual commands:
+
+```bash
+# Start all three manually
+./launch.sh        # Soothsayer API + Web
+dax serve          # DAX on port 4096
+picobot serve      # Picobot on port 8080
+```
 
 ```bash
 # Build & start API
