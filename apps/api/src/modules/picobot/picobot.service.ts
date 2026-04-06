@@ -125,7 +125,9 @@ export class PicobotService {
       stats: {
         status: instance.status,
         totalChannels: channels.length,
-        connectedChannels: channels.filter((channel) => channel.enabled && channel.status === 'connected').length,
+        connectedChannels: channels.filter(
+          (channel) => channel.enabled && channel.status === 'connected'
+        ).length,
         enabledChannels: channels.filter((channel) => channel.enabled).length,
         totalSessions: aggregates.totalSessions,
         activeSessions: aggregates.activeSessions,
@@ -144,7 +146,7 @@ export class PicobotService {
         ...command,
         ageMinutes: Math.max(
           0,
-          Math.round((Date.now() - new Date(command.createdAt).getTime()) / 60000),
+          Math.round((Date.now() - new Date(command.createdAt).getTime()) / 60000)
         ),
       })),
     };
@@ -156,7 +158,7 @@ export class PicobotService {
       workspaceId?: string;
       channelType?: string;
       limit?: number;
-    },
+    }
   ) {
     const resolvedWorkspaceId = await this.resolveWorkspaceId(userId, params.workspaceId);
 
@@ -242,7 +244,7 @@ export class PicobotService {
             'PicobotActivity',
             'PicobotCommand'
           )
-      `,
+      `
     )) as Array<{ count: string }>;
 
     return Number(rows[0]?.count || '0') === 5;
@@ -267,7 +269,7 @@ export class PicobotService {
         where "workspaceId" = $1
         limit 1
       `,
-      workspaceId,
+      workspaceId
     )) as LegacyPicobotInstanceRow[];
 
     return rows[0] ?? null;
@@ -291,7 +293,7 @@ export class PicobotService {
         from "PicobotInstance"
         order by "updatedAt" desc
         limit 1
-      `,
+      `
     )) as LegacyPicobotInstanceRow[];
 
     return rows[0] ?? null;
@@ -333,7 +335,7 @@ export class PicobotService {
         where c."picobotId" = $1
         order by case when c."channelType" = 'telegram' then 0 else 1 end, c.name asc
       `,
-      picobotId,
+      picobotId
     ) as Promise<LegacyPicobotChannelRow[]>;
   }
 
@@ -358,7 +360,7 @@ export class PicobotService {
         order by coalesce("lastMessageAt", "startedAt") desc
         limit 30
       `,
-      picobotId,
+      picobotId
     ) as Promise<LegacyPicobotSessionRow[]>;
   }
 
@@ -367,7 +369,7 @@ export class PicobotService {
     options: {
       channelType?: string;
       limit: number;
-    },
+    }
   ): Promise<LegacyPicobotActivityRow[]> {
     const params: Array<string | number> = [picobotId];
     let query = `
@@ -413,7 +415,7 @@ export class PicobotService {
         order by "createdAt" desc
         limit 12
       `,
-      picobotId,
+      picobotId
     ) as Promise<LegacyPicobotCommandRow[]>;
   }
 
@@ -461,7 +463,7 @@ export class PicobotService {
           command_stats."totalCommands"
         from session_stats, activity_stats, command_stats
       `,
-      picobotId,
+      picobotId
     ) as Promise<LegacyPicobotAggregateRow[]>;
   }
 
@@ -470,8 +472,7 @@ export class PicobotService {
     return {
       ...row,
       direction,
-      summary:
-        row.message.length > 180 ? `${row.message.slice(0, 177)}...` : row.message,
+      summary: row.message.length > 180 ? `${row.message.slice(0, 177)}...` : row.message,
     };
   }
 
@@ -529,5 +530,46 @@ export class PicobotService {
       recentLogs: [],
       recentCommands: [],
     };
+  }
+
+  async getPendingCommands(userId: string, picobotId?: string) {
+    const workspaceMember = await this.prisma.workspaceMember.findFirst({
+      where: { userId },
+      select: { workspaceId: true },
+    });
+
+    if (!workspaceMember) {
+      return [];
+    }
+
+    let picobotInstance = null;
+    if (picobotId) {
+      picobotInstance = await this.prisma.picobotInstance.findUnique({
+        where: { id: picobotId, workspaceId: workspaceMember.workspaceId },
+      });
+    } else {
+      picobotInstance = await this.prisma.picobotInstance.findFirst({
+        where: { workspaceId: workspaceMember.workspaceId },
+      });
+    }
+
+    if (!picobotInstance) {
+      return [];
+    }
+
+    const pendingCommands = await this.prisma.picobotCommand.findMany({
+      where: {
+        picobotId: picobotInstance.id,
+        status: 'pending',
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 50,
+    });
+
+    return pendingCommands;
+  }
+
+  async handleWebhookEvent(payload: any) {
+    return { success: true, received: true };
   }
 }

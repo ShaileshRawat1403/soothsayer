@@ -65,19 +65,15 @@ start_services() {
   echo "$DAX_PID" >> "$PID_FILE"
   log "DAX started (PID: $DAX_PID)"
   
-  # Start Picobot
-  log "Starting Picobot on port 8080..."
-  PICOBOT_PYTHON="/opt/homebrew/opt/python@3.14/bin/python3.14"
-  if [ -x "$PICOBOT_PYTHON" ]; then
-    $PICOBOT_PYTHON -m picobot serve >> "$LOG_FILE" 2>&1 &
-    echo "$!" >> "$PID_FILE"
-    log "Picobot started"
-  elif command -v picobot &> /dev/null; then
-    picobot serve >> "$LOG_FILE" 2>&1 &
+  # Start Picobot (using source from Shailesh's directory)
+  log "Starting Picobot..."
+  PICOBOT_SOURCE="/Users/Shailesh/MYAIAGENTS/picobot"
+  if [ -d "$PICOBOT_SOURCE" ]; then
+    PYTHONPATH="$PICOBOT_SOURCE" python3 -m picobot serve >> "$LOG_FILE" 2>&1 &
     echo "$!" >> "$PID_FILE"
     log "Picobot started"
   else
-    log "Picobot not available - skipping (start manually if needed)"
+    log "Picobot source not found at $PICOBOT_SOURCE - skipping"
   fi
   
   # Build Soothsayer API
@@ -93,20 +89,15 @@ start_services() {
   echo "$API_PID" >> "$PID_FILE"
   log "Soothsayer API started (PID: $API_PID)"
   
-  # Start Picobot
-  log "Starting Picobot on port 18791 (Picobot web interface)..."
-  PICOBOT_PYTHON="/opt/homebrew/opt/python@3.14/bin/python3.14"
+  # Start Picobot gateway (web interface)
+  log "Starting Picobot gateway on port 18791..."
   PICOBOT_SOURCE="/Users/Shailesh/MYAIAGENTS/picobot"
-  if [ -x "$PICOBOT_PYTHON" ] && [ -d "$PICOBOT_SOURCE" ]; then
-    PYTHONPATH="$PICOBOT_SOURCE" $PICOBOT_PYTHON -m picobot gateway --port 18791 >> "$LOG_FILE" 2>&1 &
+  if [ -d "$PICOBOT_SOURCE" ]; then
+    PYTHONPATH="$PICOBOT_SOURCE" python3 -m picobot gateway --port 18791 >> "$LOG_FILE" 2>&1 &
     echo "$!" >> "$PID_FILE"
-    log "Picobot started on port 18791"
-  elif command -v picobot &> /dev/null; then
-    picobot serve >> "$LOG_FILE" 2>&1 &
-    echo "$!" >> "$PID_FILE"
-    log "Picobot started"
+    log "Picobot gateway started on port 18791"
   else
-    log "Picobot not available - skipping"
+    log "Picobot source not found - skipping"
   fi
   
   # Wait for API to be ready
