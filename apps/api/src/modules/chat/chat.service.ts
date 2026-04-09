@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  Logger,
-} from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { McpService } from '../mcp/mcp.service';
 import { ChatHandoffService } from './chat-handoff.service';
@@ -18,14 +14,14 @@ export class ChatService {
     private mcpService: McpService,
     private handoffService: ChatHandoffService,
     private aiProvider: AIProviderService,
-    private conversationService: ConversationService,
+    private conversationService: ConversationService
   ) {}
 
   async createConversation(
     userId: string,
     workspaceId: string,
     personaId: string,
-    options: any = {},
+    options: any = {}
   ) {
     return this.conversationService.createConversation(userId, workspaceId, personaId, options);
   }
@@ -34,8 +30,105 @@ export class ChatService {
     return this.conversationService.findConversations(userId, workspaceId, options);
   }
 
-  async findConversation(id: string, userId: string) {
-    return this.conversationService.findConversation(id, userId);
+  async findConversation(
+    id: string,
+    userId: string,
+    options?: { cursor?: string; limit?: number }
+  ) {
+    return this.conversationService.findConversation(id, userId, options);
+  }
+
+  async evaluateHandoff(conversationId: string, userId: string, content: string) {
+    const conversation = await this.findConversation(conversationId, userId);
+    return this.handoffService.evaluateHandoff(conversation.workspaceId, content);
+  }
+
+  async *streamMessage(
+    conversationId: string,
+    userId: string,
+    content: string,
+    options: {
+      parentMessageId?: string;
+      provider?: string;
+      model?: string;
+      systemPrompt?: string;
+      fileContext?: string;
+      fileName?: string;
+      mcpToolName?: string;
+      mcpToolArgs?: Record<string, unknown>;
+    } = {}
+  ) {
+    const conversation = await this.findConversation(conversationId, userId);
+    const requestedProvider = (options.provider || '').trim().toLowerCase() || 'ollama';
+
+    const userMessage = await this.prisma.message.create({
+      data: {
+        conversationId,
+        userId,
+        role: 'user',
+        content,
+        contentType: 'text',
+        parentMessageId: options.parentMessageId,
+        metadata: {},
+      },
+    });
+
+    await this.prisma.conversation.update({
+      where: { id: conversationId },
+      data: {
+        updatedAt: new Date(),
+        metadata: {
+          ...(conversation.metadata as Record<string, unknown>),
+          lastMessageAt: new Date(),
+        },
+      },
+    });
+
+    let mcpPreflight = null;
+    let mcpToolResult = null;
+
+    if (this.mcpService.isEnabled()) {
+      mcpPreflight = await this.mcpService.preflight(content, {
+        conversationId,
+        explicitTool: options.mcpToolName,
+        explicitArgs: options.mcpToolArgs,
+      });
+
+      if (mcpPreflight?.selectedTool) {
+        mcpToolResult = await this.mcpService.executeTool(
+          mcpPreflight.selectedTool,
+          mcpPreflight.suggestedArgs || {}
+        );
+      }
+    }
+
+    const stream = this.aiProvider.streamGenerateReply(conversation as any, content, {
+      ...options,
+      userId,
+      provider: requestedProvider,
+      mcpToolResult,
+    });
+
+    let fullContent = '';
+    for await (const chunk of stream) {
+      fullContent += chunk;
+      yield chunk;
+    }
+
+    await this.prisma.message.create({
+      data: {
+        conversationId,
+        personaId: conversation.personaId,
+        role: 'assistant',
+        content: fullContent,
+        contentType: 'markdown',
+        metadata: {
+          provider: requestedProvider,
+          model: options.model || this.aiProvider.getDefaultModel(requestedProvider),
+          personaId: conversation.personaId,
+        } as any,
+      },
+    });
   }
 
   async sendMessage(
@@ -52,7 +145,7 @@ export class ChatService {
       fileName?: string;
       mcpToolName?: string;
       mcpToolArgs?: Record<string, unknown>;
-    } = {},
+    } = {}
   ) {
     const conversation = await this.findConversation(conversationId, userId);
     const requestedProvider = (options.provider || '').trim().toLowerCase() || 'dax';
@@ -89,7 +182,7 @@ export class ChatService {
           personaId: conversation.personaId,
           role: 'assistant',
           content:
-            "Hey! I’m here. Ask me anything, and I’ll stay inline for lightweight chat or open a governed DAX run only when execution is actually needed.",
+            'Hey! I’m here. Ask me anything, and I’ll stay inline for lightweight chat or open a governed DAX run only when execution is actually needed.',
           contentType: 'markdown',
           metadata: {
             provider: 'dax',
@@ -109,7 +202,7 @@ export class ChatService {
 
     const handoffDecision = await this.handoffService.evaluateHandoff(
       conversation.workspaceId,
-      content,
+      content
     );
 
     const runHandoff = handoffDecision.shouldHandoff
@@ -121,7 +214,7 @@ export class ChatService {
             userId,
             provider: requestedProvider,
             model: options.model,
-          },
+          }
         )
       : null;
 
@@ -138,7 +231,7 @@ export class ChatService {
       if (mcpPreflight?.selectedTool) {
         mcpToolResult = await this.mcpService.executeTool(
           mcpPreflight.selectedTool,
-          mcpPreflight.suggestedArgs || {},
+          mcpPreflight.suggestedArgs || {}
         );
       }
     }
@@ -202,6 +295,62 @@ export class ChatService {
 
   async deleteConversation(id: string, userId: string) {
     return this.conversationService.deleteConversation(id, userId);
+  }
+
+  async regenerateMessage(
+    conversationId: string,
+    messageId: string,
+    userId: string,
+    options: { provider?: string; model?: string } = {}
+  ) {
+    const conversation = await this.findConversation(conversationId, userId);
+
+    const targetMessage = conversation.messages.find((m: any) => m.id === messageId);
+    if (!targetMessage || targetMessage.role !== 'assistant') {
+      throw new BadRequestException(
+        'Cannot regenerate: message not found or not an assistant message'
+      );
+    }
+
+    const userMessage = conversation.messages.find(
+      (m: any) => m.role === 'user' && m.createdAt < targetMessage.createdAt
+    );
+    if (!userMessage) {
+      throw new BadRequestException('Cannot regenerate: no preceding user message found');
+    }
+
+    const provider = (options.provider || 'dax').toLowerCase();
+
+    const providerResult = await this.aiProvider.generateAssistantReply(
+      conversation as any,
+      userMessage.content,
+      {
+        userId,
+        provider,
+        model: options.model,
+      }
+    );
+
+    await this.prisma.message.delete({ where: { id: messageId } });
+
+    const newAssistantMessage = await this.prisma.message.create({
+      data: {
+        conversationId,
+        personaId: conversation.personaId,
+        role: 'assistant',
+        content: providerResult.content,
+        contentType: 'markdown',
+        metadata: {
+          provider: providerResult.provider,
+          model: providerResult.model,
+          personaId: conversation.personaId,
+          regeneratedFrom: messageId,
+          ...(providerResult.metadata || {}),
+        } as any,
+      },
+    });
+
+    return newAssistantMessage;
   }
 
   async archiveConversation(id: string, userId: string) {

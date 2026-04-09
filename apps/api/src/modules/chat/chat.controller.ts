@@ -9,12 +9,19 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Res,
 } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { GetCurrentUser, CurrentUser } from '../../common/decorators/current-user.decorator';
-import { CreateConversationDto, ListConversationsQueryDto, SendMessageDto } from './dto/chat.dto';
+import {
+  CreateConversationDto,
+  ListConversationsQueryDto,
+  SendMessageDto,
+  RegenerateMessageDto,
+} from './dto/chat.dto';
 
 @ApiTags('chat')
 @Controller('chat')
@@ -59,8 +66,13 @@ export class ChatController {
   @ApiOperation({ summary: 'Get conversation with messages' })
   @ApiResponse({ status: 200, description: 'Conversation details' })
   @ApiResponse({ status: 404, description: 'Conversation not found' })
-  async findConversation(@Param('id') id: string, @GetCurrentUser() user: CurrentUser) {
-    return this.chatService.findConversation(id, user.id);
+  async findConversation(
+    @Param('id') id: string,
+    @GetCurrentUser() user: CurrentUser,
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: number
+  ) {
+    return this.chatService.findConversation(id, user.id, { cursor, limit });
   }
 
   @Post('conversations/:id/messages')
@@ -84,6 +96,56 @@ export class ChatController {
     });
   }
 
+  @Post('conversations/:id/messages/stream')
+  @ApiOperation({ summary: 'Send a message with streaming response' })
+  @ApiResponse({ status: 200, description: 'Streaming response' })
+  async sendMessageStream(
+    @Param('id') id: string,
+    @GetCurrentUser() user: CurrentUser,
+    @Body() dto: SendMessageDto,
+    @Res() res: Response
+  ) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    try {
+      const conversation = await this.chatService.findConversation(id, user.id);
+      const handoffDecision = await this.chatService.evaluateHandoff(id, user.id, dto.content);
+
+      if (handoffDecision.shouldHandoff) {
+        res.write(`data: ${JSON.stringify({ type: 'handoff', decision: handoffDecision })}\n\n`);
+        res.end();
+        return;
+      }
+
+      const stream = this.chatService.streamMessage(id, user.id, dto.content, {
+        parentMessageId: dto.parentMessageId,
+        provider: dto.provider,
+        model: dto.model,
+        systemPrompt: dto.systemPrompt,
+        fileContext: dto.fileContext,
+        fileName: dto.fileName,
+      });
+
+      let fullContent = '';
+      let messageId: string | null = null;
+
+      for await (const chunk of stream) {
+        fullContent += chunk;
+        res.write(`data: ${JSON.stringify({ type: 'chunk', content: chunk })}\n\n`);
+      }
+
+      res.write(`data: ${JSON.stringify({ type: 'done', content: fullContent })}\n\n`);
+      res.end();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Stream error';
+      res.write(`data: ${JSON.stringify({ type: 'error', message: errorMessage })}\n\n`);
+      res.end();
+    }
+  }
+
   @Delete('conversations/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete conversation' })
@@ -98,5 +160,20 @@ export class ChatController {
   @ApiResponse({ status: 204, description: 'Conversation archived' })
   async archiveConversation(@Param('id') id: string, @GetCurrentUser() user: CurrentUser) {
     return this.chatService.archiveConversation(id, user.id);
+  }
+
+  @Post('conversations/:id/messages/:messageId/regenerate')
+  @ApiOperation({ summary: 'Regenerate an assistant message' })
+  @ApiResponse({ status: 201, description: 'Message regenerated' })
+  async regenerateMessage(
+    @Param('id') id: string,
+    @Param('messageId') messageId: string,
+    @GetCurrentUser() user: CurrentUser,
+    @Body() dto: RegenerateMessageDto
+  ) {
+    return this.chatService.regenerateMessage(id, messageId, user.id, {
+      provider: dto.provider,
+      model: dto.model,
+    });
   }
 }
