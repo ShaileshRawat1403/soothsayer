@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, Param, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { GetCurrentUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -57,5 +57,24 @@ export class PicobotController {
   @ApiOperation({ summary: 'Webhook for Picobot activity events' })
   async handleWebhook(@Body() payload: any) {
     return this.picobotService.handleWebhookEvent(payload);
+  }
+
+  @Post('commands/:id/execute')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Execute a pending Picobot command via DAX' })
+  async executeCommand(@GetCurrentUser() user: CurrentUser, @Param('id') commandId: string) {
+    return this.picobotService.executeCommand(user.id, commandId);
+  }
+
+  @Post('user/link')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({ summary: 'Link current user to a Telegram user ID' })
+  async linkTelegramUser(
+    @GetCurrentUser() user: CurrentUser,
+    @Body() body: { telegramUserId: string }
+  ) {
+    return this.picobotService.linkTelegramUser(user.id, body.telegramUserId);
   }
 }

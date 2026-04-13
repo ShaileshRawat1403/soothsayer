@@ -479,14 +479,11 @@ export const apiHelpers = {
     api.get('/picobot/overview', {
       params: workspaceId ? { workspaceId } : undefined,
     }),
-  getPicobotLogs: (params?: {
-    workspaceId?: string;
-    channelType?: string;
-    limit?: number;
-  }) =>
+  getPicobotLogs: (params?: { workspaceId?: string; channelType?: string; limit?: number }) =>
     api.get('/picobot/logs', {
       params,
     }),
+  executePicobotCommand: (commandId: string) => api.post(`/picobot/commands/${commandId}/execute`),
 
   // MCP
   getMcpHealth: () => api.get('/mcp/health'),

@@ -12,6 +12,7 @@ import {
   GitBranch,
   Layers3,
   MessageSquare,
+  Play,
   Radio,
   RefreshCw,
   Search,
@@ -138,6 +139,8 @@ type PicobotCommand = {
   commandType: string;
   status: string;
   payload?: unknown;
+  daxRunId?: string | null;
+  executedAt?: string | null;
   createdAt: string;
   updatedAt: string;
   sentAt?: string | null;
@@ -263,7 +266,11 @@ function statusTone(status?: string): 'success' | 'warning' | 'danger' | 'neutra
   if (normalized === 'connected' || normalized === 'active' || normalized === 'completed') {
     return 'success';
   }
-  if (normalized === 'pending' || normalized === 'waiting approval' || normalized === 'waiting_approval') {
+  if (
+    normalized === 'pending' ||
+    normalized === 'waiting approval' ||
+    normalized === 'waiting_approval'
+  ) {
     return 'warning';
   }
   if (normalized === 'failed' || normalized === 'error' || normalized === 'impaired') {
@@ -302,7 +309,7 @@ function StatusBadge({
         tone === 'warning' && 'bg-amber-500/10 text-amber-700',
         tone === 'danger' && 'bg-rose-500/10 text-rose-600',
         tone === 'info' && 'bg-blue-500/10 text-blue-600',
-        tone === 'neutral' && 'bg-muted/40 text-secondary-content',
+        tone === 'neutral' && 'bg-muted/40 text-secondary-content'
       )}
     >
       {label}
@@ -335,15 +342,11 @@ function MetricCard({
   );
 }
 
-function Panel({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
+function Panel({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <section className={cn('rounded-[2rem] border border-border/40 bg-card/20 p-5 md:p-6', className)}>
+    <section
+      className={cn('rounded-[2rem] border border-border/40 bg-card/20 p-5 md:p-6', className)}
+    >
       {children}
     </section>
   );
@@ -399,6 +402,7 @@ export function PicobotPage() {
   const [daxHealth, setDaxHealth] = useState<DaxHealthResponse | null>(null);
   const [daxOverview, setDaxOverview] = useState<DaxRunOverviewResponse | null>(null);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<string | null>(null);
+  const [executingCommandId, setExecutingCommandId] = useState<string | null>(null);
 
   const workspaceSettings =
     currentWorkspace?.settings && typeof currentWorkspace.settings === 'object'
@@ -461,7 +465,7 @@ export function PicobotPage() {
           setIntegrations(
             Array.isArray(integrationsResult.value.data)
               ? (integrationsResult.value.data as IntegrationStatus[])
-              : [],
+              : []
           );
         } else {
           setIntegrations([]);
@@ -478,7 +482,7 @@ export function PicobotPage() {
         setError(
           failedLoads > 0
             ? 'Some operator signals are unavailable right now, but the Picobot surface is still showing the data we could load.'
-            : null,
+            : null
         );
         setLastUpdatedAt(new Date().toISOString());
       } finally {
@@ -486,7 +490,7 @@ export function PicobotPage() {
         setIsRefreshing(false);
       }
     },
-    [currentWorkspace?.id, inferredRepoPath],
+    [currentWorkspace?.id, inferredRepoPath]
   );
 
   const loadLogs = useCallback(async () => {
@@ -504,6 +508,21 @@ export function PicobotPage() {
       setIsLogsLoading(false);
     }
   }, [currentWorkspace?.id, logLimit, selectedChannel]);
+
+  const executeCommand = useCallback(
+    async (commandId: string) => {
+      setExecutingCommandId(commandId);
+      try {
+        await apiHelpers.executePicobotCommand(commandId);
+        void loadOverview('refresh');
+      } catch (err) {
+        console.error('Failed to execute command:', err);
+      } finally {
+        setExecutingCommandId(null);
+      }
+    },
+    [loadOverview]
+  );
 
   useEffect(() => {
     void loadOverview('initial');
@@ -535,7 +554,7 @@ export function PicobotPage() {
     if (!available.has(selectedChannel)) {
       setSelectedChannel(
         overview.channels.find((channel) => channel.channelType === 'telegram')?.channelType ||
-          overview.channels[0].channelType,
+          overview.channels[0].channelType
       );
     }
   }, [overview?.channels, selectedChannel]);
@@ -553,22 +572,19 @@ export function PicobotPage() {
 
   const daxProvider = useMemo(
     () => providers.find((provider) => provider.id === 'dax'),
-    [providers],
+    [providers]
   );
 
   const fallbackProviders = useMemo(
     () => providers.filter((provider) => provider.id !== 'dax'),
-    [providers],
+    [providers]
   );
 
-  const activeTools = useMemo(
-    () => tools.filter((tool) => tool.status !== 'disabled'),
-    [tools],
-  );
+  const activeTools = useMemo(() => tools.filter((tool) => tool.status !== 'disabled'), [tools]);
 
   const enabledTools = useMemo(
     () => activeTools.filter((tool) => tool.workspaceConfig?.enabled !== false),
-    [activeTools],
+    [activeTools]
   );
 
   const governedTools = useMemo(
@@ -578,15 +594,14 @@ export function PicobotPage() {
           tool.workspaceConfig?.overrides?.requiredTier ?? tool.requiredTier ?? 0;
         return effectiveTier >= 2;
       }),
-    [enabledTools],
+    [enabledTools]
   );
 
   const highRiskTools = useMemo(
     () =>
       [...enabledTools]
         .filter(
-          (tool) =>
-            rankRiskLevel(tool.workspaceConfig?.overrides?.riskLevel ?? tool.riskLevel) >= 3,
+          (tool) => rankRiskLevel(tool.workspaceConfig?.overrides?.riskLevel ?? tool.riskLevel) >= 3
         )
         .sort((left, right) => {
           const riskDelta =
@@ -600,7 +615,7 @@ export function PicobotPage() {
           return (right.analytics?.totalInvocations ?? 0) - (left.analytics?.totalInvocations ?? 0);
         })
         .slice(0, 6),
-    [enabledTools],
+    [enabledTools]
   );
 
   const topTools = useMemo(
@@ -608,11 +623,10 @@ export function PicobotPage() {
       [...enabledTools]
         .sort(
           (left, right) =>
-            (right.analytics?.totalInvocations ?? 0) -
-            (left.analytics?.totalInvocations ?? 0),
+            (right.analytics?.totalInvocations ?? 0) - (left.analytics?.totalInvocations ?? 0)
         )
         .slice(0, 8),
-    [enabledTools],
+    [enabledTools]
   );
 
   const categoryCount = useMemo(() => {
@@ -634,7 +648,7 @@ export function PicobotPage() {
       .sort(
         (left, right) =>
           new Date(right.updatedAt || right.createdAt).getTime() -
-          new Date(left.updatedAt || left.createdAt).getTime(),
+          new Date(left.updatedAt || left.createdAt).getTime()
       )
       .slice(0, 8);
   }, [daxOverview]);
@@ -646,7 +660,9 @@ export function PicobotPage() {
   const sessions = overview?.sessions || [];
   const recentCommands = overview?.recentCommands || [];
   const liveLogs = logsResponse?.logs || overview?.recentLogs || [];
-  const telegramPreview = (overview?.recentLogs || []).filter((log) => log.channelType === 'telegram').slice(0, 5);
+  const telegramPreview = (overview?.recentLogs || [])
+    .filter((log) => log.channelType === 'telegram')
+    .slice(0, 5);
 
   const selectedChannelDetails = useMemo(() => {
     if (!channels.length) {
@@ -662,7 +678,7 @@ export function PicobotPage() {
 
   const selectedSession = useMemo(
     () => sessions.find((session) => session.id === selectedSessionId) || null,
-    [selectedSessionId, sessions],
+    [selectedSessionId, sessions]
   );
 
   const sessionsForSelectedChannel = useMemo(() => {
@@ -682,16 +698,17 @@ export function PicobotPage() {
 
     if (selectedSession) {
       const startedAt = new Date(selectedSession.startedAt).getTime();
-      const endedAt = selectedSession.endedAt ? new Date(selectedSession.endedAt).getTime() : Number.POSITIVE_INFINITY;
+      const endedAt = selectedSession.endedAt
+        ? new Date(selectedSession.endedAt).getTime()
+        : Number.POSITIVE_INFINITY;
       items = items.filter((log) => {
         const logTime = new Date(log.timestamp).getTime();
         const inWindow = logTime >= startedAt && logTime <= endedAt;
-        const sameUser =
-          selectedSession.userId
-            ? log.userId === selectedSession.userId
-            : selectedSession.userName
-              ? log.userName === selectedSession.userName
-              : true;
+        const sameUser = selectedSession.userId
+          ? log.userId === selectedSession.userId
+          : selectedSession.userName
+            ? log.userName === selectedSession.userName
+            : true;
         return inWindow && sameUser;
       });
     }
@@ -708,7 +725,7 @@ export function PicobotPage() {
         ]
           .join(' ')
           .toLowerCase()
-          .includes(deferredLogSearch),
+          .includes(deferredLogSearch)
       );
     }
 
@@ -765,7 +782,10 @@ export function PicobotPage() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <StatusBadge label={primaryRouteLabel} tone={daxHealth?.healthy ? 'success' : 'warning'} />
+            <StatusBadge
+              label={primaryRouteLabel}
+              tone={daxHealth?.healthy ? 'success' : 'warning'}
+            />
             <StatusBadge
               label={overview?.legacyData ? 'Telegram logs live' : 'No legacy Picobot data'}
               tone={overview?.legacyData ? 'info' : 'warning'}
@@ -777,7 +797,9 @@ export function PicobotPage() {
               }}
               className="flex h-10 items-center gap-2 rounded-xl border border-border/40 bg-card/30 px-4 text-sm font-semibold text-foreground transition-colors hover:bg-card/60"
             >
-              <RefreshCw className={cn('h-4 w-4', (isRefreshing || isLogsLoading) && 'animate-spin')} />
+              <RefreshCw
+                className={cn('h-4 w-4', (isRefreshing || isLogsLoading) && 'animate-spin')}
+              />
               Refresh
             </button>
             <button
@@ -786,7 +808,7 @@ export function PicobotPage() {
                 'flex h-10 items-center gap-2 rounded-xl border px-4 text-sm font-semibold transition-colors',
                 autoRefresh
                   ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700'
-                  : 'border-border/40 bg-card/30 text-foreground hover:bg-card/60',
+                  : 'border-border/40 bg-card/30 text-foreground hover:bg-card/60'
               )}
             >
               <Radio className="h-4 w-4" />
@@ -842,12 +864,14 @@ export function PicobotPage() {
                   'group rounded-[1.1rem] px-4 py-3 text-left transition-all',
                   activeTab === tab.id
                     ? 'bg-background text-foreground shadow-sm'
-                    : 'text-secondary-content hover:bg-background/70 hover:text-foreground',
+                    : 'text-secondary-content hover:bg-background/70 hover:text-foreground'
                 )}
               >
                 <div className="flex items-center gap-2">
                   <tab.icon className="h-4 w-4" />
-                  <span className="text-sm font-black uppercase tracking-[0.16em]">{tab.label}</span>
+                  <span className="text-sm font-black uppercase tracking-[0.16em]">
+                    {tab.label}
+                  </span>
                 </div>
                 <p className="mt-2 text-xs font-medium normal-case tracking-normal text-inherit">
                   {tab.description}
@@ -919,8 +943,20 @@ export function PicobotPage() {
                             {INGRESS_LABELS[integration.name] || integration.name}
                           </span>
                           <StatusBadge
-                            label={integration.connected ? 'connected' : integration.configured ? 'ready' : 'not ready'}
-                            tone={integration.connected ? 'success' : integration.configured ? 'info' : 'neutral'}
+                            label={
+                              integration.connected
+                                ? 'connected'
+                                : integration.configured
+                                  ? 'ready'
+                                  : 'not ready'
+                            }
+                            tone={
+                              integration.connected
+                                ? 'success'
+                                : integration.configured
+                                  ? 'info'
+                                  : 'neutral'
+                            }
                           />
                         </div>
                         <p className="mt-2 text-sm text-secondary-content">{integration.message}</p>
@@ -989,7 +1025,9 @@ export function PicobotPage() {
               {channels.find((channel) => channel.channelType === 'telegram') ? (
                 <div className="space-y-4">
                   {(() => {
-                    const telegramChannel = channels.find((channel) => channel.channelType === 'telegram')!;
+                    const telegramChannel = channels.find(
+                      (channel) => channel.channelType === 'telegram'
+                    )!;
                     return (
                       <>
                         <div className="grid gap-3 sm:grid-cols-2">
@@ -1034,7 +1072,8 @@ export function PicobotPage() {
                 </div>
               ) : (
                 <p className="text-sm text-secondary-content">
-                  Telegram is not configured in the legacy Picobot channel registry for this workspace.
+                  Telegram is not configured in the legacy Picobot channel registry for this
+                  workspace.
                 </p>
               )}
             </Panel>
@@ -1071,9 +1110,39 @@ export function PicobotPage() {
                             Created {formatRelativeTime(command.createdAt)}
                           </p>
                         </div>
-                        <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                          {command.ageMinutes}m old
-                        </span>
+                        <div className="flex items-center gap-2">
+                          {command.daxRunId && (
+                            <Link
+                              to={`/runs/${command.daxRunId}`}
+                              className="inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                            >
+                              View Run
+                              <ChevronRight className="h-3 w-3" />
+                            </Link>
+                          )}
+                          {command.status === 'pending' && (
+                            <button
+                              onClick={() => executeCommand(command.id)}
+                              disabled={executingCommandId === command.id}
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+                            >
+                              {executingCommandId === command.id ? (
+                                <>
+                                  <RefreshCw className="h-3 w-3 animate-spin" />
+                                  Executing...
+                                </>
+                              ) : (
+                                <>
+                                  <Play className="h-3 w-3" />
+                                  Execute
+                                </>
+                              )}
+                            </button>
+                          )}
+                          <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                            {command.ageMinutes}m old
+                          </span>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1106,7 +1175,7 @@ export function PicobotPage() {
                       'rounded-3xl border p-5 text-left transition-all',
                       isActive
                         ? 'border-primary/20 bg-primary/[0.05]'
-                        : 'border-border/30 bg-background/50 hover:border-primary/15 hover:bg-background/70',
+                        : 'border-border/30 bg-background/50 hover:border-primary/15 hover:bg-background/70'
                     )}
                   >
                     <div className="flex items-center justify-between gap-3">
@@ -1119,7 +1188,9 @@ export function PicobotPage() {
                       />
                     </div>
                     <p className="mt-3 text-sm text-secondary-content">
-                      {channel.enabled ? 'Channel enabled for operator traffic.' : 'Channel currently disabled.'}
+                      {channel.enabled
+                        ? 'Channel enabled for operator traffic.'
+                        : 'Channel currently disabled.'}
                     </p>
                     <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                       <SmallInlineMetric label="24h" value={channel.messages24h} />
@@ -1188,7 +1259,7 @@ export function PicobotPage() {
                         'w-full rounded-2xl border p-4 text-left transition-all',
                         session.id === selectedSessionId
                           ? 'border-primary/20 bg-primary/[0.05]'
-                          : 'border-border/30 bg-card/30 hover:border-primary/15 hover:bg-card/50',
+                          : 'border-border/30 bg-card/30 hover:border-primary/15 hover:bg-card/50'
                       )}
                     >
                       <div className="flex items-center justify-between gap-3">
@@ -1227,7 +1298,11 @@ export function PicobotPage() {
               title="Telegram Log Console"
               description="Read-only operator trace from Picobot channel activity, with session-aware filtering."
               icon={MessageSquare}
-              trailing={isLogsLoading ? <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" /> : undefined}
+              trailing={
+                isLogsLoading ? (
+                  <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
+                ) : undefined
+              }
             />
 
             <div className="mb-5 flex flex-col gap-4 rounded-3xl border border-border/30 bg-background/50 p-4">
@@ -1296,10 +1371,15 @@ export function PicobotPage() {
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <StatusBadge label={log.direction} tone={directionTone(log.direction)} />
+                            <StatusBadge
+                              label={log.direction}
+                              tone={directionTone(log.direction)}
+                            />
                             <StatusBadge label={log.channelType || 'unknown'} tone="neutral" />
                             <StatusBadge label={formatStatusLabel(log.type)} tone="info" />
-                            {log.userName && <StatusBadge label={truncate(log.userName, 20)} tone="neutral" />}
+                            {log.userName && (
+                              <StatusBadge label={truncate(log.userName, 20)} tone="neutral" />
+                            )}
                           </div>
                           <p className="mt-3 text-sm text-foreground">
                             {expanded ? log.message : truncate(log.summary, 220)}
@@ -1312,8 +1392,14 @@ export function PicobotPage() {
                       {expanded && (
                         <div className="mt-4 rounded-2xl border border-border/30 bg-card/30 p-4">
                           <div className="grid gap-3 sm:grid-cols-2">
-                            <MetadataRow label="User" value={log.userName || log.userId || 'unknown'} />
-                            <MetadataRow label="Timestamp" value={new Date(log.timestamp).toLocaleString()} />
+                            <MetadataRow
+                              label="User"
+                              value={log.userName || log.userId || 'unknown'}
+                            />
+                            <MetadataRow
+                              label="Timestamp"
+                              value={new Date(log.timestamp).toLocaleString()}
+                            />
                           </div>
                         </div>
                       )}
@@ -1343,7 +1429,7 @@ export function PicobotPage() {
                       'w-full rounded-2xl border p-4 text-left transition-all',
                       !selectedSessionId
                         ? 'border-primary/20 bg-primary/[0.05]'
-                        : 'border-border/30 bg-card/30 hover:border-primary/15 hover:bg-card/50',
+                        : 'border-border/30 bg-card/30 hover:border-primary/15 hover:bg-card/50'
                     )}
                   >
                     <div className="text-sm font-black uppercase tracking-[0.14em] text-foreground">
@@ -1361,17 +1447,21 @@ export function PicobotPage() {
                         'w-full rounded-2xl border p-4 text-left transition-all',
                         session.id === selectedSessionId
                           ? 'border-primary/20 bg-primary/[0.05]'
-                          : 'border-border/30 bg-card/30 hover:border-primary/15 hover:bg-card/50',
+                          : 'border-border/30 bg-card/30 hover:border-primary/15 hover:bg-card/50'
                       )}
                     >
                       <div className="flex items-center justify-between gap-3">
                         <span className="text-sm font-black uppercase tracking-[0.14em] text-foreground">
                           {session.userName || session.userId || truncate(session.id, 10)}
                         </span>
-                        <StatusBadge label={formatStatusLabel(session.status)} tone={statusTone(session.status)} />
+                        <StatusBadge
+                          label={formatStatusLabel(session.status)}
+                          tone={statusTone(session.status)}
+                        />
                       </div>
                       <p className="mt-2 text-sm text-secondary-content">
-                        {session.messageCount} messages since {formatRelativeTime(session.startedAt)}
+                        {session.messageCount} messages since{' '}
+                        {formatRelativeTime(session.startedAt)}
                       </p>
                     </button>
                   ))}
@@ -1387,8 +1477,13 @@ export function PicobotPage() {
               />
               <div className="space-y-3 text-sm text-secondary-content">
                 <p>
-                  Showing <span className="font-semibold text-foreground">{filteredLogs.length}</span> visible logs
-                  for <span className="font-semibold text-foreground">{selectedChannel === 'all' ? 'all channels' : selectedChannel}</span>.
+                  Showing{' '}
+                  <span className="font-semibold text-foreground">{filteredLogs.length}</span>{' '}
+                  visible logs for{' '}
+                  <span className="font-semibold text-foreground">
+                    {selectedChannel === 'all' ? 'all channels' : selectedChannel}
+                  </span>
+                  .
                 </p>
                 <p>
                   {selectedSession
@@ -1396,7 +1491,9 @@ export function PicobotPage() {
                     : 'No session is pinned; logs are flowing across the current channel selection.'}
                 </p>
                 <p>
-                  {lastUpdatedAt ? `Last refreshed ${formatRelativeTime(lastUpdatedAt)}.` : 'Refresh time not available yet.'}
+                  {lastUpdatedAt
+                    ? `Last refreshed ${formatRelativeTime(lastUpdatedAt)}.`
+                    : 'Refresh time not available yet.'}
                 </p>
               </div>
             </Panel>
@@ -1435,12 +1532,24 @@ export function PicobotPage() {
                             <span className="text-sm font-black uppercase tracking-[0.14em] text-foreground">
                               {tool.name}
                             </span>
-                            <StatusBadge label={formatStatusLabel(tool.status)} tone={statusTone(tool.status)} />
+                            <StatusBadge
+                              label={formatStatusLabel(tool.status)}
+                              tone={statusTone(tool.status)}
+                            />
                             <StatusBadge
                               label={effectiveRisk}
-                              tone={rankRiskLevel(effectiveRisk) >= 3 ? 'danger' : rankRiskLevel(effectiveRisk) === 2 ? 'warning' : 'neutral'}
+                              tone={
+                                rankRiskLevel(effectiveRisk) >= 3
+                                  ? 'danger'
+                                  : rankRiskLevel(effectiveRisk) === 2
+                                    ? 'warning'
+                                    : 'neutral'
+                              }
                             />
-                            <StatusBadge label={formatTierLabel(effectiveTier)} tone={effectiveTier >= 2 ? 'info' : 'neutral'} />
+                            <StatusBadge
+                              label={formatTierLabel(effectiveTier)}
+                              tone={effectiveTier >= 2 ? 'info' : 'neutral'}
+                            />
                           </div>
                           <p className="mt-2 text-sm text-secondary-content">
                             {tool.description || 'No description available.'}
@@ -1454,11 +1563,25 @@ export function PicobotPage() {
                           </div>
                         </div>
                         <div className="grid gap-3 sm:grid-cols-3 lg:min-w-[300px]">
-                          <SmallStat label="Invocations" value={tool.analytics?.totalInvocations ?? 0} detail="Total observed" compact />
-                          <SmallStat label="Success" value={formatPercent(tool.analytics?.successRate)} detail="Observed rate" compact />
+                          <SmallStat
+                            label="Invocations"
+                            value={tool.analytics?.totalInvocations ?? 0}
+                            detail="Total observed"
+                            compact
+                          />
+                          <SmallStat
+                            label="Success"
+                            value={formatPercent(tool.analytics?.successRate)}
+                            detail="Observed rate"
+                            compact
+                          />
                           <SmallStat
                             label="Latency"
-                            value={tool.analytics?.avgLatencyMs ? `${Math.round(tool.analytics.avgLatencyMs)}ms` : 'n/a'}
+                            value={
+                              tool.analytics?.avgLatencyMs
+                                ? `${Math.round(tool.analytics.avgLatencyMs)}ms`
+                                : 'n/a'
+                            }
                             detail="Average latency"
                             compact
                           />
@@ -1519,7 +1642,10 @@ export function PicobotPage() {
               />
               <div className="space-y-3">
                 {categoryCount.map(([category, count]) => (
-                  <div key={category} className="rounded-2xl border border-border/30 bg-background/50 p-4">
+                  <div
+                    key={category}
+                    className="rounded-2xl border border-border/30 bg-background/50 p-4"
+                  >
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-sm font-black uppercase tracking-[0.14em] text-foreground">
                         {category}
@@ -1566,14 +1692,22 @@ export function PicobotPage() {
                           <span className="text-sm font-black uppercase tracking-[0.14em] text-foreground">
                             {run.title || `Run ${truncate(run.runId, 14)}`}
                           </span>
-                          <StatusBadge label={formatStatusLabel(run.status)} tone={statusTone(run.status)} />
+                          <StatusBadge
+                            label={formatStatusLabel(run.status)}
+                            tone={statusTone(run.status)}
+                          />
                           <StatusBadge label={run.sourceSurface || 'unknown'} tone="neutral" />
                           {run.pendingApprovalCount > 0 && (
-                            <StatusBadge label={`${run.pendingApprovalCount} approvals`} tone="warning" />
+                            <StatusBadge
+                              label={`${run.pendingApprovalCount} approvals`}
+                              tone="warning"
+                            />
                           )}
                         </div>
                         <p className="mt-2 text-sm text-secondary-content">
-                          {run.failureDescription || run.terminalReasonLabel || 'Governed run visible from the DAX operator plane.'}
+                          {run.failureDescription ||
+                            run.terminalReasonLabel ||
+                            'Governed run visible from the DAX operator plane.'}
                         </p>
                       </div>
                       <div className="text-sm text-secondary-content">
@@ -1660,9 +1794,7 @@ function NodeCard({
     <div
       className={cn(
         'rounded-3xl border p-4',
-        accent
-          ? 'border-primary/20 bg-primary/[0.05]'
-          : 'border-border/30 bg-background/50',
+        accent ? 'border-primary/20 bg-primary/[0.05]' : 'border-border/30 bg-background/50'
       )}
     >
       <div className="text-[11px] font-black uppercase tracking-[0.18em] text-secondary-content">
@@ -1697,13 +1829,7 @@ function SmallStat({
   );
 }
 
-function SmallInlineMetric({
-  label,
-  value,
-}: {
-  label: string;
-  value: string | number;
-}) {
+function SmallInlineMetric({ label, value }: { label: string; value: string | number }) {
   return (
     <div className="rounded-2xl border border-border/30 bg-card/30 px-3 py-2">
       <div className="text-[10px] font-black uppercase tracking-[0.18em] text-secondary-content">
@@ -1714,13 +1840,7 @@ function SmallInlineMetric({
   );
 }
 
-function MetadataRow({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
+function MetadataRow({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <div className="text-[10px] font-black uppercase tracking-[0.18em] text-secondary-content">
@@ -1736,6 +1856,6 @@ function channelFilterClass(active: boolean) {
     'rounded-full px-3 py-2 text-xs font-black uppercase tracking-[0.16em] transition-colors',
     active
       ? 'bg-primary text-primary-foreground'
-      : 'bg-card/30 text-secondary-content hover:bg-card/50 hover:text-foreground',
+      : 'bg-card/30 text-secondary-content hover:bg-card/50 hover:text-foreground'
   );
 }

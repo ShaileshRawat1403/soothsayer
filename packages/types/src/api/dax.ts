@@ -68,6 +68,11 @@ export interface DaxCreateRunRequest {
       mode: 'explicit_repo_path' | 'default_cwd';
       repoPath?: string;
     };
+    // Picobot integration
+    picobotCommandId?: string;
+    commandType?: string;
+    // Additional context
+    [key: string]: unknown;
   };
 }
 

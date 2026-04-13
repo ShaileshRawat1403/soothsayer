@@ -33,6 +33,9 @@ model User {
   updatedAt       DateTime  @updatedAt
   deletedAt       DateTime?
 
+  // External integrations
+  telegramUserId  String?   @unique
+
   // Preferences stored as JSON
   preferences Json @default("{}")
 
@@ -928,6 +931,8 @@ model PicobotCommand {
   payload        Json
   status         String    @default("pending")
   result         Json?
+  daxRunId       String?
+  executedAt     DateTime?
   sentAt         DateTime?
   acknowledgedAt DateTime?
   completedAt    DateTime?
@@ -938,5 +943,6 @@ model PicobotCommand {
 
   @@index([picobotId])
   @@index([status])
+  @@index([daxRunId])
   @@index([createdAt])
 }

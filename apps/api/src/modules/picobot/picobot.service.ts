@@ -1,5 +1,7 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { DaxService } from '../dax/dax.service';
+import { DaxCreateRunRequest } from '@soothsayer/types';
 
 type LegacyPicobotInstanceRow = {
   id: string;
@@ -79,7 +81,10 @@ type LegacyPicobotAggregateRow = {
 
 @Injectable()
 export class PicobotService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly daxService: DaxService
+  ) {}
 
   async getOverview(userId: string, workspaceId?: string) {
     const resolvedWorkspaceId = await this.resolveWorkspaceId(userId, workspaceId);
@@ -570,6 +575,239 @@ export class PicobotService {
   }
 
   async handleWebhookEvent(payload: any) {
+    const { type, channelType, userId, userName, message, picobotId, timestamp } = payload;
+
+    if (!picobotId) {
+      return { success: false, error: 'picobotId required' };
+    }
+
+    const picobot = await this.prisma.picobotInstance.findUnique({
+      where: { id: picobotId },
+    });
+
+    if (!picobot) {
+      return { success: false, error: 'Picobot instance not found' };
+    }
+
+    const linkedUser = userId
+      ? await this.prisma.user.findUnique({
+          where: { telegramUserId: userId },
+        })
+      : null;
+
+    if (type === 'message_received' && message) {
+      const needsDaxExecution = this.shouldHandoffToDax(message);
+
+      if (needsDaxExecution) {
+        try {
+          const request: DaxCreateRunRequest = {
+            intent: {
+              input: message,
+            },
+            personaPreset: {
+              personaId: 'default',
+              riskLevel: 'medium',
+              approvalMode: 'balanced',
+            },
+            metadata: {
+              source: 'soothsayer',
+              workspaceId: picobot.workspaceId,
+              initiatedBy: linkedUser?.id || 'picobot-webhook',
+              picobotIngress: {
+                channelType,
+                userId,
+                userName,
+                timestamp,
+                linkedToSoothsayer: !!linkedUser,
+              },
+            },
+          };
+
+          const daxUser = linkedUser ? { id: linkedUser.id } : ({ id: 'picobot-webhook' } as any);
+          await this.daxService.createRun(daxUser, request);
+
+          return {
+            success: true,
+            routedToDax: true,
+            message: 'Message routed to DAX for governed execution',
+          };
+        } catch (error) {
+          return {
+            success: false,
+            error: 'Failed to create DAX run',
+          };
+        }
+      }
+
+      return {
+        success: true,
+        routedToDax: false,
+        message: 'Message received, handled locally',
+      };
+    }
+
+    if (type === 'session_start') {
+      await this.logActivity(
+        picobotId,
+        'session_start',
+        channelType,
+        userId,
+        userName,
+        'Session started'
+      );
+    }
+
     return { success: true, received: true };
+  }
+
+  private shouldHandoffToDax(message: string): boolean {
+    const lowerMessage = message.toLowerCase();
+
+    const daxKeywords = [
+      'write code',
+      'create file',
+      'modify',
+      'refactor',
+      'run command',
+      'execute',
+      'deploy',
+      'build',
+      'test',
+      'commit',
+      'push',
+      'merge',
+      'create pr',
+      'database',
+      'migration',
+      'setup',
+      'install',
+      'configure',
+      'delete',
+      'remove',
+    ];
+
+    return daxKeywords.some((keyword) => lowerMessage.includes(keyword));
+  }
+
+  private async logActivity(
+    picobotId: string,
+    type: string,
+    channelType: string | null,
+    userId: string | null,
+    userName: string | null,
+    message: string
+  ) {
+    await this.prisma.picobotActivity.create({
+      data: {
+        picobotId,
+        type,
+        channelType,
+        userId,
+        userName,
+        message,
+        metadata: {},
+        timestamp: new Date(),
+      },
+    });
+  }
+
+  async executeCommand(userId: string, commandId: string) {
+    const workspaceMember = await this.prisma.workspaceMember.findFirst({
+      where: { userId },
+      select: { workspaceId: true },
+    });
+
+    if (!workspaceMember) {
+      throw new ForbiddenException('No workspace access');
+    }
+
+    const command = await this.prisma.picobotCommand.findFirst({
+      where: {
+        id: commandId,
+        status: 'pending',
+      },
+      include: {
+        picobot: true,
+      },
+    });
+
+    if (!command) {
+      throw new NotFoundException('Pending command not found');
+    }
+
+    const userWorkspaces = await this.prisma.workspaceMember.findMany({
+      where: { userId },
+      select: { workspaceId: true },
+    });
+    const userWorkspaceIds = new Set(userWorkspaces.map((w) => w.workspaceId));
+
+    if (!userWorkspaceIds.has(command.picobot.workspaceId)) {
+      throw new ForbiddenException('Command not in your workspace');
+    }
+
+    const payload = command.payload as Record<string, unknown>;
+    const intentInput =
+      payload.input ||
+      payload.message ||
+      payload.command ||
+      `Execute command: ${command.commandType}`;
+
+    const request: DaxCreateRunRequest = {
+      intent: {
+        input: String(intentInput),
+      },
+      personaPreset: {
+        personaId: 'default',
+        riskLevel: 'medium',
+        approvalMode: 'balanced',
+      },
+      metadata: {
+        source: 'soothsayer',
+        workspaceId: workspaceMember.workspaceId,
+        picobotCommandId: command.id,
+        commandType: command.commandType,
+      },
+    };
+
+    const daxUser = { id: userId } as any;
+    const daxResponse = await this.daxService.createRun(daxUser, request);
+
+    await this.prisma.picobotCommand.update({
+      where: { id: commandId },
+      data: {
+        daxRunId: daxResponse.runId,
+        status: 'executing',
+        executedAt: new Date(),
+      },
+    });
+
+    return {
+      commandId: command.id,
+      daxRunId: daxResponse.runId,
+      status: 'executing',
+    };
+  }
+
+  async linkTelegramUser(userId: string, telegramUserId: string) {
+    const existingUser = await this.prisma.user.findUnique({
+      where: { telegramUserId },
+    });
+
+    if (existingUser && existingUser.id !== userId) {
+      return {
+        success: false,
+        error: 'This Telegram ID is already linked to another user',
+      };
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { telegramUserId },
+    });
+
+    return {
+      success: true,
+      message: 'Telegram user ID linked successfully',
+    };
   }
 }
